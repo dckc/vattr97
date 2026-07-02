@@ -1,0 +1,17 @@
+{
+  "name": "@vattr/skel",
+  "version": "0.0.0",
+  "private": true,
+  "description": "skeleton package",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint-fix": "eslint . --fix",
+    "test": "node --import ts-blank-space/register --import @endo/init/debug.js --test"
+  }
+}
