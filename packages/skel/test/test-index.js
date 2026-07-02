@@ -4,6 +4,7 @@ import { greet } from '../index.js';
 
 describe('@vattr/skel', () => {
   it('greet', () => {
-    assert.equal(greet('World'), 'Hello, World!');
+    const msg = harden(greet('World'));
+    assert.equal(msg, 'Hello, World!');
   });
 });

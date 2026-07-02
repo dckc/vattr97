@@ -12,6 +12,6 @@
   "scripts": {
     "lint": "eslint .",
     "lint-fix": "eslint . --fix",
-    "test": "node --import ts-blank-space/register --test"
+    "test": "node --import ts-blank-space/register --import @endo/init/debug.js --test"
   }
 }

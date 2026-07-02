@@ -16,8 +16,10 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@endo/init": "^1.1.13",
     "eslint": "^9.39.4",
     "prettier": "^3.8.1",
+    "ses": "^2.2.0",
     "ts-blank-space": "^0.9.0",
     "typescript": "^5.5.0"
   }
