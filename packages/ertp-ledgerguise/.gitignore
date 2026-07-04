@@ -1,3 +1,5 @@
 community1.db
 community1.db.*.log
 dist/
+node_modules/
+.yarn
