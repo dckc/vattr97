@@ -136,8 +136,6 @@ const formatBalances = (
   };
 };
 
-
-
 type WellKnown = {
   money: ReturnType<typeof ertpOnly>;
   stock: ReturnType<typeof ertpOnly>;
@@ -345,19 +343,16 @@ test('escrow for services rendered (mutual consent receipt)', async t => {
   t.log('Balances after escrow', formatBalances(balancesAfter, labels));
 
   t.log('Escrow completes; verify final balances.');
-  t.deepEqual(
-    balancesAfter,
-    {
-      carl: {
-        money: money.amount(0n),
-        stock: stock.amount(1n),
-      },
-      vince: {
-        money: money.amount(50n),
-        stock: stock.amount(0n),
-      },
+  t.deepEqual(balancesAfter, {
+    carl: {
+      money: money.amount(0n),
+      stock: stock.amount(1n),
     },
-  );
+    vince: {
+      money: money.amount(50n),
+      stock: stock.amount(0n),
+    },
+  });
 });
 
 test('escrow swaps two purses with a single holding account', async t => {

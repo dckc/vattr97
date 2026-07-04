@@ -31,7 +31,9 @@ export const createCommodityRow = ({
   commodity: CommoditySpec;
 }): void => {
   const row = db
-    .prepare<[string], { guid: string }>('SELECT guid FROM commodities WHERE guid = ?')
+    .prepare<[string], { guid: string }>(
+      'SELECT guid FROM commodities WHERE guid = ?',
+    )
     .get(guid);
   if (row) {
     throw new Error('commodity already exists');
@@ -66,12 +68,14 @@ export const ensureAccountRow = ({
   accountType?: string;
   parentGuid?: Guid | null;
 }): void => {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT OR IGNORE INTO accounts(
       guid, name, account_type, commodity_guid, commodity_scu, non_std_scu,
       parent_guid, code, description, hidden, placeholder
     ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0)
-  `).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
+  `,
+  ).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
 };
 
 export const createAccountRow = ({
@@ -90,17 +94,21 @@ export const createAccountRow = ({
   parentGuid?: Guid | null;
 }): void => {
   const row = db
-    .prepare<[string], { guid: string }>('SELECT guid FROM accounts WHERE guid = ?')
+    .prepare<[string], { guid: string }>(
+      'SELECT guid FROM accounts WHERE guid = ?',
+    )
     .get(accountGuid);
   if (row) {
     throw new Error('account already exists');
   }
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO accounts(
       guid, name, account_type, commodity_guid, commodity_scu, non_std_scu,
       parent_guid, code, description, hidden, placeholder
     ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0)
-  `).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
+  `,
+  ).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
 };
 
 export const requireAccountCommodity = ({
@@ -125,7 +133,10 @@ export const requireAccountCommodity = ({
   }
 };
 
-export const getCommodityAllegedName = (db: SqlDatabase, commodityGuid: Guid): string => {
+export const getCommodityAllegedName = (
+  db: SqlDatabase,
+  commodityGuid: Guid,
+): string => {
   const row = db
     .prepare<[string], { fullname: string | null; mnemonic: string }>(
       'SELECT fullname, mnemonic FROM commodities WHERE guid = ?',
@@ -134,7 +145,10 @@ export const getCommodityAllegedName = (db: SqlDatabase, commodityGuid: Guid): s
   return row?.fullname || row?.mnemonic || 'GnuCash';
 };
 
-export const getAccountBalance = (db: SqlDatabase, accountGuid: Guid): bigint => {
+export const getAccountBalance = (
+  db: SqlDatabase,
+  accountGuid: Guid,
+): bigint => {
   const row = db
     .prepare<[string], { qty: string }>(
       'SELECT COALESCE(SUM(quantity_num), 0) AS qty FROM splits WHERE account_guid = ?',
@@ -195,12 +209,14 @@ export const makeTransferRecorder = ({
     reconcileState = 'n',
   ) => {
     const splitGuid = makeGuid();
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO splits(
         guid, tx_guid, account_guid, memo, action, reconcile_state, reconcile_date,
         value_num, value_denom, quantity_num, quantity_denom, lot_guid
       ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)
-    `).run(
+    `,
+    ).run(
       splitGuid,
       txGuid,
       accountGuid,
@@ -222,10 +238,12 @@ export const makeTransferRecorder = ({
     nowMsValue: number,
   ) => {
     const seconds = Math.floor(nowMsValue / 1000);
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO transactions(guid, currency_guid, num, post_date, enter_date, description)
       VALUES (?, ?, ?, datetime(date(?, 'unixepoch')), datetime(date(?, 'unixepoch')), ?)
-    `).run(
+    `,
+    ).run(
       txGuid,
       commodityGuid,
       checkNumber,
@@ -244,9 +262,16 @@ export const makeTransferRecorder = ({
   }) => {
     const nowMsValue = nowMs();
     const txGuid = makeGuid();
-    const resolvedCheckNumber = resolveCheckNumber(formatCheckNumber(nowMsValue));
+    const resolvedCheckNumber = resolveCheckNumber(
+      formatCheckNumber(nowMsValue),
+    );
     recordTransaction(txGuid, amount, resolvedCheckNumber, nowMsValue);
-    const holdingSplitGuid = recordSplit(txGuid, holdingAccountGuid, amount, 'n');
+    const holdingSplitGuid = recordSplit(
+      txGuid,
+      holdingAccountGuid,
+      amount,
+      'n',
+    );
     recordSplit(txGuid, fromAccountGuid, -amount, 'n');
     return { txGuid, holdingSplitGuid, checkNumber: resolvedCheckNumber };
   };
@@ -263,7 +288,10 @@ export const makeTransferRecorder = ({
     db.prepare(
       'UPDATE splits SET account_guid = ?, reconcile_state = ? WHERE guid = ?',
     ).run(toAccountGuid, 'c', holdingSplitGuid);
-    db.prepare('UPDATE splits SET reconcile_state = ? WHERE tx_guid = ?').run('c', txGuid);
+    db.prepare('UPDATE splits SET reconcile_state = ? WHERE tx_guid = ?').run(
+      'c',
+      txGuid,
+    );
   };
 
   return { createHold, finalizeHold };

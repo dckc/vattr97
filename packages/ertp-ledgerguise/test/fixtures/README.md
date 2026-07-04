@@ -1,7 +1,7 @@
 # Fixtures: ERTP to GnuCash Table Shapes
 
 These CSVs are example-first specs for how ERTP actions map into GnuCash SQL
-tables. They are not exhaustive; they show the intended *shape* and example
+tables. They are not exhaustive; they show the intended _shape_ and example
 values for key rows.
 
 ## Conventions

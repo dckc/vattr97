@@ -76,13 +76,21 @@ export const makePurseFactory = ({
       Nat(amount.value);
       const balance = getAccountBalance(db, accountGuid);
       if (amount.value > balance) throw new Error('insufficient funds');
-      const { txGuid, holdingSplitGuid, checkNumber } = transferRecorder.createHold({
-        fromAccountGuid: accountGuid,
-        amount: amount.value,
-      });
-      return makePayment(amount, accountGuid, txGuid, holdingSplitGuid, checkNumber);
+      const { txGuid, holdingSplitGuid, checkNumber } =
+        transferRecorder.createHold({
+          fromAccountGuid: accountGuid,
+          amount: amount.value,
+        });
+      return makePayment(
+        amount,
+        accountGuid,
+        txGuid,
+        holdingSplitGuid,
+        checkNumber,
+      );
     };
-    const getCurrentAmount = () => makeAmount(getAccountBalance(db, accountGuid));
+    const getCurrentAmount = () =>
+      makeAmount(getAccountBalance(db, accountGuid));
     const depositFacet = exo(`${commodityLabel} DepositFacet`, {
       receive: (payment: object, optAmountShape?: unknown) =>
         deposit(payment, optAmountShape),

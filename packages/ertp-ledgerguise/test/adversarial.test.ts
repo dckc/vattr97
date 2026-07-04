@@ -23,23 +23,47 @@ const seedAccountBalance = (
   commodityGuid: string,
   amount: bigint,
 ) => {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO accounts(
       guid, name, account_type, commodity_guid, commodity_scu, non_std_scu,
       parent_guid, code, description, hidden, placeholder
     ) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, 0)
-  `).run(accountGuid, 'Victim', 'ASSET', commodityGuid, 1, 0);
+  `,
+  ).run(accountGuid, 'Victim', 'ASSET', commodityGuid, 1, 0);
   const txGuid = asGuid('c'.repeat(32));
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO transactions(guid, currency_guid, num, post_date, enter_date, description)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(txGuid, commodityGuid, '', '1970-01-01 00:00:00', '1970-01-01 00:00:00', 'seed');
-  db.prepare(`
+  `,
+  ).run(
+    txGuid,
+    commodityGuid,
+    '',
+    '1970-01-01 00:00:00',
+    '1970-01-01 00:00:00',
+    'seed',
+  );
+  db.prepare(
+    `
     INSERT INTO splits(
       guid, tx_guid, account_guid, memo, action, reconcile_state, reconcile_date,
       value_num, value_denom, quantity_num, quantity_denom, lot_guid
     ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)
-  `).run(asGuid('d'.repeat(32)), txGuid, accountGuid, '', '', 'n', amount.toString(), 1, amount.toString(), 1);
+  `,
+  ).run(
+    asGuid('d'.repeat(32)),
+    txGuid,
+    accountGuid,
+    '',
+    '',
+    'n',
+    amount.toString(),
+    1,
+    amount.toString(),
+    1,
+  );
 };
 
 test('rejects negative withdraw amounts', t => {
@@ -99,11 +123,13 @@ test('createIssuerKit rejects commodity GUID collisions', t => {
   initGnuCashSchema(db);
 
   const existingGuid = asGuid('f'.repeat(32));
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO commodities(
       guid, namespace, mnemonic, fullname, cusip, fraction, quote_flag, quote_source, quote_tz
     ) VALUES (?, ?, ?, ?, NULL, ?, ?, NULL, NULL)
-  `).run(existingGuid, 'COMMODITY', 'BUCKS', 'BUCKS', 1, 0);
+  `,
+  ).run(existingGuid, 'COMMODITY', 'BUCKS', 'BUCKS', 1, 0);
 
   const makeGuid = () => existingGuid;
   const commodity = freeze({
@@ -129,13 +155,19 @@ test('withdraw rejects wrong-brand amounts', t => {
   const bucks = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const credits = freeze({ namespace: 'COMMODITY', mnemonic: 'CREDITS' });
 
-  const bucksKit = createIssuerKit(freeze({ db, commodity: bucks, makeGuid, nowMs }));
-  const creditsKit = createIssuerKit(freeze({ db, commodity: credits, makeGuid, nowMs }));
+  const bucksKit = createIssuerKit(
+    freeze({ db, commodity: bucks, makeGuid, nowMs }),
+  );
+  const creditsKit = createIssuerKit(
+    freeze({ db, commodity: credits, makeGuid, nowMs }),
+  );
 
   const bucksBrand = bucksKit.brand as Brand<'nat'>;
-  const bucksAmount = (value: bigint): NatAmount => freeze({ brand: bucksBrand, value });
+  const bucksAmount = (value: bigint): NatAmount =>
+    freeze({ brand: bucksBrand, value });
   const creditsBrand = creditsKit.brand as Brand<'nat'>;
-  const creditsAmount = (value: bigint): NatAmount => freeze({ brand: creditsBrand, value });
+  const creditsAmount = (value: bigint): NatAmount =>
+    freeze({ brand: creditsBrand, value });
 
   const purse = bucksKit.issuer.makeEmptyPurse();
   const payment = bucksKit.mint.mintPayment(bucksAmount(10n));
@@ -156,8 +188,12 @@ test('openAccountPurse rejects wrong-commodity accounts', t => {
   const bucks = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const credits = freeze({ namespace: 'COMMODITY', mnemonic: 'CREDITS' });
 
-  const bucksKit = createIssuerKit(freeze({ db, commodity: bucks, makeGuid, nowMs }));
-  const creditsKit = createIssuerKit(freeze({ db, commodity: credits, makeGuid, nowMs }));
+  const bucksKit = createIssuerKit(
+    freeze({ db, commodity: bucks, makeGuid, nowMs }),
+  );
+  const creditsKit = createIssuerKit(
+    freeze({ db, commodity: credits, makeGuid, nowMs }),
+  );
   const accountGuid = (() => {
     const purse = bucksKit.issuer.makeEmptyPurse();
     return bucksKit.purses.getGuid(purse);

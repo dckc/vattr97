@@ -30,6 +30,7 @@ export const wrapBetterSqlite3Database = (db: Database): SqlDatabase => ({
   exec: (sql: string) => {
     db.exec(sql);
   },
-  prepare: <TParams extends unknown[] = unknown[], TRow = unknown>(sql: string) =>
-    wrapStatement<TParams, TRow>(db.prepare(sql) as BetterSqliteStatement),
+  prepare: <TParams extends unknown[] = unknown[], TRow = unknown>(
+    sql: string,
+  ) => wrapStatement<TParams, TRow>(db.prepare(sql) as BetterSqliteStatement),
 });

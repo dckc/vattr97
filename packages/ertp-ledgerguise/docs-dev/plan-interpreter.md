@@ -11,7 +11,7 @@ semantics.
 
 ## Pattern
 
-- Define a small set of *plan steps* that represent relational intent
+- Define a small set of _plan steps_ that represent relational intent
   (select, retarget, mark reconciled).
 - Build pure plan constructors in the domain layer.
 - Execute plans in a single interpreter that performs SQL/Drizzle updates.

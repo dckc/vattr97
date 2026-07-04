@@ -62,14 +62,15 @@ const getTotalForAccountType = (
     ? ` AND accounts.guid NOT IN (${excludeGuids.map(() => '?').join(', ')})`
     : '';
   const row = db
-    .prepare(`
+    .prepare(
+      `
       SELECT COALESCE(SUM(quantity_num), 0) AS total
       FROM splits JOIN accounts ON splits.account_guid = accounts.guid
       WHERE accounts.account_type = ? AND accounts.commodity_guid = ?${filters}
-    `)
-    .get(
-      ...([accountType, commodityGuid, ...excludeGuids] as string[]),
-    ) as { total: string } | undefined;
+    `,
+    )
+    .get(...([accountType, commodityGuid, ...excludeGuids] as string[])) as
+    { total: string } | undefined;
   return BigInt(row?.total ?? '0');
 };
 const toRowStrings = (
@@ -77,10 +78,15 @@ const toRowStrings = (
   columns: string[],
 ): string[] => {
   const widths = columns.map(column =>
-    Math.max(column.length, ...rows.map(row => String(row[column] ?? '').length)),
+    Math.max(
+      column.length,
+      ...rows.map(row => String(row[column] ?? '').length),
+    ),
   );
   const format = (row: Record<string, string>) =>
-    columns.map((column, index) => String(row[column] ?? '').padEnd(widths[index])).join(' | ');
+    columns
+      .map((column, index) => String(row[column] ?? '').padEnd(widths[index]))
+      .join(' | ');
   const header = Object.fromEntries(columns.map(column => [column, column]));
   return [format(header), ...rows.map(format)];
 };
@@ -106,7 +112,9 @@ serial.before(t => {
   const escrow = makeEscrow({
     db,
     commodityGuid: kit.commodityGuid,
-    holdingAccountGuid: makeDeterministicGuid(`ledgerguise-balance:${kit.commodityGuid}`),
+    holdingAccountGuid: makeDeterministicGuid(
+      `ledgerguise-balance:${kit.commodityGuid}`,
+    ),
     getPurseGuid: kit.purses.getGuid,
     brand: kit.brand,
     makeGuid,
@@ -271,7 +279,8 @@ serial('stage 3: award contributions to members', t => {
     totalsByMember.set(name, 0n);
   }
   let issueCounter = 123;
-  const issueValue = (issueNumber: number) => BigInt(1 + ((issueNumber - 123) % 5));
+  const issueValue = (issueNumber: number) =>
+    BigInt(1 + ((issueNumber - 123) % 5));
   const issueSubjects = [
     'improve treasury report',
     'refactor chart placement',
@@ -311,8 +320,12 @@ serial('stage 3: award contributions to members', t => {
 
 serial('stage 4: run balance sheet and income statement', t => {
   const { db, kit } = t.context as CommunityContext;
-  const holdingGuid = makeDeterministicGuid(`ledgerguise-balance:${kit.commodityGuid}`);
-  const recoveryGuid = makeDeterministicGuid(`ledgerguise:recovery:${kit.commodityGuid}`);
+  const holdingGuid = makeDeterministicGuid(
+    `ledgerguise-balance:${kit.commodityGuid}`,
+  );
+  const recoveryGuid = makeDeterministicGuid(
+    `ledgerguise:recovery:${kit.commodityGuid}`,
+  );
   // Exclude holding/recovery from statement totals; they act as equity-like backing.
   t.is(
     getTotalForAccountType(db, kit.commodityGuid, 'STOCK', [
@@ -336,7 +349,7 @@ serial('stage 4: run balance sheet and income statement', t => {
         placeholder: number;
       }
     >(
-`
+      `
         SELECT guid, name, parent_guid, account_type, placeholder
         FROM accounts
         WHERE commodity_guid = ?
@@ -364,8 +377,16 @@ serial('stage 4: run balance sheet and income statement', t => {
     'accounts view',
   );
 
-  const registerColumns = ['tx_guid', 'num', 'description', 'value_num', 'reconcile_state'];
-  const accountByGuid = new Map(accounts.map(account => [account.guid, account]));
+  const registerColumns = [
+    'tx_guid',
+    'num',
+    'description',
+    'value_num',
+    'reconcile_state',
+  ];
+  const accountByGuid = new Map(
+    accounts.map(account => [account.guid, account]),
+  );
   const accountLabelCache = new Map<string, string>();
   const toAccountLabel = (guid: string): string => {
     const cached = accountLabelCache.get(guid);
@@ -373,7 +394,9 @@ serial('stage 4: run balance sheet and income statement', t => {
     const account = accountByGuid.get(guid);
     if (!account) return guid;
     const label =
-      account.parent_guid && account.parent_guid !== '' && account.parent_guid !== rootGuid
+      account.parent_guid &&
+      account.parent_guid !== '' &&
+      account.parent_guid !== rootGuid
         ? `${toAccountLabel(account.parent_guid)}:${account.name}`
         : account.name;
     accountLabelCache.set(guid, label);
@@ -390,13 +413,15 @@ serial('stage 4: run balance sheet and income statement', t => {
           value_num: string;
           reconcile_state: string;
         }
-      >(`
+      >(
+        `
         SELECT splits.tx_guid, transactions.num, transactions.description,
           splits.value_num, splits.reconcile_state
         FROM splits JOIN transactions ON splits.tx_guid = transactions.guid
         WHERE splits.account_guid = ?
         ORDER BY splits.tx_guid, splits.guid
-      `)
+      `,
+      )
       .all(account.guid);
     t.snapshot(
       toRowStrings(

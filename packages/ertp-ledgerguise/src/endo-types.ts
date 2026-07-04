@@ -1,8 +1,7 @@
 export type Key = unknown;
 export type Pattern = unknown;
-export const PASS_STYLE = /** @type {'Symbol(passStyle)'} */ (
-  /** @type {unknown} */ (Symbol.for('passStyle'))
-);
+export const PASS_STYLE /** @type {'Symbol(passStyle)'} */ =
+  /** @type {unknown} */ Symbol.for('passStyle');
 export type RemotableObject = {
   [PASS_STYLE]?: string;
   [Symbol.toStringTag]?: string;

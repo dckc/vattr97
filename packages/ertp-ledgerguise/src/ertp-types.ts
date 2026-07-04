@@ -55,12 +55,12 @@ export type Amount<
 > = K extends 'nat'
   ? NatAmount
   : K extends 'set'
-  ? SetAmount<M>
-  : K extends 'copySet'
-  ? CopySetAmount<M>
-  : K extends 'copyBag'
-  ? CopyBagAmount<M>
-  : AnyAmount;
+    ? SetAmount<M>
+    : K extends 'copySet'
+      ? CopySetAmount<M>
+      : K extends 'copyBag'
+        ? CopyBagAmount<M>
+        : AnyAmount;
 
 export type NatValue = bigint;
 export type SetValue<K extends Key = Key> = K[];
@@ -71,12 +71,12 @@ export type AssetValueForKind<
 > = K extends 'nat'
   ? NatValue
   : K extends 'set'
-  ? SetValue<M>
-  : K extends 'copySet'
-  ? CopySet<M>
-  : K extends 'copyBag'
-  ? CopyBag<M>
-  : never;
+    ? SetValue<M>
+    : K extends 'copySet'
+      ? CopySet<M>
+      : K extends 'copyBag'
+        ? CopyBag<M>
+        : never;
 
 type BrandMethods<K extends AssetKind> = {
   isMyIssuer: (allegedIssuer: ERef<Issuer<K>>) => Promise<boolean>;

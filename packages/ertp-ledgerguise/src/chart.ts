@@ -41,16 +41,27 @@ export const makeChartFacet = ({
     requireAccountCommodity({ db, accountGuid, commodityGuid });
     if (parentGuid !== null) {
       const row = db
-        .prepare<[string], { guid: string }>('SELECT guid FROM accounts WHERE guid = ?')
+        .prepare<[string], { guid: string }>(
+          'SELECT guid FROM accounts WHERE guid = ?',
+        )
         .get(parentGuid);
       if (!row) {
         throw new Error('parent account not found');
       }
     }
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE accounts SET name = ?, account_type = ?, parent_guid = ?, placeholder = ?, code = ?
       WHERE guid = ?
-    `).run(name, accountType, parentGuid, placeholder ? 1 : 0, code, accountGuid);
+    `,
+    ).run(
+      name,
+      accountType,
+      parentGuid,
+      placeholder ? 1 : 0,
+      code,
+      accountGuid,
+    );
   };
 
   return exo('ChartFacet', {

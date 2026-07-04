@@ -25,17 +25,17 @@ Parties fund asynchronously via `Promise<Payment>`. Alice may fund before Bob, o
 
 **Alice deposits 10 Moola:**
 
-| Account                    | Debit | Credit |
-|----------------------------|-------|--------|
-| Escrow:deal-123:Moola      | +10   |        |
-| Alice:Moola                |       | -10    |
+| Account               | Debit | Credit |
+| --------------------- | ----- | ------ |
+| Escrow:deal-123:Moola | +10   |        |
+| Alice:Moola           |       | -10    |
 
 **Bob deposits 1 Stock:**
 
-| Account                    | Debit | Credit |
-|----------------------------|-------|--------|
-| Escrow:deal-123:Stock      | +1    |        |
-| Bob:Stock                  |       | -1     |
+| Account               | Debit | Credit |
+| --------------------- | ----- | ------ |
+| Escrow:deal-123:Stock | +1    |        |
+| Bob:Stock             |       | -1     |
 
 ### 2. Settlement (Single Atomic Transaction)
 
@@ -43,12 +43,12 @@ To preserve atomicity on the ledger, the swap is recorded as a single transactio
 
 **"Settle deal-123: Alice gets Stock, Bob gets Moola"**
 
-| Account                    | Debit | Credit |
-|----------------------------|-------|--------|
-| Bob:Moola                  | +10   |        |
-| Escrow:deal-123:Moola      |       | -10    |
-| Alice:Stock                | +1    |        |
-| Escrow:deal-123:Stock      |       | -1     |
+| Account               | Debit | Credit |
+| --------------------- | ----- | ------ |
+| Bob:Moola             | +10   |        |
+| Escrow:deal-123:Moola |       | -10    |
+| Alice:Stock           | +1    |        |
+| Escrow:deal-123:Stock |       | -1     |
 
 ### 3. Cancellation (Single Atomic Transaction)
 
@@ -56,12 +56,12 @@ A cancellation returns funds to their owners as a single atomic transaction.
 
 **"Cancel deal-123: Assets returned"**
 
-| Account                    | Debit | Credit |
-|----------------------------|-------|--------|
-| Alice:Moola                | +10   |        |
-| Escrow:deal-123:Moola      |       | -10    |
-| Bob:Stock                  | +1    |        |
-| Escrow:deal-123:Stock      |       | -1     |
+| Account               | Debit | Credit |
+| --------------------- | ----- | ------ |
+| Alice:Moola           | +10   |        |
+| Escrow:deal-123:Moola |       | -10    |
+| Bob:Stock             | +1    |        |
+| Escrow:deal-123:Stock |       | -1     |
 
 ## AMIX State Machine
 
@@ -80,11 +80,13 @@ See `amix-gimix-background.md` for the full AMIX model.
 **Issue:** How should in-flight payments be represented in the GnuCash ledger?
 
 **Position A (no holds):**
+
 - Only record transfers at deposit time
 - Simpler model, fewer rows
 - But: loses in-flight payment durability; if process crashes, value disappears
 
 **Position B (mutable hold transaction):**
+
 - `withdraw()` creates a hold transaction with `reconcile_state='n'`
 - `deposit()` retargets the split to the destination and sets `reconcile_state='c'`
 - Preserves a single transaction per payment with durable record
@@ -92,6 +94,7 @@ See `amix-gimix-background.md` for the full AMIX model.
 **Decision:** Use mutable hold transactions.
 
 **Consequences:**
+
 - Transfers remain auditable as single transactions after deposit
 - Split destination mutation is part of the model (tested in `design-doc.test.ts`)
 - The `reconcile_state` column serves double duty: GnuCash reconciliation + hold tracking
@@ -103,11 +106,13 @@ The hold transaction model above assumes we can atomically write to the database
 **Issue:** Should the GnuCash-backed ERTP facade use synchronous or asynchronous DB access?
 
 **Position A (sync):**
+
 - Closer to ERTP's synchronous semantics (brand/purse/amount operations are typically sync)
 - Easier to reason about atomicity in a single vat/turn
 - Aligns with `better-sqlite3` and some WASM in-memory modes
 
 **Position B (async):**
+
 - Required in some environments (Cloudflare Workers/D1, OPFS-backed WASM)
 - Matches vbank's pattern: sync bridge calls, async balance updates
 - Avoids blocking the event loop in hosted environments
@@ -115,6 +120,7 @@ The hold transaction model above assumes we can atomically write to the database
 **Decision:** Start with synchronous DB access via injected capability.
 
 **Consequences:**
+
 - The `db` capability is sync (`better-sqlite3` style)
 - Async environments would need a different adapter that pre-loads data or uses a different injection pattern
 - Tests use in-memory sync adapters

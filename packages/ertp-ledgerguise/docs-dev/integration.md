@@ -15,7 +15,7 @@ chart.placePurse({
   name: 'Checking',
   parentGuid: bankGuid,
   accountType: 'BANK',
-  code: '1110',  // Stable identifier for external systems
+  code: '1110', // Stable identifier for external systems
 });
 
 // Or using GUID directly (if you already know the account GUID)
@@ -30,16 +30,17 @@ chart.placeAccount({
 
 ### Typical Numbering Conventions
 
-| Range | Category |
-|-------|----------|
-| 1000-1999 | Assets |
-| 2000-2999 | Liabilities |
-| 3000-3999 | Equity |
-| 4000-4999 | Income |
+| Range     | Category           |
+| --------- | ------------------ |
+| 1000-1999 | Assets             |
+| 2000-2999 | Liabilities        |
+| 3000-3999 | Equity             |
+| 4000-4999 | Income             |
 | 5000-5999 | Cost of Goods Sold |
-| 6000-6999 | Expenses |
+| 6000-6999 | Expenses           |
 
 Within a category, use hierarchical numbering:
+
 - `1000` Assets (placeholder)
 - `1100` Bank (placeholder)
 - `1110` Checking
@@ -69,6 +70,7 @@ Transaction numbers are set during `withdraw()` operations via the `nowMs` clock
 ## GUIDs
 
 GnuCash uses 32-character hex GUIDs as primary keys. These are:
+
 - Globally unique
 - Stable across exports/imports
 - Suitable for distributed systems
@@ -92,6 +94,7 @@ const makeGuid = makeDeterministicGuid();
 ### 1. Bank Reconciliation
 
 Use account codes to map GnuCash accounts to bank accounts, then reconcile by matching:
+
 - Transaction dates (`post_date`)
 - Amounts (`value_num / value_denom`)
 - Reference numbers (`num`)
@@ -99,6 +102,7 @@ Use account codes to map GnuCash accounts to bank accounts, then reconcile by ma
 ### 2. External Ledger Sync
 
 Export transactions with:
+
 - Account codes (not GUIDs) for portability
 - ISO dates from `post_date`
 - Rational amounts (`value_num / value_denom`)
@@ -110,6 +114,7 @@ The `enter_date` field records when a transaction was created (vs `post_date` wh
 ### 4. Multi-System Escrow
 
 For escrow spanning multiple systems:
+
 1. Create escrow accounts with agreed-upon codes
 2. Use transaction `num` fields for correlation IDs
 3. Query by code to verify state across systems

@@ -107,7 +107,9 @@ export const makeSettlementFacet = ({
         )
         .get(firstTxGuid, ...restTxGuids);
       if (pendingSplits && pendingSplits.count > 0) {
-        throw new Error('Cannot consolidate: found pending (non-cleared) splits');
+        throw new Error(
+          'Cannot consolidate: found pending (non-cleared) splits',
+        );
       }
 
       // Move splits from other transactions, updating value to currency terms

@@ -21,7 +21,7 @@ const kit = createIssuerKit({
   db,
   commodity,
   makeGuid,
-  nowMs: () => Date.now(),  // Injected capability
+  nowMs: () => Date.now(), // Injected capability
 });
 
 // Testing: deterministic clock
@@ -57,10 +57,11 @@ const { freeze } = Object;
 // Good: freeze before returning
 return freeze({
   escrowExchange,
-  getSealedPurses: () => freeze({
-    A: sealers.A.seal(escrows.A),
-    B: sealers.B.seal(escrows.B),
-  }),
+  getSealedPurses: () =>
+    freeze({
+      A: sealers.A.seal(escrows.A),
+      B: sealers.B.seal(escrows.B),
+    }),
 });
 
 // Only freeze values you create
@@ -77,7 +78,7 @@ const kit = createIssuerKit({
   commodity,
   makeGuid,
   nowMs,
-  zone,  // Controls how objects are created (exo, etc.)
+  zone, // Controls how objects are created (exo, etc.)
 });
 ```
 
@@ -97,10 +98,10 @@ This follows the Principle of Least Authority (POLA): give each object only the 
 
 Capabilities fall into two categories based on how they're distributed:
 
-| Category | Description | Examples |
-|----------|-------------|----------|
-| **Closely held** | Kept private within an actor; not shared | Purses, private keys, unsealer |
-| **Widely shared** | Freely given to counterparties | Deposit facets, sealed tokens, brand |
+| Category          | Description                              | Examples                             |
+| ----------------- | ---------------------------------------- | ------------------------------------ |
+| **Closely held**  | Kept private within an actor; not shared | Purses, private keys, unsealer       |
+| **Widely shared** | Freely given to counterparties           | Deposit facets, sealed tokens, brand |
 
 A purse is closely held—only its owner can withdraw from it. But the purse's deposit facet is widely shared—anyone can deposit into it. This asymmetry enables safe cooperation: you can receive payments without risking your balance.
 
@@ -114,7 +115,7 @@ const makeParty = ({ issuer, sealer }) => {
     getDepositFacet: () => purse.getDepositFacet(),
     getSealedPurse: () => sealer.seal(purse),
     // Closely held - requires party's cooperation
-    fund: (amount) => purse.withdraw(amount),
+    fund: amount => purse.withdraw(amount),
   });
 };
 ```
@@ -135,19 +136,19 @@ A sealer and unsealer work like public key cryptography conceptually. You give s
 const { sealer, unsealer } = makeSealerUnsealerPair();
 
 // Seal a powerful object into an inert token
-const token = sealer.seal(purse);  // token has no authority
+const token = sealer.seal(purse); // token has no authority
 
 // Only the matching unsealer can retrieve the original
-const original = unsealer.unseal(token);  // returns the purse
+const original = unsealer.unseal(token); // returns the purse
 ```
 
 This allows sharing identification without sharing authority:
 
-| What you have | Authority |
-|---------------|-----------|
-| Purse | Full: deposit, withdraw, getBalance |
-| Sealed token | No methods |
-| Unsealer | Can retrieve original to inspect it |
+| What you have | Authority                           |
+| ------------- | ----------------------------------- |
+| Purse         | Full: deposit, withdraw, getBalance |
+| Sealed token  | No methods                          |
+| Unsealer      | Can retrieve original to inspect it |
 
 See `src/sealer.ts` for the implementation and `escrow-accounting.md` for how it's used to identify escrow accounts without leaking withdrawal authority.
 

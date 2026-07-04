@@ -80,9 +80,7 @@ export const ensureGnuCashSchema = (
   options: { allowTransactionStatements?: boolean } = {},
 ): void => {
   const row = db
-    .prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-    )
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
     .get('accounts');
   if (!row) {
     initGnuCashSchema(db, options);
@@ -163,7 +161,9 @@ const makeIssuerKitForCommodity = ({
   };
   const getAllegedName = () => getCommodityAllegedName(db, commodityGuid);
   const commodityLabel = getAllegedName();
-  const balanceAccountGuid = makeDeterministicGuid(`ledgerguise-balance:${commodityGuid}`);
+  const balanceAccountGuid = makeDeterministicGuid(
+    `ledgerguise-balance:${commodityGuid}`,
+  );
   ensureAccountRow({
     db,
     accountGuid: balanceAccountGuid,
@@ -179,18 +179,20 @@ const makeIssuerKitForCommodity = ({
     makeGuid,
     nowMs,
   });
-  const { ensurePurse, makeNewPurse, openPurse, purseGuids } = makePurseFactory({
-    db,
-    commodityGuid,
-    commodityLabel,
-    makeAmount,
-    makePayment,
-    livePayments,
-    paymentRecords,
-    transferRecorder,
-    getBrand: () => brand,
-    zone,
-  });
+  const { ensurePurse, makeNewPurse, openPurse, purseGuids } = makePurseFactory(
+    {
+      db,
+      commodityGuid,
+      commodityLabel,
+      makeAmount,
+      makePayment,
+      livePayments,
+      paymentRecords,
+      transferRecorder,
+      getBrand: () => brand,
+      zone,
+    },
+  );
   const brand = exo(`${commodityLabel} Brand`, {
     isMyIssuer: async (allegedIssuer: object) => allegedIssuer === issuer,
     getAllegedName: () => getAllegedName(),
@@ -206,8 +208,10 @@ const makeIssuerKitForCommodity = ({
       const accountGuid = makeGuid();
       return makeNewPurse(accountGuid, accountGuid);
     },
-    isLive: async (payment: object) => paymentRecords.get(payment)?.live ?? false,
-    getAmountOf: async (payment: object) => makeAmount(paymentRecords.get(payment)?.amount ?? 0n),
+    isLive: async (payment: object) =>
+      paymentRecords.get(payment)?.live ?? false,
+    getAmountOf: async (payment: object) =>
+      makeAmount(paymentRecords.get(payment)?.amount ?? 0n),
     burn: async (payment: object) => {
       const record = paymentRecords.get(payment);
       if (!record?.live) throw new Error('payment not live');
@@ -221,7 +225,9 @@ const makeIssuerKitForCommodity = ({
       return makeAmount(record.amount);
     },
   });
-  const mintRecoveryGuid = makeDeterministicGuid(`ledgerguise:recovery:${commodityGuid}`);
+  const mintRecoveryGuid = makeDeterministicGuid(
+    `ledgerguise:recovery:${commodityGuid}`,
+  );
   ensureAccountRow({
     db,
     accountGuid: mintRecoveryGuid,
@@ -233,14 +239,24 @@ const makeIssuerKitForCommodity = ({
     getIssuer: () => issuer,
     mintPayment: (amount: AmountLike) => {
       const amountValue = assertAmount(amount);
-      const { txGuid, holdingSplitGuid, checkNumber } = transferRecorder.createHold({
-        fromAccountGuid: mintRecoveryGuid,
-        amount: amountValue,
-      });
-      return makePayment(amount, mintRecoveryGuid, txGuid, holdingSplitGuid, checkNumber);
+      const { txGuid, holdingSplitGuid, checkNumber } =
+        transferRecorder.createHold({
+          fromAccountGuid: mintRecoveryGuid,
+          amount: amountValue,
+        });
+      return makePayment(
+        amount,
+        mintRecoveryGuid,
+        txGuid,
+        holdingSplitGuid,
+        checkNumber,
+      );
     },
   });
-  const mintRecoveryPurse = openPurse(mintRecoveryGuid, `${commodityLabel} Mint Recovery`);
+  const mintRecoveryPurse = openPurse(
+    mintRecoveryGuid,
+    `${commodityLabel} Mint Recovery`,
+  );
   const kit = freeze({
     brand,
     issuer,
@@ -262,7 +278,9 @@ const makeIssuerKitForCommodity = ({
     },
     openPayment: (checkNumber: string) => {
       const rows = db
-        .prepare<[string], { guid: string }>('SELECT guid FROM transactions WHERE num = ?')
+        .prepare<[string], { guid: string }>(
+          'SELECT guid FROM transactions WHERE num = ?',
+        )
         .all(checkNumber);
       if (rows.length !== 1) {
         throw new Error('payment check number not unique');
@@ -274,12 +292,19 @@ const makeIssuerKitForCommodity = ({
       const holdingSplit = db
         .prepare<
           [string, string],
-          { guid: string; account_guid: string; quantity_num: string; reconcile_state: string }
-        >(`
+          {
+            guid: string;
+            account_guid: string;
+            quantity_num: string;
+            reconcile_state: string;
+          }
+        >(
+          `
           SELECT guid, account_guid, quantity_num, reconcile_state
           FROM splits
           WHERE tx_guid = ? AND account_guid = ?
-        `)
+        `,
+        )
         .get(txGuid, balanceAccountGuid);
       if (!holdingSplit) {
         throw new Error('payment not live');
@@ -288,14 +313,13 @@ const makeIssuerKitForCommodity = ({
         throw new Error('payment not live');
       }
       const sourceSplit = db
-        .prepare<
-          [string, string],
-          { account_guid: string }
-        >(`
+        .prepare<[string, string], { account_guid: string }>(
+          `
           SELECT account_guid
           FROM splits
           WHERE tx_guid = ? AND account_guid != ?
-        `)
+        `,
+        )
         .get(txGuid, balanceAccountGuid);
       if (!sourceSplit) {
         throw new Error('payment missing source split');
@@ -345,7 +369,9 @@ const makeIssuerKitForCommodity = ({
  * live in separate facets that can be withheld from code that doesn't need them.
  * A caller with only `issuer` cannot learn account GUIDs or reify payments.
  */
-export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseGuids => {
+export const createIssuerKit = (
+  config: CreateIssuerConfig,
+): IssuerKitWithPurseGuids => {
   const { db, commodity, makeGuid, nowMs } = config;
   const zone = config.zone ?? defaultZone;
   // TODO: consider validation of DB capability and schema.
@@ -392,12 +418,21 @@ export const createIssuerKit = (config: CreateIssuerConfig): IssuerKitWithPurseG
  *
  * @see createIssuerKit for facet separation rationale
  */
-export const openIssuerKit = (config: OpenIssuerConfig): IssuerKitForCommodity => {
+export const openIssuerKit = (
+  config: OpenIssuerConfig,
+): IssuerKitForCommodity => {
   const { db, commodityGuid, makeGuid, nowMs } = config;
   const zone = config.zone ?? defaultZone;
   // TODO: consider validation of DB capability and schema.
   // TODO: verify commodity record matches expected issuer/brand metadata.
   // TODO: add a commodity-vs-currency option (namespace, fraction defaults, and naming rules).
   const { unsealer } = makeSealerUnsealerPair();
-  return makeIssuerKitForCommodity({ db, commodityGuid, makeGuid, nowMs, zone, unsealer });
+  return makeIssuerKitForCommodity({
+    db,
+    commodityGuid,
+    makeGuid,
+    nowMs,
+    zone,
+    unsealer,
+  });
 };

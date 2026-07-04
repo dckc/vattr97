@@ -3,7 +3,14 @@
  * @see ./escrow.ts
  */
 
-import type { AssetKind, DepositFacet, Issuer, Payment, Purse, Amount } from './ertp-types.js';
+import type {
+  AssetKind,
+  DepositFacet,
+  Issuer,
+  Payment,
+  Purse,
+  Amount,
+} from './ertp-types.js';
 import { defaultZone } from './jessie-tools.js';
 import type { Zone } from './jessie-tools.js';
 
@@ -12,7 +19,10 @@ const { freeze } = Object;
 /** Sealer can turn an object into an inert token. */
 export type Sealer = Readonly<{ seal: (obj: object) => object }>;
 
-export type EscrowParty<GiveKind extends AssetKind, WantKind extends AssetKind> = {
+export type EscrowParty<
+  GiveKind extends AssetKind,
+  WantKind extends AssetKind,
+> = {
   give: Promise<Payment<GiveKind>>;
   want: Amount<WantKind>;
   payouts: {
@@ -48,7 +58,8 @@ export const makeErtpEscrow = <
     B: issuers.B.makeEmptyPurse(),
   };
 
-  const escrowExchange = ( // <<< WRAPPED IN FUNCTION
+  const escrowExchange = (
+    // <<< WRAPPED IN FUNCTION
     a: EscrowParty<KindA, KindB>,
     b: EscrowParty<KindB, KindA>,
   ) => {
@@ -56,14 +67,15 @@ export const makeErtpEscrow = <
       A: Promise.resolve(a.give).then(payment => escrows.A.deposit(payment)),
       B: Promise.resolve(b.give).then(payment => escrows.B.deposit(payment)),
     };
-    const depositsP: Promise<{ A: Amount<KindA>; B: Amount<KindB> }> = Promise.all([
-      depositPs.A,
-      depositPs.B,
-    ]).then(([A, B]) => ({ A, B }));
+    const depositsP: Promise<{ A: Amount<KindA>; B: Amount<KindB> }> =
+      Promise.all([depositPs.A, depositPs.B]).then(([A, B]) => ({ A, B }));
     const depositsSettledP: Promise<{
       A: PromiseSettledResult<Amount<KindA>>;
       B: PromiseSettledResult<Amount<KindB>>;
-    }> = Promise.allSettled([depositPs.A, depositPs.B]).then(([A, B]) => ({ A, B }));
+    }> = Promise.allSettled([depositPs.A, depositPs.B]).then(([A, B]) => ({
+      A,
+      B,
+    }));
     const decisionP = Promise.race([
       depositsP,
       failOnly(a.cancellationP),
@@ -74,7 +86,11 @@ export const makeErtpEscrow = <
       escrow: Purse<K>,
       amount: Amount<K>,
     ) => Promise.resolve().then(() => payout.receive(escrow.withdraw(amount)));
-    const assertEnough = <K extends AssetKind>(have: Amount<K>, want: Amount<K>, who: string) => {
+    const assertEnough = <K extends AssetKind>(
+      have: Amount<K>,
+      want: Amount<K>,
+      who: string,
+    ) => {
       if (have.brand !== want.brand) {
         throw new Error(`amount brand mismatch: ${who}`);
       }
@@ -96,11 +112,12 @@ export const makeErtpEscrow = <
           assertEnough(amounts.A, b.want, 'party A');
           assertEnough(amounts.B, a.want, 'party B');
         } catch (error) {
-          return payoutBoth({ A: a.payouts.refund, B: b.payouts.refund }, amounts).then(
-            () => {
-              throw error;
-            },
-          );
+          return payoutBoth(
+            { A: a.payouts.refund, B: b.payouts.refund },
+            amounts,
+          ).then(() => {
+            throw error;
+          });
         }
         return payoutBoth({ A: b.payouts.want, B: a.payouts.want }, amounts);
       },
@@ -108,10 +125,14 @@ export const makeErtpEscrow = <
         depositsSettledP.then(settled => {
           const refunds: Promise<unknown>[] = [];
           if (settled.A.status === 'fulfilled') {
-            refunds.push(payoutOne(a.payouts.refund, escrows.A, settled.A.value));
+            refunds.push(
+              payoutOne(a.payouts.refund, escrows.A, settled.A.value),
+            );
           }
           if (settled.B.status === 'fulfilled') {
-            refunds.push(payoutOne(b.payouts.refund, escrows.B, settled.B.value));
+            refunds.push(
+              payoutOne(b.payouts.refund, escrows.B, settled.B.value),
+            );
           }
           return Promise.all(refunds).then(() => {
             throw error;

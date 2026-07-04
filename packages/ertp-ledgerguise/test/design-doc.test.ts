@@ -4,7 +4,13 @@
 
 import type { TestFn } from 'ava';
 import test from 'ava';
-import type { Brand, DepositFacet, Issuer, NatAmount, Payment } from '../src/ertp-types.js';
+import type {
+  Brand,
+  DepositFacet,
+  Issuer,
+  NatAmount,
+  Payment,
+} from '../src/ertp-types.js';
 import { makeErtpEscrow, type EscrowParty } from '../src/escrow-ertp.js';
 import {
   createIssuerKit,
@@ -264,7 +270,13 @@ serial('Building account hierarchies with placeholder parents', t => {
     .map(row => ({ ...row, placeholder: row.placeholder ? '1' : '0' }));
 
   t.snapshot(
-    toRowStrings(accounts, ['guid', 'code', 'name', 'parent_guid', 'placeholder']),
+    toRowStrings(accounts, [
+      'guid',
+      'code',
+      'name',
+      'parent_guid',
+      'placeholder',
+    ]),
     `The accounts table forms a tree via guid and parent_guid columns.
 Account codes (1000, 1100, etc.) enable cross-system integration.
 Placeholder accounts (1) group children; leaf accounts (0) hold balances.
@@ -316,7 +328,15 @@ serial('Withdraw creates a hold', t => {
 The hold keeps value in a dedicated holding account until deposit or cancel.`,
   );
   t.snapshot(
-    toRowStrings(holdSplits, ['guid', 'tx_guid', 'account_guid', 'account_name', 'value_num', 'value_denom', 'reconcile_state']),
+    toRowStrings(holdSplits, [
+      'guid',
+      'tx_guid',
+      'account_guid',
+      'account_name',
+      'value_num',
+      'value_denom',
+      'reconcile_state',
+    ]),
     `Hold splits (reconcile_state='n') show value leaving the purse and landing in the holding account.`,
   );
 });
@@ -430,7 +450,10 @@ const makeParty = (
     getMoolaDeposit: () => moola.getDepositFacet(),
     getStockDeposit: () => stock.getDepositFacet(),
     getBalances: () =>
-      freeze({ moola: moola.getCurrentAmount(), stock: stock.getCurrentAmount() }),
+      freeze({
+        moola: moola.getCurrentAmount(),
+        stock: stock.getCurrentAmount(),
+      }),
 
     /**
      * Build an EscrowParty for escrow-ertp.
@@ -535,18 +558,8 @@ serial('Escrow exchange (AMIX-style state machine)', async t => {
   // === AMIX STATE: Agreement ===
   // Create parties
   const parties = {
-    alice: makeParty(
-      moola.issuer,
-      stock.issuer,
-      moola.sealer,
-      stock.sealer,
-    ),
-    bob: makeParty(
-      moola.issuer,
-      stock.issuer,
-      moola.sealer,
-      stock.sealer,
-    ),
+    alice: makeParty(moola.issuer, stock.issuer, moola.sealer, stock.sealer),
+    bob: makeParty(moola.issuer, stock.issuer, moola.sealer, stock.sealer),
   };
 
   // Create escrow using escrow-ertp
@@ -592,14 +605,24 @@ serial('Escrow exchange (AMIX-style state machine)', async t => {
   tracker.getNewSplits(); // Clear any setup splits
 
   // Fund parties' purses (they receive assets from elsewhere)
-  parties.alice.getMoolaDeposit().receive(moola.mint.mintPayment(moolaAmt(10n)));
+  parties.alice
+    .getMoolaDeposit()
+    .receive(moola.mint.mintPayment(moolaAmt(10n)));
   parties.bob.getStockDeposit().receive(stock.mint.mintPayment(stockAmt(1n)));
   tracker.getNewSplits(); // Clear funding splits
 
   // Build offers - A gives moola, wants stock; B gives stock, wants moola
   const offers = freeze({
-    A: parties.alice.offer(moolaAmt(10n), stockAmt(1n), parties.alice.getStockDeposit()),
-    B: parties.bob.offer(stockAmt(1n), moolaAmt(10n), parties.bob.getMoolaDeposit()),
+    A: parties.alice.offer(
+      moolaAmt(10n),
+      stockAmt(1n),
+      parties.alice.getStockDeposit(),
+    ),
+    B: parties.bob.offer(
+      stockAmt(1n),
+      moolaAmt(10n),
+      parties.bob.getMoolaDeposit(),
+    ),
   });
 
   t.snapshot(
@@ -681,7 +704,9 @@ serial('Settlement links transactions (SettlementFacet)', async t => {
   });
 
   // Fund parties
-  parties.alice.getMoolaDeposit().receive(moola.mint.mintPayment(moolaAmt(10n)));
+  parties.alice
+    .getMoolaDeposit()
+    .receive(moola.mint.mintPayment(moolaAmt(10n)));
   parties.bob.getStockDeposit().receive(stock.mint.mintPayment(stockAmt(1n)));
 
   // Build offers
@@ -738,7 +763,11 @@ serial('Settlement links transactions (SettlementFacet)', async t => {
   t.snapshot(
     {
       transaction: `${shortGuid(tx.guid)} | ${tx.num} | ${tx.description}`,
-      splits: toRowStrings(splits, ['account_guid', 'value_num', 'quantity_num']),
+      splits: toRowStrings(splits, [
+        'account_guid',
+        'value_num',
+        'quantity_num',
+      ]),
     },
     `SettlementFacet consolidates ERTP settlements into one GnuCash transaction.
 Like ChartFacet names accounts, SettlementFacet handles GnuCash stock-trade format.
