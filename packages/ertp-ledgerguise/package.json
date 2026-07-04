@@ -1,13 +1,11 @@
 {
-  "name": "@finquick/ertp-ledgerguise",
+  "name": "@vattr/ertp-ledgerguise",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
     "codegen:sql": "node scripts/codegen-sql.mjs",
-    "lint:types": "tsc -p tsconfig.json --noEmit --incremental",
-    "test": "ava",
-    "check": "npm run lint:types && npm run test"
+    "test": "ava"
   },
   "ava": {
     "extensions": {
@@ -25,12 +23,10 @@
   },
   "dependencies": {
     "@agoric/ertp": "0.16.3-dev-dc67c18.0.dc67c18",
-    "better-sqlite3": "^12.6.2"
+    "better-sqlite3": "12.10.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.1",
-    "ava": "^5.3.1",
-    "ts-blank-space": "^0.6.2",
-    "typescript": "~5.9.3"
+    "ava": "^5.3.1"
   }
 }
