@@ -10,11 +10,6 @@ yarn check   # runs yarn lint && yarn test
 
 We use conventional commits (e.g., `feat:`, `fix:`, `test:`, `docs:`).
 
-## Background
-
-- Agoric PR: "SPIKE: toward correct-by-construction Zoe2 escrow" (#8184) https://github.com/Agoric/agoric-sdk/pull/8184
-- Vbank bridge flow: `packages/cosmic-swingset/README-bridge.md` in agoric-sdk
-
 ## Design
 
 ERTP concepts map to GnuCash:
@@ -89,9 +84,3 @@ These guidelines help AI agents contribute effectively:
 - [x] Ocap discipline: injected clock/db, frozen API surfaces
 - [x] Multi-commodity escrow with proper GnuCash stock-trade format (SettlementFacet)
 - [x] Design doc as executable snapshot tests (test/snapshots/design-doc.test.ts.md)
-
-**To do:**
-
-- [ ] Persist escrow state at each transition (crash recovery)
-- [ ] Read-only issuer facade (brand/displayInfo only)
-- [ ] Community rewards/budget voting (separate from escrow)

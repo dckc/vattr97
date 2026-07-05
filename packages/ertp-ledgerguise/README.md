@@ -12,7 +12,7 @@ ERTP-compatible facade over a GnuCash SQLite database.
 
 - Schema migrations or destructive DB changes.
 - A new UI or a full GnuCash replacement.
-- Automated bank/card syncing (handled elsewhere in finquick).
+- Automated bank/card syncing
 
 ## Documentation
 
