@@ -1,0 +1,40 @@
+{
+  "name": "@finquick/ertp-dacct",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "codegen:sql": "node scripts/codegen-sql.mjs",
+    "lint:types": "tsc -p tsconfig.json --noEmit --incremental",
+    "test": "ava",
+    "check": "npm run lint:types && npm run test"
+  },
+  "ava": {
+    "extensions": {
+      "js": true,
+      "ts": "module"
+    },
+    "files": [
+      "test/**/*.test.*"
+    ],
+    "nodeArguments": [
+      "--import=ses",
+      "--import=./test/shim.js",
+      "--import=@endo/eventual-send/shim.js",
+      "--import=ts-blank-space/register",
+      "--no-warnings"
+    ],
+    "require": []
+  },
+  "dependencies": {
+    "@agoric/ertp": "0.16.3-dev-dc67c18.0.dc67c18",
+    "better-sqlite3": "^12.6.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.1",
+    "ava": "^5.3.1",
+    "ts-blank-space": "^0.6.2",
+    "typescript": "~5.9.3"
+  },
+  "packageManager": "yarn@4.17.0+sha512.c2957de2f9025ab14d63b24d0d8be1f1655810e22c341042c27f7ecd017b180ec12db73d69ac366d71b304ef9f069349ce462de96f04f8f1da317f4f762c95ae"
+}
