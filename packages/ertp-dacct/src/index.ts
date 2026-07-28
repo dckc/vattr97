@@ -30,12 +30,14 @@ export type { Sealed, Sealer, Unsealer } from './sealer.js';
 
 export type {
   CommoditySpec,
+  CreateIssuerConfig,
+  OpenIssuerConfig,
   IssuerKitForCommodity,
   IssuerKitWithGuid,
   IssuerKitWithPurseGuids,
   NatIssuerKit,
 } from './types.js';
-export { asGuid } from './guids.js';
+export { asGuid, mockMakeGuid } from './guids.js';
 export { makeChartFacet } from './chart.js';
 export { makeErtpEscrow } from './escrow-ertp.js';
 export { makeSettlementFacet } from './settlement.js';

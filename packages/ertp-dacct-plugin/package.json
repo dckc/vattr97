@@ -1,14 +1,13 @@
 {
-  "name": "@finquick/ertp-dacct",
+  "name": "@finquick/ertp-dacct-plugin",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    "./host": "./src/host.ts"
   },
   "scripts": {
-    "codegen:sql": "node scripts/codegen-sql.mjs",
     "lint:types": "tsc -p tsconfig.json --noEmit --incremental",
     "test": "ava",
     "check": "npm run lint:types && npm run test"
@@ -23,7 +22,6 @@
     ],
     "nodeArguments": [
       "--import=ses",
-      "--import=./test/shim.js",
       "--import=@endo/eventual-send/shim.js",
       "--import=ts-blank-space/register",
       "--no-warnings"
@@ -31,8 +29,9 @@
     "require": []
   },
   "dependencies": {
-    "@agoric/ertp": "0.16.3-dev-dc67c18.0.dc67c18",
-    "better-sqlite3": "^12.6.2"
+    "@finquick/ertp-dacct": "workspace:^",
+    "better-sqlite3": "^12.6.2",
+    "ses": "^1.5.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.1",
