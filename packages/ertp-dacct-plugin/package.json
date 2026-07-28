@@ -2,10 +2,13 @@
   "name": "@finquick/ertp-dacct-plugin",
   "version": "0.0.1",
   "private": true,
+  "description": "Endo daemon example separating unconfined SQLite access from confined use",
   "type": "module",
+  "main": "./index.js",
   "exports": {
-    ".": "./src/index.ts",
-    "./host": "./src/host.ts"
+    ".": "./index.js",
+    "./sqlite-db": "./src/sqlite-db.js",
+    "./confined-store": "./src/confined-store.js"
   },
   "scripts": {
     "lint:types": "tsc -p tsconfig.json --noEmit --incremental",
@@ -13,30 +16,26 @@
     "check": "npm run lint:types && npm run test"
   },
   "ava": {
-    "extensions": {
-      "js": true,
-      "ts": "module"
-    },
     "files": [
       "test/**/*.test.*"
     ],
     "nodeArguments": [
-      "--import=ses",
-      "--import=@endo/eventual-send/shim.js",
-      "--import=ts-blank-space/register",
+      "--import=./test/prepare.js",
       "--no-warnings"
     ],
     "require": []
   },
   "dependencies": {
-    "@finquick/ertp-dacct": "workspace:^",
-    "better-sqlite3": "^12.6.2",
-    "ses": "^1.5.0"
+    "@endo/eventual-send": "^1.4.0",
+    "@endo/exo": "^1.6.0",
+    "@endo/far": "^1.1.14",
+    "@endo/harden": "^1.1.0",
+    "@endo/patterns": "^1.8.0",
+    "better-sqlite3": "^12.6.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.1",
     "ava": "^5.3.1",
-    "ts-blank-space": "^0.6.2",
     "typescript": "~5.9.3"
   },
   "packageManager": "yarn@4.17.0+sha512.c2957de2f9025ab14d63b24d0d8be1f1655810e22c341042c27f7ecd017b180ec12db73d69ac366d71b304ef9f069349ce462de96f04f8f1da317f4f762c95ae"
