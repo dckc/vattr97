@@ -1,0 +1,41 @@
+{
+  "name": "@finquick/sqlite-plugin",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Ownership-enforcing SQLite capability for Endo unconfined plugins",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./sqlite-db": "./src/sqlite-db.js"
+  },
+  "scripts": {
+    "lint:types": "tsc -p tsconfig.json --noEmit --incremental",
+    "test": "ava",
+    "check": "npm run lint:types && npm run test"
+  },
+  "ava": {
+    "files": [
+      "test/**/*.test.*"
+    ],
+    "nodeArguments": [
+      "--import=./test/prepare.js",
+      "--no-warnings"
+    ],
+    "require": []
+  },
+  "dependencies": {
+    "@endo/exo": "^1.6.0",
+    "@endo/harden": "^1.1.0",
+    "@endo/patterns": "^1.8.0",
+    "better-sqlite3": "^12.6.2"
+  },
+  "devDependencies": {
+    "@endo/eventual-send": "^1.4.0",
+    "@endo/far": "^1.1.14",
+    "@types/better-sqlite3": "^7.6.1",
+    "ava": "^5.3.1",
+    "typescript": "~5.9.3"
+  },
+  "packageManager": "yarn@4.17.0+sha512.c2957de2f9025ab14d63b24d0d8be1f1655810e22c341042c27f7ecd017b180ec12db73d69ac366d71b304ef9f069349ce462de96f04f8f1da317f4f762c95ae"
+}
