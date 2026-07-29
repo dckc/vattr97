@@ -7,7 +7,6 @@
   "main": "./index.js",
   "exports": {
     ".": "./index.js",
-    "./sqlite-db": "./src/sqlite-db.js",
     "./confined-store": "./src/confined-store.js"
   },
   "scripts": {
@@ -27,14 +26,12 @@
   },
   "dependencies": {
     "@endo/eventual-send": "^1.4.0",
-    "@endo/exo": "^1.6.0",
     "@endo/far": "^1.1.14",
     "@endo/harden": "^1.1.0",
-    "@endo/patterns": "^1.8.0",
-    "better-sqlite3": "^12.6.2"
+    "@finquick/sqlite-plugin": "workspace:^"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.1",
+    "@agoric/internal": "0.3.3-dev-dc67c18.0.dc67c18",
     "ava": "^5.3.1",
     "typescript": "~5.9.3"
   },

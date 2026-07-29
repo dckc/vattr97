@@ -10,28 +10,16 @@
  * endo make src/confined-store.js -p @agent -n confined-store
  */
 
-/**
- * @typedef {{
- *   execute: (
- *     sql: string,
- *     params?: (string | number | bigint | null | Uint8Array)[],
- *   ) => Promise<{ changes: number; lastInsertRowid: number | bigint }>,
- *   query: (
- *     sql: string,
- *     params?: (string | number | bigint | null | Uint8Array)[],
- *   ) => Promise<Record<string, unknown>[]>,
- * }} SqliteDb
- */
+/** @import { ERef } from '@endo/eventual-send' */
+/** @import { SqliteDb } from '@finquick/sqlite-plugin' */
 
 /**
  * @param {{ lookup: (name: string) => unknown }} powers
  */
-export const make = async powers => {
-  const db = /** @type {SqliteDb} */ (
-    await E(powers).lookup('sqlite-db')
-  );
+export const make = powers => {
+  const dbP = /** @type {ERef<SqliteDb>} */ (E(powers).lookup('sqlite-db'));
 
-  await E(db).execute(`
+  const createTableP = E(dbP).execute(`
     CREATE TABLE IF NOT EXISTS confined_store (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -43,30 +31,35 @@ export const make = async powers => {
      * @param {string} key
      * @param {string} value
      */
-    async set(key, value) {
-      await E(db).execute(
-        `INSERT INTO confined_store (key, value) VALUES (?, ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-        [key, value],
+    set(key, value) {
+      return E.when(createTableP, () =>
+        E(dbP).execute(
+          `INSERT INTO confined_store (key, value) VALUES (?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+          [key, value],
+        ),
       );
     },
 
     /**
      * @param {string} key
      */
-    async get(key) {
-      const rows = await E(db).query(
-        'SELECT value FROM confined_store WHERE key = ?',
-        [key],
+    get(key) {
+      return E.when(createTableP, () =>
+        E.when(
+          E(dbP).query('SELECT value FROM confined_store WHERE key = ?', [key]),
+          rows => {
+            if (rows.length === 0) {
+              return undefined;
+            }
+            const value = rows[0].value;
+            if (typeof value !== 'string') {
+              throw Error('confined_store value is not text');
+            }
+            return value;
+          },
+        ),
       );
-      if (rows.length === 0) {
-        return undefined;
-      }
-      const value = rows[0].value;
-      if (typeof value !== 'string') {
-        throw Error('confined_store value is not text');
-      }
-      return value;
     },
   });
 };
