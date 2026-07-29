@@ -7,3 +7,6 @@ coverage/
 .vscode/
 **/.pnp.*
 **/.yarn/
+**/node_modules/
+/issues
+/wiki
