@@ -1,5 +1,7 @@
 import test from 'ava';
 import Database from 'better-sqlite3';
+import { E } from '@endo/eventual-send';
+import { make as makeSqliteDb } from '@finquick/sqlite-plugin';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import type { Brand, NatAmount } from '../src/ertp-types.js';
@@ -45,6 +47,31 @@ test('initGnuCashSchema creates GnuCash tables', async t => {
     )
     .get();
   t.is(row?.name, 'accounts');
+});
+
+test('issuer kit accepts an eventual database reference', async t => {
+  const { freeze } = Object;
+  const db = makeSqliteDb(undefined, undefined, {
+    env: { DB_PATH: ':memory:' },
+  });
+  const dbRef = Promise.resolve(db);
+  t.teardown(() => E(db).close());
+
+  await initGnuCashSchema(dbRef);
+
+  const kit = await createIssuerKit(
+    freeze({
+      db: dbRef,
+      commodity: freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' }),
+      makeGuid: mockMakeGuid(),
+      nowMs: makeTestClock(),
+    }),
+  );
+  const purse = await kit.issuer.makeEmptyPurse();
+  const payment = await kit.mint.mintPayment({ brand: kit.brand, value: 5n });
+  await purse.deposit(payment);
+
+  t.is((await purse.getCurrentAmount()).value, 5n);
 });
 
 test('brand.isMyIssuer rejects unrelated issuers', async t => {

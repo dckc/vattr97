@@ -1,6 +1,7 @@
 import { defaultZone } from './jessie-tools.js';
 import type { Zone } from './jessie-tools.js';
-import type { AsyncSqlDatabase } from './sql-db.js';
+import { dbGet, dbRun } from './sql-db.js';
+import type { DBRef } from './sql-db.js';
 import type { ChartFacet, Guid } from './types.js';
 import { requireAccountCommodity } from './db-helpers.js';
 
@@ -10,7 +11,7 @@ export const makeChartFacet = ({
   getGuidFromSealed,
   zone = defaultZone,
 }: {
-  db: AsyncSqlDatabase;
+  db: DBRef;
   commodityGuid: Guid;
   getGuidFromSealed: (sealedPurse: unknown) => Guid;
   zone?: Zone;
@@ -33,17 +34,28 @@ export const makeChartFacet = ({
   }) => {
     await requireAccountCommodity({ db, accountGuid, commodityGuid });
     if (parentGuid !== null) {
-      const row = await db
-        .prepare<[string], { guid: string }>('SELECT guid FROM accounts WHERE guid = ?')
-        .get(parentGuid);
+      const row = await dbGet<[string], { guid: string }>(
+        db,
+        'SELECT guid FROM accounts WHERE guid = ?',
+        parentGuid,
+      );
       if (!row) {
         throw new Error('parent account not found');
       }
     }
-    await db.prepare(`
+    await dbRun(
+      db,
+      `
       UPDATE accounts SET name = ?, account_type = ?, parent_guid = ?, placeholder = ?, code = ?
       WHERE guid = ?
-    `).run(name, accountType, parentGuid, placeholder ? 1 : 0, code, accountGuid);
+    `,
+      name,
+      accountType,
+      parentGuid,
+      placeholder ? 1 : 0,
+      code,
+      accountGuid,
+    );
   };
 
   return exo('ChartFacet', {

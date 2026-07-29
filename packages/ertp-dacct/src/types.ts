@@ -1,6 +1,7 @@
 import type { IssuerKit } from './ertp-types.js';
 import type { Sealer } from './sealer.js';
-import type { AsyncSqlDatabase } from './sql-db.js';
+import type { ERef } from '@endo/eventual-send';
+import type { DB } from './sql-db.js';
 import type { Guid } from './guids.js';
 import type { Zone } from './jessie-tools.js';
 
@@ -15,7 +16,7 @@ export type CommoditySpec = {
 };
 
 export type CreateIssuerConfig = {
-  db: AsyncSqlDatabase;
+  db: ERef<DB>;
   commodity: CommoditySpec;
   zone?: Zone;
   makeGuid: () => Guid;
@@ -23,7 +24,7 @@ export type CreateIssuerConfig = {
 };
 
 export type OpenIssuerConfig = {
-  db: AsyncSqlDatabase;
+  db: ERef<DB>;
   commodityGuid: Guid;
   zone?: Zone;
   makeGuid: () => Guid;

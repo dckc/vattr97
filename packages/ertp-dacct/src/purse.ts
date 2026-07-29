@@ -8,10 +8,10 @@ import {
   requireAccountCommodity,
 } from './db-helpers.js';
 import type { AccountPurse, AmountLike, Guid } from './types.js';
-import type { AsyncSqlDatabase } from './sql-db.js';
+import type { DBRef } from './sql-db.js';
 
 type PurseFactoryOptions = {
-  db: AsyncSqlDatabase;
+  db: DBRef;
   commodityGuid: Guid;
   commodityLabel: string;
   makeAmount: (value: bigint) => AmountLike;

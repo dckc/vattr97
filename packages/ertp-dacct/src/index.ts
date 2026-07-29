@@ -1,4 +1,7 @@
-import type { AsyncSqlDatabase } from './sql-db.js';
+import { E } from '@endo/eventual-send';
+import type { ERef } from '@endo/eventual-send';
+import type { DB } from './sql-db.js';
+import { dbAll, dbExecute, dbGet } from './sql-db.js';
 import { gcEmptySql } from './sql/gc_empty.js';
 import { defaultZone, Nat } from './jessie-tools.js';
 import type { Zone } from './jessie-tools.js';
@@ -43,35 +46,64 @@ export { makeErtpEscrow } from './escrow-ertp.js';
 export { makeSettlementFacet } from './settlement.js';
 export type { SettlementFacet, SettlementResult } from './settlement.js';
 export { wrapBetterSqlite3DatabaseAsync } from './sqlite-shim.js';
-export type { AsyncSqlDatabase, AsyncSqlStatement } from './sql-db.js';
+export type {
+  AsyncSqlDatabase,
+  AsyncSqlStatement,
+  DB,
+  DBRef,
+} from './sql-db.js';
 export type { Zone } from './jessie-tools.js';
 export type { SlotRow } from './gnucash-schema.js';
 export { SLOT_TYPE_GUID, SLOT_TYPE_STRING } from './gnucash-schema.js';
 
 export const initGnuCashSchema = async (
-  db: AsyncSqlDatabase,
+  db: ERef<DB>,
   options: { allowTransactionStatements?: boolean } = {},
 ): Promise<void> => {
   const { allowTransactionStatements = true } = options;
-  if (allowTransactionStatements) {
-    await db.exec(gcEmptySql);
+  const statements = gcEmptySql
+    .split(/;\s*(?:\r?\n|$)/u)
+    .map(statement => statement.trim())
+    .filter(
+      statement =>
+        statement.length > 0 &&
+        !/^(?:BEGIN TRANSACTION|COMMIT)$/iu.test(statement),
+    );
+  if (!allowTransactionStatements) {
+    for (const statement of statements) {
+      await dbExecute(db, statement);
+    }
     return;
   }
-  const sanitized = gcEmptySql
-    .replace(/\bBEGIN TRANSACTION;\s*/gi, '')
-    .replace(/\bCOMMIT;\s*/gi, '');
-  await db.exec(sanitized);
+
+  const pragmas = statements.filter(statement => /^PRAGMA\b/iu.test(statement));
+  const transactionStatements = statements.filter(
+    statement => !/^PRAGMA\b/iu.test(statement),
+  );
+  for (const pragma of pragmas) {
+    await dbExecute(db, pragma);
+  }
+  const transactionRef = E(db).begin();
+  try {
+    for (const statement of transactionStatements) {
+      await E(transactionRef).execute(statement);
+    }
+  } catch (error) {
+    await E(transactionRef).rollback();
+    throw error;
+  }
+  await E(transactionRef).commit();
 };
 
 export const ensureGnuCashSchema = async (
-  db: AsyncSqlDatabase,
+  db: ERef<DB>,
   options: { allowTransactionStatements?: boolean } = {},
 ): Promise<void> => {
-  const row = await db
-    .prepare<[string], { name: string }>(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-    )
-    .get('accounts');
+  const row = await dbGet<[string], { name: string }>(
+    db,
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+    'accounts',
+  );
   if (!row) {
     await initGnuCashSchema(db, options);
   }
@@ -85,7 +117,7 @@ const makeIssuerKitForCommodity = async ({
   zone,
   unsealer,
 }: {
-  db: AsyncSqlDatabase;
+  db: ERef<DB>;
   commodityGuid: Guid;
   makeGuid: () => Guid;
   nowMs: () => number;
@@ -263,9 +295,11 @@ const makeIssuerKitForCommodity = async ({
       return record.checkNumber;
     },
     openPayment: async (checkNumber: string) => {
-      const rows = await db
-        .prepare<[string], { guid: string }>('SELECT guid FROM transactions WHERE num = ?')
-        .all(checkNumber);
+      const rows = await dbAll<[string], { guid: string }>(
+        db,
+        'SELECT guid FROM transactions WHERE num = ?',
+        checkNumber,
+      );
       if (rows.length !== 1) {
         throw new Error('payment check number not unique');
       }
@@ -273,32 +307,43 @@ const makeIssuerKitForCommodity = async ({
       if (!txGuid) {
         throw new Error('payment not found');
       }
-      const holdingSplit = await db
-        .prepare<
-          [string, string],
-          { guid: string; account_guid: string; quantity_num: string; reconcile_state: string }
-        >(`
+      const holdingSplit = await dbGet<
+        [string, string],
+        {
+          guid: string;
+          account_guid: string;
+          quantity_num: string;
+          reconcile_state: string;
+        }
+      >(
+        db,
+        `
           SELECT guid, account_guid, quantity_num, reconcile_state
           FROM splits
           WHERE tx_guid = ? AND account_guid = ?
-        `)
-        .get(txGuid, balanceAccountGuid);
+        `,
+        txGuid,
+        balanceAccountGuid,
+      );
       if (!holdingSplit) {
         throw new Error('payment not live');
       }
       if (holdingSplit.reconcile_state !== 'n') {
         throw new Error('payment not live');
       }
-      const sourceSplit = await db
-        .prepare<
-          [string, string],
-          { account_guid: string }
-        >(`
+      const sourceSplit = await dbGet<
+        [string, string],
+        { account_guid: string }
+      >(
+        db,
+        `
           SELECT account_guid
           FROM splits
           WHERE tx_guid = ? AND account_guid != ?
-        `)
-        .get(txGuid, balanceAccountGuid);
+        `,
+        txGuid,
+        balanceAccountGuid,
+      );
       if (!sourceSplit) {
         throw new Error('payment missing source split');
       }

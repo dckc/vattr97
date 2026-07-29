@@ -1,8 +1,9 @@
-import type { AsyncSqlDatabase } from './sql-db.js';
+import { dbAll, dbGet, dbRun } from './sql-db.js';
+import type { DBRef } from './sql-db.js';
 import type { CommoditySpec, Guid } from './types.js';
 
 export const ensureCommodityRow = async (
-  db: AsyncSqlDatabase,
+  db: DBRef,
   guid: Guid,
   commodity: CommoditySpec,
 ): Promise<void> => {
@@ -13,12 +14,20 @@ export const ensureCommodityRow = async (
     fraction = 1,
     quoteFlag = 0,
   } = commodity;
-  const insert = db.prepare(`
+  await dbRun(
+    db,
+    `
     INSERT OR IGNORE INTO commodities(
       guid, namespace, mnemonic, fullname, cusip, fraction, quote_flag, quote_source, quote_tz
     ) VALUES (?, ?, ?, ?, NULL, ?, ?, NULL, NULL)
-  `);
-  await insert.run(guid, namespace, mnemonic, fullname, fraction, quoteFlag);
+  `,
+    guid,
+    namespace,
+    mnemonic,
+    fullname,
+    fraction,
+    quoteFlag,
+  );
 };
 
 export const createCommodityRow = async ({
@@ -26,13 +35,15 @@ export const createCommodityRow = async ({
   guid,
   commodity,
 }: {
-  db: AsyncSqlDatabase;
+  db: DBRef;
   guid: Guid;
   commodity: CommoditySpec;
 }): Promise<void> => {
-  const row = await db
-    .prepare<[string], { guid: string }>('SELECT guid FROM commodities WHERE guid = ?')
-    .get(guid);
+  const row = await dbGet<[string], { guid: string }>(
+    db,
+    'SELECT guid FROM commodities WHERE guid = ?',
+    guid,
+  );
   if (row) {
     throw new Error('commodity already exists');
   }
@@ -43,12 +54,20 @@ export const createCommodityRow = async ({
     fraction = 1,
     quoteFlag = 0,
   } = commodity;
-  const insert = db.prepare(`
+  await dbRun(
+    db,
+    `
     INSERT INTO commodities(
       guid, namespace, mnemonic, fullname, cusip, fraction, quote_flag, quote_source, quote_tz
     ) VALUES (?, ?, ?, ?, NULL, ?, ?, NULL, NULL)
-  `);
-  await insert.run(guid, namespace, mnemonic, fullname, fraction, quoteFlag);
+  `,
+    guid,
+    namespace,
+    mnemonic,
+    fullname,
+    fraction,
+    quoteFlag,
+  );
 };
 
 export const ensureAccountRow = async ({
@@ -59,19 +78,29 @@ export const ensureAccountRow = async ({
   accountType = 'ASSET',
   parentGuid = null,
 }: {
-  db: AsyncSqlDatabase;
+  db: DBRef;
   accountGuid: Guid;
   name: string;
   commodityGuid: Guid;
   accountType?: string;
   parentGuid?: Guid | null;
 }): Promise<void> => {
-  await db.prepare(`
+  await dbRun(
+    db,
+    `
     INSERT OR IGNORE INTO accounts(
       guid, name, account_type, commodity_guid, commodity_scu, non_std_scu,
       parent_guid, code, description, hidden, placeholder
     ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0)
-  `).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
+  `,
+    accountGuid,
+    name,
+    accountType,
+    commodityGuid,
+    1,
+    0,
+    parentGuid,
+  );
 };
 
 export const createAccountRow = async ({
@@ -82,25 +111,37 @@ export const createAccountRow = async ({
   accountType = 'ASSET',
   parentGuid = null,
 }: {
-  db: AsyncSqlDatabase;
+  db: DBRef;
   accountGuid: Guid;
   name: string;
   commodityGuid: Guid;
   accountType?: string;
   parentGuid?: Guid | null;
 }): Promise<void> => {
-  const row = await db
-    .prepare<[string], { guid: string }>('SELECT guid FROM accounts WHERE guid = ?')
-    .get(accountGuid);
+  const row = await dbGet<[string], { guid: string }>(
+    db,
+    'SELECT guid FROM accounts WHERE guid = ?',
+    accountGuid,
+  );
   if (row) {
     throw new Error('account already exists');
   }
-  await db.prepare(`
+  await dbRun(
+    db,
+    `
     INSERT INTO accounts(
       guid, name, account_type, commodity_guid, commodity_scu, non_std_scu,
       parent_guid, code, description, hidden, placeholder
     ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0)
-  `).run(accountGuid, name, accountType, commodityGuid, 1, 0, parentGuid);
+  `,
+    accountGuid,
+    name,
+    accountType,
+    commodityGuid,
+    1,
+    0,
+    parentGuid,
+  );
 };
 
 export const requireAccountCommodity = async ({
@@ -108,15 +149,15 @@ export const requireAccountCommodity = async ({
   accountGuid,
   commodityGuid,
 }: {
-  db: AsyncSqlDatabase;
+  db: DBRef;
   accountGuid: Guid;
   commodityGuid: Guid;
 }): Promise<void> => {
-  const row = await db
-    .prepare<[string], { commodity_guid: string }>(
-      'SELECT commodity_guid FROM accounts WHERE guid = ?',
-    )
-    .get(accountGuid);
+  const row = await dbGet<[string], { commodity_guid: string }>(
+    db,
+    'SELECT commodity_guid FROM accounts WHERE guid = ?',
+    accountGuid,
+  );
   if (!row) {
     throw new Error('account not found');
   }
@@ -126,26 +167,29 @@ export const requireAccountCommodity = async ({
 };
 
 export const getCommodityAllegedName = async (
-  db: AsyncSqlDatabase,
+  db: DBRef,
   commodityGuid: Guid,
 ): Promise<string> => {
-  const row = await db
-    .prepare<[string], { fullname: string | null; mnemonic: string }>(
-      'SELECT fullname, mnemonic FROM commodities WHERE guid = ?',
-    )
-    .get(commodityGuid);
+  const row = await dbGet<
+    [string],
+    { fullname: string | null; mnemonic: string }
+  >(
+    db,
+    'SELECT fullname, mnemonic FROM commodities WHERE guid = ?',
+    commodityGuid,
+  );
   return row?.fullname || row?.mnemonic || 'GnuCash';
 };
 
 export const getAccountBalance = async (
-  db: AsyncSqlDatabase,
+  db: DBRef,
   accountGuid: Guid,
 ): Promise<bigint> => {
-  const row = await db
-    .prepare<[string], { qty: string }>(
-      'SELECT COALESCE(SUM(quantity_num), 0) AS qty FROM splits WHERE account_guid = ?',
-    )
-    .get(accountGuid);
+  const row = await dbGet<[string], { qty: string }>(
+    db,
+    'SELECT COALESCE(SUM(quantity_num), 0) AS qty FROM splits WHERE account_guid = ?',
+    accountGuid,
+  );
   return row ? BigInt(row.qty) : 0n;
 };
 
@@ -156,7 +200,7 @@ export const makeTransferRecorder = ({
   makeGuid,
   nowMs,
 }: {
-  db: AsyncSqlDatabase;
+  db: DBRef;
   commodityGuid: Guid;
   holdingAccountGuid: Guid;
   makeGuid: () => Guid;
@@ -170,11 +214,12 @@ export const makeTransferRecorder = ({
   };
 
   const resolveCheckNumber = async (base: string) => {
-    const rows = await db
-      .prepare<[string, string], { num: string }>(
-        'SELECT num FROM transactions WHERE num = ? OR num LIKE ?',
-      )
-      .all(base, `${base}.%`);
+    const rows = await dbAll<[string, string], { num: string }>(
+      db,
+      'SELECT num FROM transactions WHERE num = ? OR num LIKE ?',
+      base,
+      `${base}.%`,
+    );
     if (rows.length === 0) return base;
     let maxSuffix = 1;
     for (const row of rows) {
@@ -194,12 +239,14 @@ export const makeTransferRecorder = ({
     reconcileState = 'n',
   ) => {
     const splitGuid = makeGuid();
-    await db.prepare(`
+    await dbRun(
+      db,
+      `
       INSERT INTO splits(
         guid, tx_guid, account_guid, memo, action, reconcile_state, reconcile_date,
         value_num, value_denom, quantity_num, quantity_denom, lot_guid
       ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)
-    `).run(
+    `,
       splitGuid,
       txGuid,
       accountGuid,
@@ -221,10 +268,12 @@ export const makeTransferRecorder = ({
     nowMsValue: number,
   ) => {
     const seconds = Math.floor(nowMsValue / 1000);
-    await db.prepare(`
+    await dbRun(
+      db,
+      `
       INSERT INTO transactions(guid, currency_guid, num, post_date, enter_date, description)
       VALUES (?, ?, ?, datetime(date(?, 'unixepoch')), datetime(date(?, 'unixepoch')), ?)
-    `).run(
+    `,
       txGuid,
       commodityGuid,
       checkNumber,
@@ -266,10 +315,19 @@ export const makeTransferRecorder = ({
     holdingSplitGuid: Guid;
     toAccountGuid: Guid;
   }) => {
-    await db.prepare(
+    await dbRun(
+      db,
       'UPDATE splits SET account_guid = ?, reconcile_state = ? WHERE guid = ?',
-    ).run(toAccountGuid, 'c', holdingSplitGuid);
-    await db.prepare('UPDATE splits SET reconcile_state = ? WHERE tx_guid = ?').run('c', txGuid);
+      toAccountGuid,
+      'c',
+      holdingSplitGuid,
+    );
+    await dbRun(
+      db,
+      'UPDATE splits SET reconcile_state = ? WHERE tx_guid = ?',
+      'c',
+      txGuid,
+    );
   };
 
   return { createHold, finalizeHold };
