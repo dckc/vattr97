@@ -5,8 +5,12 @@
   "description": "Ownership-enforcing SQLite capability for Endo unconfined plugins",
   "type": "module",
   "main": "./index.js",
+  "types": "./index.d.ts",
   "exports": {
-    ".": "./index.js",
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
     "./sqlite-db": "./src/sqlite-db.js"
   },
   "scripts": {
