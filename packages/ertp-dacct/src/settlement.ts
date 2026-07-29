@@ -1,6 +1,6 @@
-import { dbAll, dbGet, dbRun } from './sql-db.js';
-import type { DBRef } from './sql-db.js';
-import type { Guid } from './types.js';
+import { dbAll, dbGet, dbRun } from './sql-db.ts';
+import type { DBRef } from './sql-db.ts';
+import type { Guid } from './types.ts';
 
 const { freeze } = Object;
 

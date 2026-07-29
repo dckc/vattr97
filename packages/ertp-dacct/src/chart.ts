@@ -1,9 +1,9 @@
-import { defaultZone } from './jessie-tools.js';
-import type { Zone } from './jessie-tools.js';
-import { dbGet, dbRun } from './sql-db.js';
-import type { DBRef } from './sql-db.js';
-import type { ChartFacet, Guid } from './types.js';
-import { requireAccountCommodity } from './db-helpers.js';
+import { defaultZone } from './jessie-tools.ts';
+import type { Zone } from './jessie-tools.ts';
+import { dbGet, dbRun } from './sql-db.ts';
+import type { DBRef } from './sql-db.ts';
+import type { ChartFacet, Guid } from './types.ts';
+import { requireAccountCommodity } from './db-helpers.ts';
 
 export const makeChartFacet = ({
   db,

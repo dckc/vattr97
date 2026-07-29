@@ -5,9 +5,9 @@ import type {
   Payment,
   Purse,
   Amount,
-} from './ertp-types.js';
-import { defaultZone } from './jessie-tools.js';
-import type { Zone } from './jessie-tools.js';
+} from './ertp-types.ts';
+import { defaultZone } from './jessie-tools.ts';
+import type { Zone } from './jessie-tools.ts';
 
 const { freeze } = Object;
 

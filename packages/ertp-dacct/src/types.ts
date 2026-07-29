@@ -1,9 +1,9 @@
-import type { IssuerKit } from './ertp-types.js';
-import type { Sealer } from './sealer.js';
+import type { IssuerKit } from './ertp-types.ts';
+import type { Sealer } from './sealer.ts';
 import type { ERef } from '@endo/eventual-send';
-import type { DB } from './sql-db.js';
-import type { Guid } from './guids.js';
-import type { Zone } from './jessie-tools.js';
+import type { DB } from './sql-db.ts';
+import type { Guid } from './guids.ts';
+import type { Zone } from './jessie-tools.ts';
 
 export type CommodityNamespace = 'CURRENCY' | 'COMMODITY';
 
@@ -110,4 +110,4 @@ export type EscrowFacet = {
   };
 };
 
-export type { Guid } from './guids.js';
+export type { Guid } from './guids.ts';

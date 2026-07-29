@@ -1,7 +1,7 @@
-import { dbAll, dbGet, dbRun } from './sql-db.js';
-import type { DBRef } from './sql-db.js';
-import type { CommoditySpec, Guid } from './types.js';
-import type { CommodityRow } from './gnucash-schema.js';
+import { dbAll, dbGet, dbRun } from './sql-db.ts';
+import type { DBRef } from './sql-db.ts';
+import type { CommoditySpec, Guid } from './types.ts';
+import type { CommodityRow } from './gnucash-schema.ts';
 
 export const ensureCommodityRow = async (
   db: DBRef,

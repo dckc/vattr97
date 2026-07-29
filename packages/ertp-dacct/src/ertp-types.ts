@@ -6,7 +6,7 @@ import type {
   LatestTopic,
   Pattern,
   RemotableObject,
-} from './endo-types.js';
+} from './endo-types.ts';
 
 declare const tag: 'Symbol(tag)';
 type TagContainer<Token> = {

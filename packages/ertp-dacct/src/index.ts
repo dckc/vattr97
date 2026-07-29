@@ -1,11 +1,11 @@
 import { E } from '@endo/eventual-send';
 import type { ERef } from '@endo/eventual-send';
-import type { DB } from './sql-db.js';
-import { dbAll, dbExecute, dbGet } from './sql-db.js';
-import { gcEmptySql } from './sql/gc_empty.js';
-import { defaultZone, Nat } from './jessie-tools.js';
-import type { Zone } from './jessie-tools.js';
-import { makeDeterministicGuid } from './guids.js';
+import type { DB } from './sql-db.ts';
+import { dbAll, dbExecute, dbGet } from './sql-db.ts';
+import { gcEmptySql } from './sql/gc_empty.ts';
+import { defaultZone, Nat } from './jessie-tools.ts';
+import type { Zone } from './jessie-tools.ts';
+import { makeDeterministicGuid } from './guids.ts';
 import type {
   AccountPurse,
   AmountLike,
@@ -15,8 +15,8 @@ import type {
   IssuerKitForCommodity,
   IssuerKitWithPurseGuids,
   OpenIssuerConfig,
-} from './types.js';
-import { makeChartFacet } from './chart.js';
+} from './types.ts';
+import { makeChartFacet } from './chart.ts';
 import {
   createCommodityRow,
   ensureAccountRow,
@@ -24,13 +24,13 @@ import {
   getCommodityAllegedName,
   getCommodityRow,
   makeTransferRecorder,
-} from './db-helpers.js';
-import { makePurseFactory } from './purse.js';
-import { makeErtpEscrow } from './escrow-ertp.js';
-import { makeSealerUnsealerPair } from './sealer.js';
-import type { Sealed, Sealer, Unsealer } from './sealer.js';
+} from './db-helpers.ts';
+import { makePurseFactory } from './purse.ts';
+import { makeErtpEscrow } from './escrow-ertp.ts';
+import { makeSealerUnsealerPair } from './sealer.ts';
+import type { Sealed, Sealer, Unsealer } from './sealer.ts';
 
-export type { Sealed, Sealer, Unsealer } from './sealer.js';
+export type { Sealed, Sealer, Unsealer } from './sealer.ts';
 
 export type {
   CommoditySpec,
@@ -40,22 +40,22 @@ export type {
   IssuerKitWithGuid,
   IssuerKitWithPurseGuids,
   NatIssuerKit,
-} from './types.js';
-export { asGuid, mockMakeGuid } from './guids.js';
-export { makeChartFacet } from './chart.js';
-export { makeErtpEscrow } from './escrow-ertp.js';
-export { makeSettlementFacet } from './settlement.js';
-export type { SettlementFacet, SettlementResult } from './settlement.js';
-export { wrapBetterSqlite3DatabaseAsync } from './sqlite-shim.js';
+} from './types.ts';
+export { asGuid, mockMakeGuid } from './guids.ts';
+export { makeChartFacet } from './chart.ts';
+export { makeErtpEscrow } from './escrow-ertp.ts';
+export { makeSettlementFacet } from './settlement.ts';
+export type { SettlementFacet, SettlementResult } from './settlement.ts';
+export { wrapBetterSqlite3DatabaseAsync } from './sqlite-shim.ts';
 export type {
   AsyncSqlDatabase,
   AsyncSqlStatement,
   DB,
   DBRef,
-} from './sql-db.js';
-export type { Zone } from './jessie-tools.js';
-export type { CommodityRow, SlotRow } from './gnucash-schema.js';
-export { SLOT_TYPE_GUID, SLOT_TYPE_STRING } from './gnucash-schema.js';
+} from './sql-db.ts';
+export type { Zone } from './jessie-tools.ts';
+export type { CommodityRow, SlotRow } from './gnucash-schema.ts';
+export { SLOT_TYPE_GUID, SLOT_TYPE_STRING } from './gnucash-schema.ts';
 
 export const initGnuCashSchema = async (
   db: ERef<DB>,
