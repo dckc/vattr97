@@ -1,6 +1,7 @@
 import { dbAll, dbGet, dbRun } from './sql-db.js';
 import type { DBRef } from './sql-db.js';
 import type { CommoditySpec, Guid } from './types.js';
+import type { CommodityRow } from './gnucash-schema.js';
 
 export const ensureCommodityRow = async (
   db: DBRef,
@@ -14,6 +15,18 @@ export const ensureCommodityRow = async (
     fraction = 1,
     quoteFlag = 0,
   } = commodity;
+  const identityRow = await dbGet<[string, string], { guid: string }>(
+    db,
+    `
+      SELECT guid FROM commodities
+      WHERE namespace = ? AND mnemonic = ?
+    `,
+    namespace,
+    mnemonic,
+  );
+  if (identityRow && identityRow.guid !== guid) {
+    throw new Error('commodity already exists');
+  }
   await dbRun(
     db,
     `
@@ -39,14 +52,6 @@ export const createCommodityRow = async ({
   guid: Guid;
   commodity: CommoditySpec;
 }): Promise<void> => {
-  const row = await dbGet<[string], { guid: string }>(
-    db,
-    'SELECT guid FROM commodities WHERE guid = ?',
-    guid,
-  );
-  if (row) {
-    throw new Error('commodity already exists');
-  }
   const {
     namespace = 'COMMODITY',
     mnemonic,
@@ -54,6 +59,19 @@ export const createCommodityRow = async ({
     fraction = 1,
     quoteFlag = 0,
   } = commodity;
+  const row = await dbGet<[string, string, string], { guid: string }>(
+    db,
+    `
+      SELECT guid FROM commodities
+      WHERE guid = ? OR (namespace = ? AND mnemonic = ?)
+    `,
+    guid,
+    namespace,
+    mnemonic,
+  );
+  if (row) {
+    throw new Error('commodity already exists');
+  }
   await dbRun(
     db,
     `
@@ -68,6 +86,27 @@ export const createCommodityRow = async ({
     fraction,
     quoteFlag,
   );
+};
+
+export const getCommodityRow = (
+  db: DBRef,
+  commodityGuid: Guid,
+): Promise<CommodityRow | undefined> =>
+  dbGet<[string], CommodityRow>(
+    db,
+    'SELECT * FROM commodities WHERE guid = ?',
+    commodityGuid,
+  );
+
+const getCommodityFraction = async (
+  db: DBRef,
+  commodityGuid: Guid,
+): Promise<number> => {
+  const row = await getCommodityRow(db, commodityGuid);
+  if (!row) {
+    throw new Error('commodity not found');
+  }
+  return row.fraction;
 };
 
 export const ensureAccountRow = async ({
@@ -85,6 +124,7 @@ export const ensureAccountRow = async ({
   accountType?: string;
   parentGuid?: Guid | null;
 }): Promise<void> => {
+  const commodityScu = await getCommodityFraction(db, commodityGuid);
   await dbRun(
     db,
     `
@@ -97,7 +137,7 @@ export const ensureAccountRow = async ({
     name,
     accountType,
     commodityGuid,
-    1,
+    commodityScu,
     0,
     parentGuid,
   );
@@ -126,6 +166,7 @@ export const createAccountRow = async ({
   if (row) {
     throw new Error('account already exists');
   }
+  const commodityScu = await getCommodityFraction(db, commodityGuid);
   await dbRun(
     db,
     `
@@ -138,7 +179,7 @@ export const createAccountRow = async ({
     name,
     accountType,
     commodityGuid,
-    1,
+    commodityScu,
     0,
     parentGuid,
   );
@@ -166,20 +207,9 @@ export const requireAccountCommodity = async ({
   }
 };
 
-export const getCommodityAllegedName = async (
-  db: DBRef,
-  commodityGuid: Guid,
-): Promise<string> => {
-  const row = await dbGet<
-    [string],
-    { fullname: string | null; mnemonic: string }
-  >(
-    db,
-    'SELECT fullname, mnemonic FROM commodities WHERE guid = ?',
-    commodityGuid,
-  );
-  return row?.fullname || row?.mnemonic || 'GnuCash';
-};
+export const getCommodityAllegedName = (
+  row: CommodityRow | undefined,
+): string => row?.fullname || row?.mnemonic || 'GnuCash';
 
 export const getAccountBalance = async (
   db: DBRef,

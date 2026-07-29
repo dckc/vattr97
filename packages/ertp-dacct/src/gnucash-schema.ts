@@ -51,6 +51,18 @@ export type AccountRow = {
   hidden: number;
 };
 
+export type CommodityRow = {
+  guid: string;
+  namespace: string;
+  mnemonic: string;
+  fullname: string | null;
+  cusip: string | null;
+  fraction: number;
+  quote_flag: number;
+  quote_source: string | null;
+  quote_tz: string | null;
+};
+
 export type BooksRow = {
   root_account_guid: string;
 };

@@ -11,7 +11,11 @@ test('placePurse updates account name and type', async t => {
   t.teardown(() => close());
 
   const makeGuid = mockMakeGuid();
-  const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
+  const commodity = freeze({
+    namespace: 'COMMODITY',
+    mnemonic: 'BUCKS',
+    fraction: 100,
+  });
   const nowMs = () => Date.UTC(2020, 0, 1);
   const kit = (await createIssuerKit(
     freeze({ db, commodity, makeGuid, nowMs }),
@@ -35,11 +39,19 @@ test('placePurse updates account name and type', async t => {
   const row = await db
     .prepare<
       [string],
-      { name: string; account_type: string; parent_guid: string | null }
-    >('SELECT name, account_type, parent_guid FROM accounts WHERE guid = ?')
+      {
+        name: string;
+        account_type: string;
+        parent_guid: string | null;
+        commodity_scu: number;
+      }
+    >(
+      'SELECT name, account_type, parent_guid, commodity_scu FROM accounts WHERE guid = ?',
+    )
     .get(guid);
   t.is(row?.name, 'Alice Wallet');
   t.is(row?.account_type, 'ASSET');
+  t.is(row?.commodity_scu, 100);
 });
 
 test('placeAccount updates an account directly', async t => {

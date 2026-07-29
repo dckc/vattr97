@@ -1,6 +1,10 @@
 import test from 'ava';
 import { makeTestDb, mockMakeGuid } from './mock-io.js';
-import { createIssuerKit, makeSettlementFacet } from '../src/index.js';
+import {
+  createIssuerKit,
+  makeSettlementFacet,
+  openIssuerKitWithPurseGuids,
+} from '../src/index.js';
 import type {
   Guid,
   IssuerKitWithPurseGuids,
@@ -14,10 +18,13 @@ test('settle wraps a single-tx operation', async t => {
 
   const makeGuid = mockMakeGuid();
   const nowMs = () => Date.UTC(2020, 0, 1);
-  const currency = (await createIssuerKit(
+  const usdRows = await db.query(
+    "SELECT guid FROM commodities WHERE namespace = 'CURRENCY' AND mnemonic = 'USD'",
+  );
+  const currency = (await openIssuerKitWithPurseGuids(
     freeze({
       db,
-      commodity: { namespace: 'CURRENCY', mnemonic: 'USD' },
+      commodityGuid: usdRows[0]?.guid as Guid,
       makeGuid,
       nowMs,
     }),
@@ -51,10 +58,13 @@ test('settle consolidates multi-commodity txs', async t => {
 
   const makeGuid = mockMakeGuid();
   const nowMs = () => Date.UTC(2020, 0, 1);
-  const currency = (await createIssuerKit(
+  const usdRows = await db.query(
+    "SELECT guid FROM commodities WHERE namespace = 'CURRENCY' AND mnemonic = 'USD'",
+  );
+  const currency = (await openIssuerKitWithPurseGuids(
     freeze({
       db,
-      commodity: { namespace: 'CURRENCY', mnemonic: 'USD' },
+      commodityGuid: usdRows[0]?.guid as Guid,
       makeGuid,
       nowMs,
     }),

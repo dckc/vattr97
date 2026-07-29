@@ -6,6 +6,7 @@ import {
   createAccountRow,
   ensureAccountRow,
   requireAccountCommodity,
+  getCommodityRow,
   getCommodityAllegedName,
   getAccountBalance,
   makeTransferRecorder,
@@ -19,8 +20,36 @@ test('createCommodityRow creates a commodity', async t => {
   const guid = mockMakeGuid()() as Guid;
   await createCommodityRow({ db, guid, commodity: { mnemonic: 'TEST' } });
 
-  const name = await getCommodityAllegedName(db, guid);
+  t.deepEqual(await getCommodityRow(db, guid), {
+    guid,
+    namespace: 'COMMODITY',
+    mnemonic: 'TEST',
+    fullname: 'TEST',
+    cusip: null,
+    fraction: 1,
+    quote_flag: 0,
+    quote_source: null,
+    quote_tz: null,
+  });
+  const name = getCommodityAllegedName(await getCommodityRow(db, guid));
   t.is(name, 'TEST');
+});
+
+test('getCommodityAllegedName falls back to mnemonic', async t => {
+  const { db, close } = await makeTestDb();
+  t.teardown(() => close());
+
+  const guid = mockMakeGuid()();
+  await createCommodityRow({
+    db,
+    guid,
+    commodity: { mnemonic: 'TEST', fullname: 'Test Asset' },
+  });
+  await db
+    .prepare<[string]>('UPDATE commodities SET fullname = NULL WHERE guid = ?')
+    .run(guid);
+
+  t.is(getCommodityAllegedName(await getCommodityRow(db, guid)), 'TEST');
 });
 
 test('createCommodityRow rejects duplicate', async t => {
@@ -35,6 +64,27 @@ test('createCommodityRow rejects duplicate', async t => {
   );
 });
 
+test('createCommodityRow rejects duplicate namespace and mnemonic', async t => {
+  const { db, close } = await makeTestDb();
+  t.teardown(() => close());
+
+  const makeGuid = mockMakeGuid();
+  await createCommodityRow({
+    db,
+    guid: makeGuid(),
+    commodity: { namespace: 'CURRENCY', mnemonic: 'TEST' },
+  });
+  await t.throwsAsync(
+    () =>
+      createCommodityRow({
+        db,
+        guid: makeGuid(),
+        commodity: { namespace: 'CURRENCY', mnemonic: 'TEST' },
+      }),
+    { message: 'commodity already exists' },
+  );
+});
+
 test('ensureCommodityRow is idempotent', async t => {
   const { db, close } = await makeTestDb();
   t.teardown(() => close());
@@ -43,7 +93,7 @@ test('ensureCommodityRow is idempotent', async t => {
   await ensureCommodityRow(db, guid, { mnemonic: 'TEST' });
   await ensureCommodityRow(db, guid, { mnemonic: 'TEST' });
 
-  const name = await getCommodityAllegedName(db, guid);
+  const name = getCommodityAllegedName(await getCommodityRow(db, guid));
   t.is(name, 'TEST');
 });
 
@@ -51,15 +101,22 @@ test('createAccountRow creates an account', async t => {
   const { db, close } = await makeTestDb();
   t.teardown(() => close());
 
-  const guid = mockMakeGuid()() as Guid;
+  const makeGuid = mockMakeGuid();
+  const commodityGuid = makeGuid();
+  const accountGuid = makeGuid();
+  await createCommodityRow({
+    db,
+    guid: commodityGuid,
+    commodity: { mnemonic: 'TEST' },
+  });
   await createAccountRow({
     db,
-    accountGuid: guid,
+    accountGuid,
     name: 'Test Account',
-    commodityGuid: guid,
+    commodityGuid,
   });
   await t.notThrowsAsync(() =>
-    requireAccountCommodity({ db, accountGuid: guid, commodityGuid: guid }),
+    requireAccountCommodity({ db, accountGuid, commodityGuid }),
   );
 });
 
@@ -67,21 +124,28 @@ test('ensureAccountRow is idempotent', async t => {
   const { db, close } = await makeTestDb();
   t.teardown(() => close());
 
-  const guid = mockMakeGuid()() as Guid;
-  await ensureAccountRow({
+  const makeGuid = mockMakeGuid();
+  const commodityGuid = makeGuid();
+  const accountGuid = makeGuid();
+  await createCommodityRow({
     db,
-    accountGuid: guid,
-    name: 'Test',
-    commodityGuid: guid,
+    guid: commodityGuid,
+    commodity: { mnemonic: 'TEST' },
   });
   await ensureAccountRow({
     db,
-    accountGuid: guid,
+    accountGuid,
     name: 'Test',
-    commodityGuid: guid,
+    commodityGuid,
+  });
+  await ensureAccountRow({
+    db,
+    accountGuid,
+    name: 'Test',
+    commodityGuid,
   });
   await t.notThrowsAsync(() =>
-    requireAccountCommodity({ db, accountGuid: guid, commodityGuid: guid }),
+    requireAccountCommodity({ db, accountGuid, commodityGuid }),
   );
 });
 

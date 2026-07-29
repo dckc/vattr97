@@ -10,6 +10,7 @@ import {
   createIssuerKit,
   initGnuCashSchema,
   openIssuerKit,
+  openIssuerKitWithPurseGuids,
   wrapBetterSqlite3DatabaseAsync,
 } from '../src/index.js';
 import { mockMakeGuid } from '../src/guids.js';
@@ -49,6 +50,54 @@ test('initGnuCashSchema creates GnuCash tables', async t => {
   t.is(row?.name, 'accounts');
 });
 
+test('issuer internal account types follow commodity namespace', async t => {
+  const rawDb = new Database(':memory:');
+  const db = wrapBetterSqlite3DatabaseAsync(rawDb);
+  t.teardown(() => rawDb.close());
+  await initGnuCashSchema(db);
+
+  const usd = await db
+    .prepare<[], { guid: string }>(
+      "SELECT guid FROM commodities WHERE namespace = 'CURRENCY' AND mnemonic = 'USD'",
+    )
+    .get();
+  const kit = await openIssuerKitWithPurseGuids({
+    db,
+    commodityGuid: usd?.guid as Guid,
+    makeGuid: mockMakeGuid(),
+    nowMs: makeTestClock(),
+  });
+  const { holdingAccountGuid, recoveryPurseGuid } =
+    kit.mintInfo.getMintInfo();
+  const rows = await db
+    .prepare<[string, string], { name: string; account_type: string }>(
+      'SELECT name, account_type FROM accounts WHERE guid IN (?, ?) ORDER BY name',
+    )
+    .all(holdingAccountGuid, recoveryPurseGuid);
+
+  t.deepEqual(rows, [
+    { name: 'US Dollar Mint Holding', account_type: 'BANK' },
+    { name: 'US Dollar Mint Recovery', account_type: 'BANK' },
+  ]);
+
+  const stock = await createIssuerKit({
+    db,
+    commodity: { namespace: 'COMMODITY', mnemonic: 'STOCK' },
+    makeGuid: mockMakeGuid(1000n),
+    nowMs: makeTestClock(),
+  });
+  const stockInfo = stock.mintInfo.getMintInfo();
+  const stockRows = await db
+    .prepare<[string, string], { name: string; account_type: string }>(
+      'SELECT name, account_type FROM accounts WHERE guid IN (?, ?) ORDER BY name',
+    )
+    .all(stockInfo.holdingAccountGuid, stockInfo.recoveryPurseGuid);
+  t.deepEqual(stockRows, [
+    { name: 'STOCK Mint Holding', account_type: 'STOCK' },
+    { name: 'STOCK Mint Recovery', account_type: 'STOCK' },
+  ]);
+});
+
 test('issuer kit accepts an eventual database reference', async t => {
   const { freeze } = Object;
   const db = makeSqliteDb(undefined, undefined, {
@@ -86,7 +135,12 @@ test('brand.isMyIssuer rejects unrelated issuers', async t => {
   const nowMs = makeTestClock();
   const kit = await createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
   const other = await createIssuerKit(
-    freeze({ db, commodity, makeGuid, nowMs }),
+    freeze({
+      db,
+      commodity: freeze({ namespace: 'COMMODITY', mnemonic: 'MOOLA' }),
+      makeGuid,
+      nowMs,
+    }),
   );
 
   t.true(await kit.brand.isMyIssuer(kit.issuer));

@@ -22,6 +22,7 @@ import {
   ensureAccountRow,
   getAccountBalance,
   getCommodityAllegedName,
+  getCommodityRow,
   makeTransferRecorder,
 } from './db-helpers.js';
 import { makePurseFactory } from './purse.js';
@@ -53,7 +54,7 @@ export type {
   DBRef,
 } from './sql-db.js';
 export type { Zone } from './jessie-tools.js';
-export type { SlotRow } from './gnucash-schema.js';
+export type { CommodityRow, SlotRow } from './gnucash-schema.js';
 export { SLOT_TYPE_GUID, SLOT_TYPE_STRING } from './gnucash-schema.js';
 
 export const initGnuCashSchema = async (
@@ -179,7 +180,13 @@ const makeIssuerKitForCommodity = async ({
     livePayments.add(payment as object);
     return payment;
   };
-  const commodityLabel = await getCommodityAllegedName(db, commodityGuid);
+  const commodity = await getCommodityRow(db, commodityGuid);
+  if (!commodity) {
+    throw new Error('commodity not found');
+  }
+  const commodityLabel = getCommodityAllegedName(commodity);
+  const internalAccountType =
+    commodity.namespace === 'CURRENCY' ? 'BANK' : 'STOCK';
   const balanceAccountGuid = makeDeterministicGuid(
     `dacct-balance:${commodityGuid}`,
   );
@@ -188,7 +195,7 @@ const makeIssuerKitForCommodity = async ({
     accountGuid: balanceAccountGuid,
     name: `${commodityLabel} Mint Holding`,
     commodityGuid,
-    accountType: 'STOCK',
+    accountType: internalAccountType,
   });
   const transferRecorder = makeTransferRecorder({
     db,
@@ -251,7 +258,7 @@ const makeIssuerKitForCommodity = async ({
     accountGuid: mintRecoveryGuid,
     name: `${commodityLabel} Mint Recovery`,
     commodityGuid,
-    accountType: 'STOCK',
+    accountType: internalAccountType,
   });
   const mint = exo(`${commodityLabel} Mint`, {
     getIssuer: () => issuer,
@@ -375,13 +382,19 @@ const makeIssuerKitForCommodity = async ({
   return freeze({ kit, accounts, purseGuids, payments, mintInfo });
 };
 
-export const createIssuerKit = async (
-  config: CreateIssuerConfig,
-): Promise<IssuerKitWithPurseGuids> => {
-  const { db, commodity, makeGuid, nowMs } = config;
-  const zone = config.zone ?? defaultZone;
-  const commodityGuid = makeGuid();
-  await createCommodityRow({ db, guid: commodityGuid, commodity });
+const makeIssuerKitWithPurseGuids = async ({
+  db,
+  commodityGuid,
+  makeGuid,
+  nowMs,
+  zone,
+}: {
+  db: ERef<DB>;
+  commodityGuid: Guid;
+  makeGuid: () => Guid;
+  nowMs: () => number;
+  zone: Zone;
+}): Promise<IssuerKitWithPurseGuids> => {
   const { sealer, unsealer } = makeSealerUnsealerPair();
   const { kit, purseGuids, payments, mintInfo } =
     await makeIssuerKitForCommodity({
@@ -413,6 +426,35 @@ export const createIssuerKit = async (
     mintInfo,
     sealer,
   }) as IssuerKitWithPurseGuids;
+};
+
+export const createIssuerKit = async (
+  config: CreateIssuerConfig,
+): Promise<IssuerKitWithPurseGuids> => {
+  const { db, commodity, makeGuid, nowMs } = config;
+  const zone = config.zone ?? defaultZone;
+  const commodityGuid = makeGuid();
+  await createCommodityRow({ db, guid: commodityGuid, commodity });
+  return makeIssuerKitWithPurseGuids({
+    db,
+    commodityGuid,
+    makeGuid,
+    nowMs,
+    zone,
+  });
+};
+
+export const openIssuerKitWithPurseGuids = async (
+  config: OpenIssuerConfig,
+): Promise<IssuerKitWithPurseGuids> => {
+  const { db, commodityGuid, makeGuid, nowMs } = config;
+  return makeIssuerKitWithPurseGuids({
+    db,
+    commodityGuid,
+    makeGuid,
+    nowMs,
+    zone: config.zone ?? defaultZone,
+  });
 };
 
 export const openIssuerKit = async (
