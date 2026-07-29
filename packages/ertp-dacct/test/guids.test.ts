@@ -6,6 +6,7 @@ test('makeDeterministicGuid produces deterministic output', t => {
   const a = makeDeterministicGuid('hello');
   const b = makeDeterministicGuid('hello');
   t.is(a, b);
+  t.is(a, asGuid('2cf24dba5fb0a30e26e83b2ac5b9e29e'));
 });
 
 test('makeDeterministicGuid produces different output for different seeds', t => {
