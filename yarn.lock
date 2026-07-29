@@ -267,6 +267,12 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@endo/cancel@link:../../../endo/packages/cancel::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct":
+  version: 0.0.0-use.local
+  resolution: "@endo/cancel@link:../../../endo/packages/cancel::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct"
+  languageName: node
+  linkType: soft
+
 "@endo/cjs-module-analyzer@npm:^1.0.11":
   version: 1.0.11
   resolution: "@endo/cjs-module-analyzer@npm:1.0.11"
@@ -299,6 +305,12 @@ __metadata:
   checksum: 10c0/869b0f4eb62ab621d8bf0dd62f11e1e3498ab57cf4f5d1ae9a27492155af52746a86cce21ed972c07b4c6785238113400b9df1c82ed4662252fdad171ab56ff7
   languageName: node
   linkType: hard
+
+"@endo/daemon@link:../../../endo/packages/daemon::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct":
+  version: 0.0.0-use.local
+  resolution: "@endo/daemon@link:../../../endo/packages/daemon::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct"
+  languageName: node
+  linkType: soft
 
 "@endo/env-options@npm:^1.1.11":
   version: 1.1.11
@@ -367,6 +379,12 @@ __metadata:
   checksum: 10c0/9ad0915818115999dd5fb618096be49e0f70f6289a234e968f40495ad2b3ced7bbbd09b7f20aaf04a88192fbb398bc42b89eb2dded5760df6a8e7439a20a7b9e
   languageName: node
   linkType: hard
+
+"@endo/init@link:../../../endo/packages/init::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct":
+  version: 0.0.0-use.local
+  resolution: "@endo/init@link:../../../endo/packages/init::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct"
+  languageName: node
+  linkType: soft
 
 "@endo/init@npm:*, @endo/init@npm:^1.1.12, @endo/init@npm:^1.1.13":
   version: 1.1.13
@@ -488,6 +506,12 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@endo/where@link:../../../endo/packages/where::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct":
+  version: 0.0.0-use.local
+  resolution: "@endo/where@link:../../../endo/packages/where::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct"
+  languageName: node
+  linkType: soft
+
 "@endo/zip@npm:^1.0.11":
   version: 1.1.0
   resolution: "@endo/zip@npm:1.1.0"
@@ -602,7 +626,12 @@ __metadata:
   resolution: "@finquick/ertp-dacct@workspace:packages/ertp-dacct"
   dependencies:
     "@agoric/ertp": "npm:0.16.3-dev-dc67c18.0.dc67c18"
+    "@endo/cancel": "link:../../../endo/packages/cancel"
+    "@endo/daemon": "link:../../../endo/packages/daemon"
     "@endo/eventual-send": "npm:^1.5.0"
+    "@endo/far": "npm:^1.1.14"
+    "@endo/init": "link:../../../endo/packages/init"
+    "@endo/where": "link:../../../endo/packages/where"
     "@finquick/sqlite-plugin": "workspace:^"
     "@types/better-sqlite3": "npm:^7.6.1"
     ava: "npm:^5.3.1"

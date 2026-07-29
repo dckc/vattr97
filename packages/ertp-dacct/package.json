@@ -11,6 +11,7 @@
     "codegen:sql": "node scripts/codegen-sql.mjs",
     "lint:types": "tsc -p tsconfig.json --noEmit --incremental",
     "test": "ava",
+    "test:integration": "node --import=ts-blank-space/register scripts/escrow-ertp.js",
     "check": "npm run lint:types && npm run test"
   },
   "ava": {
@@ -37,6 +38,11 @@
     "better-sqlite3": "^12.6.2"
   },
   "devDependencies": {
+    "@endo/cancel": "link:../../../endo/packages/cancel",
+    "@endo/daemon": "link:../../../endo/packages/daemon",
+    "@endo/far": "^1.1.14",
+    "@endo/init": "link:../../../endo/packages/init",
+    "@endo/where": "link:../../../endo/packages/where",
     "@types/better-sqlite3": "^7.6.1",
     "ava": "^5.3.1",
     "ts-blank-space": "^0.6.2",
