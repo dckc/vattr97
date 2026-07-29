@@ -25,24 +25,43 @@ npm run test:integration
 ```
 
 The script imports `@endo/init` before its other Endo dependencies, while the
-package command preloads the TypeScript loader. Set `DB_PATH` to retain and
-inspect a particular SQLite database; otherwise the test uses and removes a
-temporary database.
+package command preloads the TypeScript loader for the composition script.
+The confined ledger archive includes the TypeScript accounting sources
+through `@endo/bundle-source`, which erases types with Amaro; no generated
+`dist` tree is involved. Set `DB_PATH` before the first run to select a
+database; otherwise the composition retains `./escrow.sqlite`.
 
-The scenario is actor-oriented: Alice and Bob each own the preparation of
-their offer, payout facets, and one-shot state; an escrow actor owns the
-exchange protocol. The test driver sends messages to all three with `E(...)`
-and observes only the escrow actor's result.
+The scenario runs three confined Endo guests. Alice and Bob each own the
+preparation of their offer, payout facets, purses, and one-shot state. The
+ledger guest owns the issuer kits, mints, and chart facets. The top-level
+composition owns the scenario and escrow coordination. The test driver sends
+messages across all three guest boundaries with `E(...)`.
+
+Within that archive, `guests/ledger.js` is generic: its `makeIssuerKit`
+creates or opens one commodity's issuer kit and returns it with the matching
+chart facet. Currency/security selection, trader roles, amounts, and
+narration live in the top-level integration script.
 
 The composition root acts as a trusted narrator. It gives each trader the two
 issuers, an initial payment, and purse-only sealing capabilities. Each trader
 creates its own refund and wanted-asset purses, derives the wanted brand from
 its issuer, and exposes only sealed purse identities. The narrator assigns
-account names through commodity-specific chart facets using those seals. It
-also uses each kit's narrow `mintInfo` facet to identify and place the holding
-and recovery accounts. All narrated trader and mint accounts sit beneath the
-active GnuCash book's root; the narrator retains the mints, charts, and
-database authority.
+account names through the chart facets returned by the ledger. All narrated
+trader and mint accounts sit beneath the active GnuCash book's root.
+
+The composition creates private name hubs with `provideGuest`. SQLite is
+moved only into the ledger hub. Role-specific trader-kit formulas are
+evaluated in the ledger worker and moved separately into Alice's and Bob's
+hubs, so neither trader receives the narrator facet, mint authority, or the
+other trader's capabilities.
+
+The resulting formulas persist after the script exits. The host inventory
+retains `alice`, `bob`, and `ledger`, along with the trader profiles, ledger
+worker, issuer kits, and payment dependencies. After creating `ledger`, the
+composition removes the host's pet name for the ledger profile. The ledger
+formula retains that profile as its powers dependency, but the host can no
+longer traverse it to recover `sqlite-db`. Only the transient source archives
+and the script's client connection are otherwise cleaned up.
 
 The money issuer opens the book's existing `CURRENCY:USD` commodity rather
 than creating another USD row. Currency accounts inherit its fraction as

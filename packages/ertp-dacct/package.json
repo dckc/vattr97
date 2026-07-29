@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "codegen:sql": "node scripts/codegen-sql.mjs",
@@ -38,8 +37,11 @@
     "better-sqlite3": "^12.6.2"
   },
   "devDependencies": {
+    "@endo/base64": "link:../../../endo/packages/base64",
+    "@endo/bundle-source": "link:../../../endo/packages/bundle-source",
     "@endo/cancel": "link:../../../endo/packages/cancel",
     "@endo/daemon": "link:../../../endo/packages/daemon",
+    "@endo/exo-stream": "link:../../../endo/packages/exo-stream",
     "@endo/far": "^1.1.14",
     "@endo/init": "link:../../../endo/packages/init",
     "@endo/where": "link:../../../endo/packages/where",

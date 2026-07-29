@@ -253,12 +253,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@endo/base64@link:../../../endo/packages/base64::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct":
+  version: 0.0.0-use.local
+  resolution: "@endo/base64@link:../../../endo/packages/base64::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct"
+  languageName: node
+  linkType: soft
+
 "@endo/base64@npm:^1.0.12":
   version: 1.1.1
   resolution: "@endo/base64@npm:1.1.1"
   checksum: 10c0/f3880549457423cb6fbb4849b27329e9bd14da04289198bafb432782495846cc338ca0bc82bb1bcefc0697af3f1e188aa86a11c76625df20c3e7185afd233cd1
   languageName: node
   linkType: hard
+
+"@endo/bundle-source@link:../../../endo/packages/bundle-source::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct":
+  version: 0.0.0-use.local
+  resolution: "@endo/bundle-source@link:../../../endo/packages/bundle-source::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct"
+  languageName: node
+  linkType: soft
 
 "@endo/cache-map@npm:^1.1.0":
   version: 1.1.0
@@ -338,6 +350,12 @@ __metadata:
   checksum: 10c0/a9050754d15394f5a268b035563bc0520dd86d9be33677c70d5f5f140069d0b0f81f399897897fb0b00f70add1da552146c8adc533d03e441ed9aaf0b0bc602b
   languageName: node
   linkType: hard
+
+"@endo/exo-stream@link:../../../endo/packages/exo-stream::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct":
+  version: 0.0.0-use.local
+  resolution: "@endo/exo-stream@link:../../../endo/packages/exo-stream::locator=%40finquick%2Fertp-dacct%40workspace%3Apackages%2Fertp-dacct"
+  languageName: node
+  linkType: soft
 
 "@endo/exo@npm:^1.5.12, @endo/exo@npm:^1.6.0":
   version: 1.7.0
@@ -626,9 +644,12 @@ __metadata:
   resolution: "@finquick/ertp-dacct@workspace:packages/ertp-dacct"
   dependencies:
     "@agoric/ertp": "npm:0.16.3-dev-dc67c18.0.dc67c18"
+    "@endo/base64": "link:../../../endo/packages/base64"
+    "@endo/bundle-source": "link:../../../endo/packages/bundle-source"
     "@endo/cancel": "link:../../../endo/packages/cancel"
     "@endo/daemon": "link:../../../endo/packages/daemon"
     "@endo/eventual-send": "npm:^1.5.0"
+    "@endo/exo-stream": "link:../../../endo/packages/exo-stream"
     "@endo/far": "npm:^1.1.14"
     "@endo/init": "link:../../../endo/packages/init"
     "@endo/where": "link:../../../endo/packages/where"

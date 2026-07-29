@@ -1,3 +1,6 @@
 community1.db
 community1.db.*.log
 dist/
+escrow.sqlite
+escrow.sqlite-shm
+escrow.sqlite-wal

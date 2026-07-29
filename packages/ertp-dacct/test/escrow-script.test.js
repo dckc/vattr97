@@ -1,6 +1,7 @@
 import test from 'ava';
+import { E } from '@endo/eventual-send';
 import { Far } from '@endo/far';
-import { makeTraderActor } from '../scripts/escrow-ertp.js';
+import { makeTrader } from '../scripts/guests/trader.js';
 
 test('trader creates purses and exposes only their sealed identities', async t => {
   const payment = Far('payment', {});
@@ -20,20 +21,39 @@ test('trader creates purses and exposes only their sealed identities', async t =
     getBrand: () => wantedBrand,
   });
   const endowment = {
-    name: 'Alice',
-    giveIssuer,
-    wantIssuer,
-    givePayment: payment,
-    wantValue: 10n,
-    sealGivePurse: purse => harden({ kind: 'refund', purse }),
-    sealWantPurse: purse => harden({ kind: 'want', purse }),
+    give: {
+      issuer: giveIssuer,
+      payment,
+      sealer: Far('refund sealer', {
+        seal: purse => harden({ kind: 'refund', purse }),
+      }),
+    },
+    want: {
+      issuer: wantIssuer,
+      value: 10n,
+      sealer: Far('want sealer', {
+        seal: purse => harden({ kind: 'want', purse }),
+      }),
+    },
   };
   Object.defineProperty(endowment, 'mint', {
     get: () => {
       throw Error('trader accessed mint authority');
     },
   });
-  const trader = makeTraderActor(endowment);
+  const powers = Far('powers', {
+    lookup: name => {
+      t.is(name, 'trader-kit');
+      return endowment;
+    },
+  });
+  const trader = await makeTrader(
+    { eventualSend: E, makeFar: Far },
+    powers,
+    {
+      env: { TRADER_NAME: 'Alice' },
+    },
+  );
 
   const offer = await trader.makeOffer();
   const sealed = trader.getSealedPurses();
