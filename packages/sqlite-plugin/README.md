@@ -3,9 +3,11 @@
 `@finquick/sqlite-plugin` is an unconfined Endo plugin that opens one
 injected SQLite path and exposes an attenuated SQL capability.
 
-The root capability provides autocommit `execute` and `query` methods.
-`begin()` executes `BEGIN IMMEDIATE` and returns a transaction Exo with
-`execute`, `query`, `commit`, and `rollback`.
+The root capability provides autocommit `execute`, `query`, and `prepare`
+methods. `prepare<TParams, TRow>()` returns a typed statement capability with
+`run`, `get`, and `all` methods. `begin()` executes `BEGIN IMMEDIATE` and
+returns a transaction Exo with the same SQL operations plus `commit` and
+`rollback`.
 
 While a transaction is active:
 
@@ -31,6 +33,11 @@ await Promise.all([...writes, commitP]);
 Calls sent to the same transaction are processed in order. The first failed
 statement poisons the transaction, causing an already-pipelined `commit()` to
 roll back and reject rather than commit partial work.
+
+Prepared statement calls target a separate statement capability. Await
+transaction statement operations before sending `commit()`; for a fully
+pipelined transaction, use `execute` and `query` directly on the transaction
+as shown above.
 
 `close()` rolls back an active transaction before closing the database.
 Process or connection termination also causes SQLite to roll back an

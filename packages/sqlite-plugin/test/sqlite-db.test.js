@@ -25,6 +25,25 @@ test('root capability supports autocommit operations', async t => {
   ]);
 });
 
+test('root capability supports prepared statements', async t => {
+  const db = makeMemoryDb();
+  t.teardown(() => E(db).close());
+
+  await E(db).execute('CREATE TABLE item (name TEXT PRIMARY KEY)');
+  const insertP = E(db).prepare('INSERT INTO item (name) VALUES (?)');
+  await E(insertP).run('first');
+  await E(insertP).run('second');
+
+  const selectP = E(db).prepare(
+    'SELECT name FROM item WHERE name >= ? ORDER BY name',
+  );
+  t.deepEqual(await E(selectP).get('first'), { name: 'first' });
+  t.deepEqual(await E(selectP).all('first'), [
+    { name: 'first' },
+    { name: 'second' },
+  ]);
+});
+
 test('transaction commits its statements atomically', async t => {
   const db = makeMemoryDb();
   t.teardown(() => E(db).close());
@@ -34,6 +53,24 @@ test('transaction commits its statements atomically', async t => {
   await E(tx).execute('INSERT INTO item (name) VALUES (?)', ['committed']);
   await E(tx).commit();
 
+  t.deepEqual(await E(db).query('SELECT name FROM item'), [
+    { name: 'committed' },
+  ]);
+});
+
+test('transaction owns its prepared statements', async t => {
+  const db = makeMemoryDb();
+  t.teardown(() => E(db).close());
+  await E(db).execute('CREATE TABLE item (name TEXT PRIMARY KEY)');
+
+  const txP = E(db).begin();
+  const insertP = E(txP).prepare('INSERT INTO item (name) VALUES (?)');
+  await E(insertP).run('committed');
+  await E(txP).commit();
+
+  await t.throwsAsync(E(insertP).run('too late'), {
+    message: /no longer active/,
+  });
   t.deepEqual(await E(db).query('SELECT name FROM item'), [
     { name: 'committed' },
   ]);
@@ -96,6 +133,7 @@ test('active transaction exclusively owns the connection', async t => {
   const db = makeMemoryDb();
   t.teardown(() => E(db).close());
   await E(db).execute('CREATE TABLE item (name TEXT PRIMARY KEY)');
+  const rootStatement = await E(db).prepare('SELECT * FROM item');
 
   const tx = await E(db).begin();
 
@@ -106,6 +144,12 @@ test('active transaction exclusively owns the connection', async t => {
     message: /active transaction/,
   });
   await t.throwsAsync(E(db).begin(), {
+    message: /active transaction/,
+  });
+  await t.throwsAsync(E(db).prepare('SELECT * FROM item'), {
+    message: /active transaction/,
+  });
+  await t.throwsAsync(E(rootStatement).all(), {
     message: /active transaction/,
   });
 

@@ -13,9 +13,5 @@
     "outDir": "dist",
     "types": ["node"]
   },
-  "include": [
-    "index.js",
-    "src/**/*.js",
-    "test/**/*.js"
-  ]
+  "include": ["index.js", "src/**/*.js", "test/**/*.js", "test/**/*.ts"]
 }

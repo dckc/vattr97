@@ -16,9 +16,16 @@ import Database from 'better-sqlite3';
 
 const SqliteResultShape = M.recordOf(M.string(), M.scalar());
 
+const SqliteStatementI = M.interface('SqliteStatement', {
+  run: M.call().rest(M.any()).returns(SqliteResultShape),
+  get: M.call().rest(M.any()).returns(M.or(M.record(), M.undefined())),
+  all: M.call().rest(M.any()).returns(M.array()),
+});
+
 const SqliteTransactionI = M.interface('SqliteTransaction', {
   execute: M.call(M.string()).optional(M.array()).returns(SqliteResultShape),
   query: M.call(M.string()).optional(M.array()).returns(M.array()),
+  prepare: M.call(M.string()).returns(M.remotable('SqliteStatement')),
   commit: M.call().returns(M.undefined()),
   rollback: M.call().returns(M.undefined()),
 });
@@ -26,12 +33,62 @@ const SqliteTransactionI = M.interface('SqliteTransaction', {
 const SqliteDbI = M.interface('SqliteDb', {
   execute: M.call(M.string()).optional(M.array()).returns(SqliteResultShape),
   query: M.call(M.string()).optional(M.array()).returns(M.array()),
+  prepare: M.call(M.string()).returns(M.remotable('SqliteStatement')),
   begin: M.call().returns(M.remotable('SqliteTransaction')),
   close: M.call().returns(M.undefined()),
 });
 
 /**
  * @typedef {string | number | bigint | null | Uint8Array} SqlValue
+ */
+
+/**
+ * @typedef {{
+ *   changes: number,
+ *   lastInsertRowid: number | bigint,
+ * }} SqliteResult
+ */
+
+/**
+ * @template {SqlValue[]} [TParams=SqlValue[]]
+ * @template [TRow=Record<string, unknown>]
+ * @typedef {{
+ *   run: (...params: TParams) => SqliteResult,
+ *   get: (...params: TParams) => TRow | undefined,
+ *   all: (...params: TParams) => TRow[],
+ * }} SqliteStatement
+ */
+
+/**
+ * @typedef {{
+ *   execute: (sql: string, params?: SqlValue[]) => SqliteResult,
+ *   query: (
+ *     sql: string,
+ *     params?: SqlValue[],
+ *   ) => Record<string, unknown>[],
+ *   prepare: <
+ *     TParams extends SqlValue[] = SqlValue[],
+ *     TRow = Record<string, unknown>,
+ *   >(sql: string) => SqliteStatement<TParams, TRow>,
+ *   commit: () => void,
+ *   rollback: () => void,
+ * }} SqliteTransaction
+ */
+
+/**
+ * @typedef {{
+ *   execute: (sql: string, params?: SqlValue[]) => SqliteResult,
+ *   query: (
+ *     sql: string,
+ *     params?: SqlValue[],
+ *   ) => Record<string, unknown>[],
+ *   prepare: <
+ *     TParams extends SqlValue[] = SqlValue[],
+ *     TRow = Record<string, unknown>,
+ *   >(sql: string) => SqliteStatement<TParams, TRow>,
+ *   begin: () => SqliteTransaction,
+ *   close: () => void,
+ * }} SqliteDb
  */
 
 /**
@@ -80,6 +137,7 @@ const assertDataStatement = sql => {
  * @param {unknown} [_powers]
  * @param {unknown} [_context]
  * @param {{ env?: Record<string, string> }} [options]
+ * @returns {SqliteDb}
  */
 export const make = (
   _powers = undefined,
@@ -142,6 +200,67 @@ export const make = (
       db.prepare(sql).all(...params)
     );
     return harden(rows.map(row => ({ ...row })));
+  };
+
+  /** @typedef {<T>(operation: () => T) => T} RunStatementOperation */
+
+  /**
+   * @template {SqlValue[]} [TParams=SqlValue[]]
+   * @template [TRow=Record<string, unknown>]
+   * @param {string} sql
+   * @param {RunStatementOperation} runOperation
+   * @returns {SqliteStatement<TParams, TRow>}
+   */
+  const prepare = (sql, runOperation) => {
+    assertDataStatement(sql);
+    const statement = db.prepare(sql);
+    const statementExo = makeExo('SqliteStatement', SqliteStatementI, {
+      run(...params) {
+        return runOperation(() => {
+          const sqlParams = /** @type {SqlValue[]} */ (
+            /** @type {unknown} */ (params)
+          );
+          const { changes, lastInsertRowid } = statement.run(...sqlParams);
+          return harden({ changes, lastInsertRowid });
+        });
+      },
+
+      get(...params) {
+        return runOperation(() => {
+          const sqlParams = /** @type {SqlValue[]} */ (
+            /** @type {unknown} */ (params)
+          );
+          const row = /** @type {Record<string, unknown> | undefined} */ (
+            statement.get(...sqlParams)
+          );
+          if (row === undefined) {
+            return undefined;
+          }
+          return harden({ ...row });
+        });
+      },
+
+      all(...params) {
+        return runOperation(() => {
+          const sqlParams = /** @type {SqlValue[]} */ (
+            /** @type {unknown} */ (params)
+          );
+          const rows = /** @type {Record<string, unknown>[]} */ (
+            statement.all(...sqlParams)
+          );
+          return harden(rows.map(row => ({ ...row })));
+        });
+      },
+    });
+    return /** @type {SqliteStatement<TParams, TRow>} */ (
+      /** @type {unknown} */ (statementExo)
+    );
+  };
+
+  /** @type {RunStatementOperation} */
+  const runRootStatementOperation = operation => {
+    assertRootOwnsConnection();
+    return operation();
   };
 
   /** @param {TransactionToken} token */
@@ -225,6 +344,16 @@ export const make = (
           return run(() => query(sql, params));
         },
 
+        /**
+         * @template {SqlValue[]} [TParams=SqlValue[]]
+         * @template [TRow=Record<string, unknown>]
+         * @param {string} sql
+         * @returns {SqliteStatement<TParams, TRow>}
+         */
+        prepare(sql) {
+          return run(() => prepare(sql, run));
+        },
+
         commit() {
           assertTransactionOwnsConnection(token);
           if (token.failed) {
@@ -270,6 +399,17 @@ export const make = (
     query(sql, params = []) {
       assertRootOwnsConnection();
       return query(sql, params);
+    },
+
+    /**
+     * @template {SqlValue[]} [TParams=SqlValue[]]
+     * @template [TRow=Record<string, unknown>]
+     * @param {string} sql
+     * @returns {SqliteStatement<TParams, TRow>}
+     */
+    prepare(sql) {
+      assertRootOwnsConnection();
+      return prepare(sql, runRootStatementOperation);
     },
 
     begin,
