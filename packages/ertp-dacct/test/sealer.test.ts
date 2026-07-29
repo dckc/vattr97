@@ -32,3 +32,19 @@ test('sealed object is frozen', t => {
   const sealed = sealer.seal({});
   t.true(Object.isFrozen(sealed));
 });
+
+test('sealer facets and tokens use the supplied zone', t => {
+  const interfaces: string[] = [];
+  const zone = {
+    exo: <T extends Record<PropertyKey, unknown>>(
+      interfaceName: string,
+      methods: T,
+    ) => {
+      interfaces.push(interfaceName);
+      return Object.freeze(methods);
+    },
+  };
+  const { sealer } = makeSealerUnsealerPair(zone);
+  sealer.seal({});
+  t.deepEqual(interfaces, ['Sealer', 'Unsealer', 'Sealed']);
+});

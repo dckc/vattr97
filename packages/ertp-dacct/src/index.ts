@@ -395,7 +395,7 @@ const makeIssuerKitWithPurseGuids = async ({
   nowMs: () => number;
   zone: Zone;
 }): Promise<IssuerKitWithPurseGuids> => {
-  const { sealer, unsealer } = makeSealerUnsealerPair();
+  const { sealer, unsealer } = makeSealerUnsealerPair(zone);
   const { kit, purseGuids, payments, mintInfo } =
     await makeIssuerKitForCommodity({
       db,
@@ -462,7 +462,7 @@ export const openIssuerKit = async (
 ): Promise<IssuerKitForCommodity> => {
   const { db, commodityGuid, makeGuid, nowMs } = config;
   const zone = config.zone ?? defaultZone;
-  const { unsealer } = makeSealerUnsealerPair();
+  const { unsealer } = makeSealerUnsealerPair(zone);
   return makeIssuerKitForCommodity({
     db,
     commodityGuid,
