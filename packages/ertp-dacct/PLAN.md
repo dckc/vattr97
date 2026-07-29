@@ -191,3 +191,88 @@
 - [x] Hoist ledger construction to `setupLedger`.
 - [x] Keep their runtime-power and result boundaries narrow.
 - [x] Rerun package checks.
+
+## Integration narration
+
+- [x] Add speaker-oriented progress narration.
+- [x] Describe the offers, account placement, and settlement outcome.
+- [x] Identify the persistent database and Endo actor names.
+- [x] Rerun package checks.
+
+## Actor-reported story
+
+- [x] Have traders report offers they verified and constructed.
+- [x] Have traders report their own post-settlement purse balances.
+- [x] Narrate account names only after successful chart placement.
+- [x] Remove speculative stage announcements.
+- [x] Rerun package checks.
+
+## Ledger-owned mint placement
+
+- [x] Move generic mint-account placement into the ledger guest.
+- [x] Expose distinct currency and commodity issuer-kit methods.
+- [x] Derive account type from the commodity namespace.
+- [x] Return the successfully placed names with each issuer kit.
+- [x] Remove mint-account chart authority from the top-level script.
+- [x] Rerun package checks.
+
+## Distinct issuer-kit construction
+
+- [x] Remove the conditional shared issuer-kit constructor.
+- [x] Open currencies only through the currency function.
+- [x] Create commodities only through the commodity function.
+- [x] Share only chart and mint-account placement.
+- [x] Rerun package checks.
+
+## Account path placement
+
+- [x] Define trader account placement in terms of names and paths.
+- [x] Keep the book root GUID inside the ledger/chart boundary.
+- [x] Resolve or create intermediate account path components.
+- [x] Place sealed trader purses at their final path components.
+- [x] Give each trader ledger-backed account name admins.
+- [x] Restrict each admin to its trader prefix and issuer-kit chart.
+- [x] Have traders update their own account names with sealed purses.
+- [x] Remove narrator-driven trader-purse placement.
+- [x] Rerun package checks.
+
+## Guest actor imports
+
+- [x] Use the daemon's endowed `E` and `Far` globals in guest modules.
+- [x] Remove testing-only eventual-send and actor-constructor injection.
+- [x] Mirror those worker endowments in the test shim.
+- [x] Rerun package checks.
+
+## Table-driven trader setup
+
+- [x] Describe Alice and Bob as give/want data.
+- [x] Build each trader kit with one generic ledger formula.
+- [x] Generate guest caplets from the same descriptions.
+- [x] Rerun package checks.
+
+## Generated source literals
+
+- [x] Add a concise JSON literal helper.
+- [x] Inline trader names and account names through the helper.
+- [x] Rerun package checks.
+
+## Private trader-kit installation
+
+- [x] Reproduce the cross-formula `storeValue` failure.
+- [x] Pass each trader's give/want kit directly to `makeOffer`.
+- [x] Keep payments unnamed in the host namespace.
+- [x] Rerun package checks.
+
+## Explicit and path-oriented chart placement
+
+- [x] Restore `placePurse` with explicit `name` and `parentGuid`.
+- [x] Add a separate `placePurseAtPath` operation.
+- [x] Use path placement only from the account NameAdmin adapter.
+- [x] Rerun package checks.
+
+## Synchronous amount narration
+
+- [x] Retain each issuer kit's existing brand reference.
+- [x] Map brand identity to its narration name.
+- [x] Format payout amounts synchronously.
+- [x] Rerun package checks.

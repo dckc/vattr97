@@ -1,3 +1,6 @@
+import { E } from '@endo/eventual-send';
+import { Far } from '@endo/far';
+
 const freeze = Object.freeze;
 const ownKeys = Reflect.ownKeys;
 const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
@@ -35,3 +38,5 @@ const makeHardener = ({ traversePrototypes }) => {
 };
 
 globalThis.harden = makeHardener({ traversePrototypes: false });
+globalThis.E = E;
+globalThis.Far = Far;

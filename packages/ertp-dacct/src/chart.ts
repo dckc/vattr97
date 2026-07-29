@@ -1,22 +1,85 @@
 import { defaultZone } from './jessie-tools.ts';
 import type { Zone } from './jessie-tools.ts';
-import { dbGet, dbRun } from './sql-db.ts';
+import { dbAll, dbGet, dbRun } from './sql-db.ts';
 import type { DBRef } from './sql-db.ts';
 import type { ChartFacet, Guid } from './types.ts';
-import { requireAccountCommodity } from './db-helpers.ts';
+import {
+  ensureAccountRow,
+  requireAccountCommodity,
+} from './db-helpers.ts';
+import { makeDeterministicGuid } from './guids.ts';
 
 export const makeChartFacet = ({
   db,
   commodityGuid,
   getGuidFromSealed,
+  accountType: defaultAccountType = 'ASSET',
   zone = defaultZone,
 }: {
   db: DBRef;
   commodityGuid: Guid;
   getGuidFromSealed: (sealedPurse: unknown) => Guid;
+  accountType?: string;
   zone?: Zone;
 }): ChartFacet => {
   const { exo } = zone;
+  const resolveParentPath = async (path: string[]): Promise<Guid> => {
+    const root = await dbGet<
+      [],
+      { guid: string; commodity_guid: string | null }
+    >(
+      db,
+      `
+        SELECT root.guid, root.commodity_guid
+        FROM books
+        JOIN accounts AS root ON root.guid = books.root_account_guid
+        LIMIT 1
+      `,
+    );
+    if (!root || root.commodity_guid === null) {
+      throw new Error('book root account not found');
+    }
+    let parentGuid = root.guid as Guid;
+    for (const [index, name] of path.entries()) {
+      const matches = await dbAll<
+        [string, string],
+        { guid: string }
+      >(
+        db,
+        `
+          SELECT guid
+          FROM accounts
+          WHERE parent_guid = ? AND name = ?
+        `,
+        parentGuid,
+        name,
+      );
+      if (matches.length > 1) {
+        throw new Error(`ambiguous account path component: ${name}`);
+      }
+      const existingGuid = matches[0]?.guid;
+      if (existingGuid) {
+        parentGuid = existingGuid as Guid;
+        continue;
+      }
+      const accountGuid = makeDeterministicGuid(
+        `dacct-account-path:${root.guid}:${JSON.stringify(
+          path.slice(0, index + 1),
+        )}`,
+      );
+      await ensureAccountRow({
+        db,
+        accountGuid,
+        name,
+        commodityGuid: root.commodity_guid as Guid,
+        accountType: 'ASSET',
+        parentGuid,
+      });
+      parentGuid = accountGuid;
+    }
+    return parentGuid;
+  };
+
   const updateAccount = async ({
     accountGuid,
     name,
@@ -58,25 +121,57 @@ export const makeChartFacet = ({
     );
   };
 
-  return exo('ChartFacet', {
-    placePurse: async ({
-      sealedPurse,
+  const placePurse = async ({
+    sealedPurse,
+    name,
+    parentGuid = null,
+    accountType = defaultAccountType,
+    placeholder = false,
+    code = null,
+  }: {
+    sealedPurse: unknown;
+    name: string;
+    parentGuid?: Guid | null;
+    accountType?: string;
+    placeholder?: boolean;
+    code?: string | null;
+  }) => {
+    const purseGuid = getGuidFromSealed(sealedPurse);
+    await updateAccount({
+      accountGuid: purseGuid,
       name,
-      parentGuid = null,
-      accountType = 'ASSET',
+      parentGuid,
+      accountType,
+      placeholder,
+      code,
+    });
+  };
+
+  return exo('ChartFacet', {
+    placePurse,
+    placePurseAtPath: async ({
+      sealedPurse,
+      path,
+      accountType = defaultAccountType,
       placeholder = false,
       code = null,
     }: {
       sealedPurse: unknown;
-      name: string;
-      parentGuid?: Guid | null;
+      path: string[];
       accountType?: string;
       placeholder?: boolean;
       code?: string | null;
     }) => {
-      const purseGuid = getGuidFromSealed(sealedPurse);
-      await updateAccount({
-        accountGuid: purseGuid,
+      if (path.length === 0) {
+        throw new Error('account path must not be empty');
+      }
+      if (path.some(name => name.length === 0)) {
+        throw new Error('account path names must not be empty');
+      }
+      const name = path[path.length - 1]!;
+      const parentGuid = await resolveParentPath(path.slice(0, -1));
+      await placePurse({
+        sealedPurse,
         name,
         parentGuid,
         accountType,

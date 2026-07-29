@@ -37,31 +37,35 @@ ledger guest owns the issuer kits, mints, and chart facets. The top-level
 composition owns the scenario and escrow coordination. The test driver sends
 messages across all three guest boundaries with `E(...)`.
 
-Within that archive, `guests/ledger.js` is generic: its `makeIssuerKit`
-creates or opens one commodity's issuer kit and returns it with the matching
-chart facet. Currency/security selection, trader roles, amounts, and
-narration live in the top-level integration script.
+Within that archive, `guests/ledger.js` is generic. Its distinct
+`makeCurrencyIssuerKit` and `makeCommodityIssuerKit` methods return issuer
+kits with chart-backed account name admins; chart facets and book-root GUIDs
+remain inside the ledger. Trader roles, amounts, and narration live in the
+top-level integration script.
 
 The composition root acts as a trusted narrator. It gives each trader the two
 issuers, an initial payment, and purse-only sealing capabilities. Each trader
 creates its own refund and wanted-asset purses, derives the wanted brand from
-its issuer, and exposes only sealed purse identities. The narrator assigns
-account names through the chart facets returned by the ledger. All narrated
-trader and mint accounts sit beneath the active GnuCash book's root.
+its issuer, and exposes only sealed purse identities. For each trader, the
+narrator derives one scoped child name admin from the money kit and another
+from the stock kit. The trader names each sealed purse through its matching
+admin, so a purse sealed by the other issuer is rejected. Account names are
+resolved as paths beneath the active GnuCash book root.
 
 The composition creates private name hubs with `provideGuest`. SQLite is
-moved only into the ledger hub. Role-specific trader-kit formulas are
-evaluated in the ledger worker and moved separately into Alice's and Bob's
-hubs, so neither trader receives the narrator facet, mint authority, or the
-other trader's capabilities.
+moved only into the ledger hub. Alice and Bob are created without trader-kit
+powers. For each offer, a formula in the ledger worker mints the payment,
+derives the trader's two scoped account name admins, and sends only those
+offer terms directly to that trader. Neither trader receives the narrator
+facet, mint authority, or the other trader's capabilities.
 
 The resulting formulas persist after the script exits. The host inventory
-retains `alice`, `bob`, and `ledger`, along with the trader profiles, ledger
-worker, issuer kits, and payment dependencies. After creating `ledger`, the
-composition removes the host's pet name for the ledger profile. The ledger
-formula retains that profile as its powers dependency, but the host can no
-longer traverse it to recover `sqlite-db`. Only the transient source archives
-and the script's client connection are otherwise cleaned up.
+retains `alice`, `bob`, and `ledger`, along with the ledger worker, issuer
+kits, and their dependencies. After creating each actor, the composition
+removes the host's pet name for its private profile. Each actor formula
+retains its profile as a powers dependency, but the host can no longer
+traverse the ledger profile to recover `sqlite-db`. Only the transient source
+archives and the script's client connection are otherwise cleaned up.
 
 The money issuer opens the book's existing `CURRENCY:USD` commodity rather
 than creating another USD row. Currency accounts inherit its fraction as

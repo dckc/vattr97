@@ -87,6 +87,13 @@ export type ChartFacet = {
     placeholder?: boolean;
     code?: string | null;
   }) => Promise<void>;
+  placePurseAtPath: (args: {
+    sealedPurse: unknown;
+    path: string[];
+    accountType?: string;
+    placeholder?: boolean;
+    code?: string | null;
+  }) => Promise<void>;
   placeAccount: (args: {
     accountGuid: Guid;
     name: string;

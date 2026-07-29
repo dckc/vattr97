@@ -26,6 +26,7 @@ const sqliteModule = new URL(
 ).href;
 const ledgerModule = new URL('guests/ledger.js', import.meta.url).href;
 const traderModule = new URL('guests/trader.js', import.meta.url).href;
+const lit = x => JSON.stringify(x);
 
 const connectEndo = async ({
   env,
@@ -79,12 +80,7 @@ const provideGuest = async (agent, role) => {
   return agentName;
 };
 
-const endoMake = async ({
-  agent,
-  moduleLocation,
-  archiveName,
-  caplets,
-}) => {
+const endoMake = async ({ agent, moduleLocation, archiveName, caplets }) => {
   const bundle = await bundleSource(url.fileURLToPath(moduleLocation), {
     format: 'endoZipBase64',
   });
@@ -108,36 +104,6 @@ const endoMake = async ({
         .catch(() => {});
     }
   }
-};
-
-const placeMintAccounts = async ({ rootAccountGuid, entries }) => {
-  const descriptions = await Promise.all(
-    entries.map(
-      async ({ brand, mintInfo: mintInfoFacet, chart, accountType }) => {
-        const [label, mintInfo] = await Promise.all([
-          E(brand).getAllegedName(),
-          E(mintInfoFacet).getMintInfo(),
-        ]);
-        return { chart, accountType, label, mintInfo };
-      },
-    ),
-  );
-  await Promise.all(
-    descriptions.flatMap(({ chart, accountType, label, mintInfo }) => [
-      E(chart).placeAccount({
-        accountGuid: mintInfo.holdingAccountGuid,
-        name: `${label} Mint Holding`,
-        parentGuid: rootAccountGuid,
-        accountType,
-      }),
-      E(chart).placeAccount({
-        accountGuid: mintInfo.recoveryPurseGuid,
-        name: `${label} Mint Recovery`,
-        parentGuid: rootAccountGuid,
-        accountType,
-      }),
-    ]),
-  );
 };
 
 const setupLedger = async ({ host, databasePath, archiveNonce }) => {
@@ -174,95 +140,40 @@ const setupLedger = async ({ host, databasePath, archiveNonce }) => {
   });
   await E(host).remove(ledgerAgent);
 
-  const [rootAccountGuid, usdCommodityGuid] = await Promise.all([
-    E(ledger).getBookRootAccountGuid(),
-    E(ledger).findCommodityGuid('CURRENCY', 'USD'),
-  ]);
   const moneyKitName = 'escrow-money-kit';
   const stockKitName = 'escrow-stock-kit';
   const moneyKit = await E(host).evaluate(
     ledgerWorker,
-    `E(ledger).makeIssuerKit({ commodityGuid: ${JSON.stringify(
-      usdCommodityGuid,
-    )} })`,
+    "E(ledger).makeCurrencyIssuerKit({ mnemonic: 'USD' })",
     ['ledger'],
     [ledgerName],
     moneyKitName,
   );
   const stockKit = await E(host).evaluate(
     ledgerWorker,
-    "E(ledger).makeIssuerKit({ commodity: { mnemonic: 'STOCK' } })",
+    "E(ledger).makeCommodityIssuerKit({ mnemonic: 'STOCK' })",
     ['ledger'],
     [ledgerName],
     stockKitName,
   );
-  await placeMintAccounts({
-    rootAccountGuid,
-    entries: [
-      {
-        brand: moneyKit.brand,
-        mintInfo: moneyKit.mintInfo,
-        chart: moneyKit.chart,
-        accountType: 'BANK',
-      },
-      {
-        brand: stockKit.brand,
-        mintInfo: stockKit.mintInfo,
-        chart: stockKit.chart,
-        accountType: 'STOCK',
-      },
-    ],
-  });
-
   return harden({
     ledgerWorker,
-    rootAccountGuid,
+    mintAccountNames: [
+      ...moneyKit.mintAccountNames,
+      ...stockKit.mintAccountNames,
+    ],
     money: harden({
+      brand: moneyKit.brand,
       kitName: moneyKitName,
       issuer: moneyKit.issuer,
-      chart: moneyKit.chart,
     }),
     stock: harden({
+      brand: stockKit.brand,
       kitName: stockKitName,
       issuer: stockKit.issuer,
-      chart: stockKit.chart,
     }),
   });
 };
-
-const placeTraderAccounts = async ({
-  rootAccountGuid,
-  moneyChart,
-  stockChart,
-  alicePurses,
-  bobPurses,
-}) =>
-  Promise.all([
-    E(moneyChart).placePurse({
-      sealedPurse: alicePurses.refund,
-      name: 'Alice USD',
-      parentGuid: rootAccountGuid,
-      accountType: 'BANK',
-    }),
-    E(stockChart).placePurse({
-      sealedPurse: alicePurses.want,
-      name: 'Alice STOCK',
-      parentGuid: rootAccountGuid,
-      accountType: 'STOCK',
-    }),
-    E(stockChart).placePurse({
-      sealedPurse: bobPurses.refund,
-      name: 'Bob STOCK',
-      parentGuid: rootAccountGuid,
-      accountType: 'STOCK',
-    }),
-    E(moneyChart).placePurse({
-      sealedPurse: bobPurses.want,
-      name: 'Bob USD',
-      parentGuid: rootAccountGuid,
-      accountType: 'BANK',
-    }),
-  ]);
 
 export const main = async (
   argv = process.argv,
@@ -286,6 +197,10 @@ export const main = async (
 
   const runId = randomBytes(8).toString('hex');
   const databasePath = env.DB_PATH ?? path.join(cwd(), 'escrow.sqlite');
+  const narrate = (speaker, message) =>
+    stdout.write(`${speaker}: ${message}\n`);
+  const relay = ({ speaker, message }) => narrate(speaker, message);
+
   const { host, closeClient } = await connectEndo({
     env,
     makeClient,
@@ -297,131 +212,147 @@ export const main = async (
   });
 
   try {
-    const { ledgerWorker, rootAccountGuid, money, stock } =
-      await setupLedger({
-        host,
-        databasePath,
-        archiveNonce: runId,
-      });
+    const { ledgerWorker, mintAccountNames, money, stock } = await setupLedger({
+      host,
+      databasePath,
+      archiveNonce: runId,
+    });
+    const brandNames = new Map([
+      [money.brand, 'USD'],
+      [stock.brand, 'STOCK'],
+    ]);
+    const fmtAmt = ({ brand, value }) => {
+      const name = brandNames.get(brand);
+      assert(name, 'unknown brand');
+      return `${value} ${name}`;
+    };
+    narrate(
+      'Ledger',
+      `Opened ${databasePath} and placed ${mintAccountNames.join(', ')}.`,
+    );
 
-    const [aliceAgent, bobAgent] = await Promise.all([
-      provideGuest(host, 'alice'),
-      provideGuest(host, 'bob'),
-    ]);
-
-    const alicePaymentName = 'escrow-alice-payment';
-    const bobPaymentName = 'escrow-bob-payment';
-    await Promise.all([
-      E(host).evaluate(
-        ledgerWorker,
-        'E(kit.mint).mintPayment(harden({ brand: kit.brand, value: 100n }))',
-        ['kit'],
-        [money.kitName],
-        alicePaymentName,
-      ),
-      E(host).evaluate(
-        ledgerWorker,
-        'E(kit.mint).mintPayment(harden({ brand: kit.brand, value: 10n }))',
-        ['kit'],
-        [stock.kitName],
-        bobPaymentName,
-      ),
-    ]);
-    const aliceKitName = 'escrow-alice-kit';
-    const bobKitName = 'escrow-bob-kit';
-    await Promise.all([
-      E(host).evaluate(
-        ledgerWorker,
-        `harden({
-          give: harden({
-            issuer: giveKit.issuer,
-            payment,
-            sealer: giveKit.sealer,
+    const traderSpecs = harden({
+      alice: harden({
+        name: 'Alice',
+        give: harden({
+          accountName: 'USD',
+          kitName: money.kitName,
+          value: 100n,
+        }),
+        want: harden({
+          accountName: 'STOCK',
+          kitName: stock.kitName,
+          value: 10n,
+        }),
+      }),
+      bob: harden({
+        name: 'Bob',
+        give: harden({
+          accountName: 'STOCK',
+          kitName: stock.kitName,
+          value: 10n,
+        }),
+        want: harden({
+          accountName: 'USD',
+          kitName: money.kitName,
+          value: 100n,
+        }),
+      }),
+    });
+    const traders = await Promise.all(
+      Object.entries(traderSpecs).map(async ([id, { name, give, want }]) => {
+        const agentName = await provideGuest(host, id);
+        return harden({
+          id,
+          name,
+          give,
+          want,
+          agentName,
+          workerName: undefined,
+          options: harden({
+            powersName: agentName,
+            resultName: id,
+            env: harden({ TRADER_NAME: name }),
           }),
-          want: harden({
-            issuer: wantKit.issuer,
-            value: 10n,
-            sealer: wantKit.sealer,
-          }),
-        })`,
-        ['giveKit', 'wantKit', 'payment'],
-        [money.kitName, stock.kitName, alicePaymentName],
-        aliceKitName,
-      ),
-      E(host).evaluate(
-        ledgerWorker,
-        `harden({
-          give: harden({
-            issuer: giveKit.issuer,
-            payment,
-            sealer: giveKit.sealer,
-          }),
-          want: harden({
-            issuer: wantKit.issuer,
-            value: 100n,
-            sealer: wantKit.sealer,
-          }),
-        })`,
-        ['giveKit', 'wantKit', 'payment'],
-        [stock.kitName, money.kitName, bobPaymentName],
-        bobKitName,
-      ),
-    ]);
-    await Promise.all([
-      E(host).move([aliceKitName], [aliceAgent, 'trader-kit']),
-      E(host).move([bobKitName], [bobAgent, 'trader-kit']),
-    ]);
+        });
+      }),
+    );
     const [alice, bob] = await endoMake({
       agent: host,
       moduleLocation: traderModule,
       archiveName: `tmp-trader-archive-${runId}`,
-      caplets: [
-        {
-          workerName: undefined,
-          options: {
-            powersName: aliceAgent,
-            resultName: 'alice',
-            env: { TRADER_NAME: 'Alice' },
-          },
-        },
-        {
-          workerName: undefined,
-          options: {
-            powersName: bobAgent,
-            resultName: 'bob',
-            env: { TRADER_NAME: 'Bob' },
-          },
-        },
-      ],
+      caplets: traders.map(({ workerName, options }) =>
+        harden({ workerName, options }),
+      ),
     });
+    await Promise.all(
+      Object.keys(traderSpecs).map(id => E(host).remove(`${id}-agent`)),
+    );
 
-    const [aliceOffer, bobOffer] = await Promise.all([
-      E(alice).makeOffer(),
-      E(bob).makeOffer(),
+    const [aliceOffer, bobOffer] = await Promise.all(
+      traders.map(({ id, name, give, want }) =>
+        E(host).evaluate(
+          ledgerWorker,
+          `E(giveKit.mint)
+            .mintPayment(harden({
+              brand: giveKit.brand,
+              value: ${give.value}n,
+            }))
+            .then(payment =>
+              Promise.all([
+                E(giveKit.nameAdmin).provideChild(${lit(name)}),
+                E(wantKit.nameAdmin).provideChild(${lit(name)}),
+              ]).then(([giveAccounts, wantAccounts]) =>
+                E(trader).makeOffer(harden({
+                  give: harden({
+                    accountName: ${lit(give.accountName)},
+                    issuer: giveKit.issuer,
+                    nameAdmin: giveAccounts.nameAdmin,
+                    payment,
+                    sealer: giveKit.sealer,
+                  }),
+                  want: harden({
+                    accountName: ${lit(want.accountName)},
+                    issuer: wantKit.issuer,
+                    nameAdmin: wantAccounts.nameAdmin,
+                    value: ${want.value}n,
+                    sealer: wantKit.sealer,
+                  }),
+                })),
+              ),
+            )`,
+          ['giveKit', 'wantKit', 'trader'],
+          [give.kitName, want.kitName, id],
+        ),
+      ),
+    );
+    const offerReports = await Promise.all([
+      E(alice).describeOffer(),
+      E(bob).describeOffer(),
     ]);
-    const [alicePurses, bobPurses] = await Promise.all([
-      E(alice).getSealedPurses(),
-      E(bob).getSealedPurses(),
-    ]);
-    await placeTraderAccounts({
-      rootAccountGuid,
-      moneyChart: money.chart,
-      stockChart: stock.chart,
-      alicePurses,
-      bobPurses,
-    });
+    offerReports.forEach(relay);
 
     const { escrowExchange } = await makeErtpEscrow({
       issuers: { A: money.issuer, B: stock.issuer },
     });
-    const [bobPayout, alicePayout] = await escrowExchange(
-      aliceOffer,
-      bobOffer,
-    );
+    const [bobPayout, alicePayout] = await escrowExchange(aliceOffer, bobOffer);
     const outcome = harden({ alicePayout, bobPayout });
     assert.equal(outcome.alicePayout.value, 10n);
     assert.equal(outcome.bobPayout.value, 100n);
-    stdout.write('escrow integration passed\n');
+    narrate(
+      'Escrow',
+      `Settled ${fmtAmt(outcome.alicePayout)} to Alice and ${fmtAmt(outcome.bobPayout)} to Bob.`,
+    );
+    const holdingReports = await Promise.all([
+      E(alice).describeHoldings(),
+      E(bob).describeHoldings(),
+    ]);
+    holdingReports.forEach(relay);
+    narrate(
+      'Narrator',
+      'The successful actors remain available as alice, bob, and ledger.',
+    );
+    narrate('Narrator', 'Escrow integration passed.');
     return outcome;
   } finally {
     await closeClient();

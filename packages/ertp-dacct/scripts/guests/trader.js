@@ -1,52 +1,79 @@
 // @ts-check
 
+// Endo confined workers endow these globals; importing them would enlarge the archive.
 /* global E, Far, harden */
 
 /**
  * Alice and Bob run separate instances of this confined guest program.
- * Their private name hubs contain only their respective `trader-kit`.
+ * Each receives its offer terms directly when asked to make an offer.
  *
- * @param {{ lookup: (name: string) => unknown }} powers
- * @param {unknown} _context
  * @param {{ env: Record<string, string> }} options
  */
-export const makeTrader = async (
-  { eventualSend, makeFar },
-  powers,
-  { env },
-) => {
+export const makeTrader = async ({ env }) => {
   const name = env.TRADER_NAME;
   if (!name) {
     throw Error('TRADER_NAME is required');
   }
 
-  const { give: giveSpec, want: wantSpec } =
-    await eventualSend(powers).lookup('trader-kit');
   let offerMade = false;
   let sealedPurses;
+  let purses;
+  let offerReport;
 
-  return makeFar(`${name} trader`, {
-    async makeOffer() {
+  return Far(`${name} trader`, {
+    async makeOffer({ give: giveSpec, want: wantSpec }) {
       if (offerMade) {
         throw Error(`${name} already made an offer`);
       }
       offerMade = true;
 
-      const [refundPurse, wantPurse, wantBrand] = await Promise.all([
-        eventualSend(giveSpec.issuer).makeEmptyPurse(),
-        eventualSend(wantSpec.issuer).makeEmptyPurse(),
-        eventualSend(wantSpec.issuer).getBrand(),
-      ]);
-      const [refundDeposit, wantDeposit, sealedRefund, sealedWant] =
+      const [refundPurse, wantPurse, wantBrand, giveAmount] =
         await Promise.all([
-          eventualSend(refundPurse).getDepositFacet(),
-          eventualSend(wantPurse).getDepositFacet(),
-          eventualSend(giveSpec.sealer).seal(refundPurse),
-          eventualSend(wantSpec.sealer).seal(wantPurse),
+          E(giveSpec.issuer).makeEmptyPurse(),
+          E(wantSpec.issuer).makeEmptyPurse(),
+          E(wantSpec.issuer).getBrand(),
+          E(giveSpec.issuer).getAmountOf(giveSpec.payment),
         ]);
+      const [
+        refundDeposit,
+        wantDeposit,
+        sealedRefund,
+        sealedWant,
+        giveLabel,
+        wantLabel,
+      ] = await Promise.all([
+        E(refundPurse).getDepositFacet(),
+        E(wantPurse).getDepositFacet(),
+        E(giveSpec.sealer).seal(refundPurse),
+        E(wantSpec.sealer).seal(wantPurse),
+        E(giveAmount.brand).getAllegedName(),
+        E(wantBrand).getAllegedName(),
+      ]);
       sealedPurses = harden({
         refund: sealedRefund,
         want: sealedWant,
+      });
+      await Promise.all([
+        E(giveSpec.nameAdmin).update(
+          giveSpec.accountName,
+          sealedRefund,
+        ),
+        E(wantSpec.nameAdmin).update(
+          wantSpec.accountName,
+          sealedWant,
+        ),
+      ]);
+      const refundPath = harden([name, giveSpec.accountName]);
+      const wantPath = harden([name, wantSpec.accountName]);
+      purses = harden({
+        refund: refundPurse,
+        want: wantPurse,
+        giveLabel,
+        wantLabel,
+      });
+      offerReport = harden({
+        speaker: name,
+        message: `I verified my payment, named my purses ${refundPath.join('/')} and ${wantPath.join('/')}, and prepared an offer of ${giveAmount.value} ${giveLabel} for ${wantSpec.value} ${wantLabel}.`,
       });
 
       return harden({
@@ -62,9 +89,28 @@ export const makeTrader = async (
       }
       return sealedPurses;
     },
+    describeOffer() {
+      if (!offerReport) {
+        throw Error(`${name} has not made an offer`);
+      }
+      return offerReport;
+    },
+    async describeHoldings() {
+      if (!purses) {
+        throw Error(`${name} has not made an offer`);
+      }
+      const [refundAmount, wantAmount] = await Promise.all([
+        E(purses.refund).getCurrentAmount(),
+        E(purses.want).getCurrentAmount(),
+      ]);
+      return harden({
+        speaker: name,
+        message: `My purses now hold ${refundAmount.value} ${purses.giveLabel} and ${wantAmount.value} ${purses.wantLabel}.`,
+      });
+    },
   });
 };
 
-export const make = (powers, _context, options) =>
-  makeTrader({ eventualSend: E, makeFar: Far }, powers, options);
+export const make = (_powers, _context, options) =>
+  makeTrader(options);
 harden(make);

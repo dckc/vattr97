@@ -23,8 +23,8 @@
     ],
     "nodeArguments": [
       "--import=ses",
-      "--import=./test/shim.js",
       "--import=@endo/eventual-send/shim.js",
+      "--import=./test/shim.js",
       "--import=ts-blank-space/register",
       "--no-warnings"
     ],
