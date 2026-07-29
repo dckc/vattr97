@@ -1,3 +1,5 @@
+import { E } from '@endo/eventual-send';
+import type { ERef } from '@endo/eventual-send';
 import type {
   AssetKind,
   DepositFacet,
@@ -39,14 +41,14 @@ export const makeErtpEscrow = async <
   zone = defaultZone,
   sealers,
 }: {
-  issuers: { A: Issuer<KindA>; B: Issuer<KindB> };
+  issuers: { A: ERef<Issuer<KindA>>; B: ERef<Issuer<KindB>> };
   zone?: Zone;
   sealers?: { A: Sealer; B: Sealer };
 }) => {
   const { exo } = zone;
   const escrows: { A: Purse<KindA>; B: Purse<KindB> } = {
-    A: await issuers.A.makeEmptyPurse(),
-    B: await issuers.B.makeEmptyPurse(),
+    A: await E(issuers.A).makeEmptyPurse(),
+    B: await E(issuers.B).makeEmptyPurse(),
   };
 
   const escrowExchange = (
@@ -54,8 +56,12 @@ export const makeErtpEscrow = async <
     b: EscrowParty<KindB, KindA>,
   ) => {
     const depositPs = {
-      A: Promise.resolve(a.give).then(payment => escrows.A.deposit(payment)),
-      B: Promise.resolve(b.give).then(payment => escrows.B.deposit(payment)),
+      A: Promise.resolve(a.give).then(payment =>
+        E(escrows.A).deposit(payment),
+      ),
+      B: Promise.resolve(b.give).then(payment =>
+        E(escrows.B).deposit(payment),
+      ),
     };
     const depositsP: Promise<{ A: Amount<KindA>; B: Amount<KindB> }> =
       Promise.all([depositPs.A, depositPs.B]).then(([A, B]) => ({ A, B }));
@@ -77,8 +83,8 @@ export const makeErtpEscrow = async <
       amount: Amount<K>,
     ) =>
       Promise.resolve()
-        .then(() => escrow.withdraw(amount))
-        .then(payment => payout.receive(payment));
+        .then(() => E(escrow).withdraw(amount))
+        .then(payment => E(payout).receive(payment));
     const assertEnough = <K extends AssetKind>(
       have: Amount<K>,
       want: Amount<K>,
