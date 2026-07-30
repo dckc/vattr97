@@ -19,8 +19,8 @@ test('negative amounts rejected', async t => {
 
   const makeGuid = mockMakeGuid();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const nowMs = makeTestClock();
-  const kit = await createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const clock = makeTestClock();
+  const kit = await createIssuerKit(freeze({ db, clock, commodity, makeGuid }));
   const brand = kit.brand as Brand<'nat'>;
 
   await t.throwsAsync(
@@ -40,13 +40,13 @@ test('wrong-brand payments rejected on deposit', async t => {
   await initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
-  const nowMs = makeTestClock();
+  const clock = makeTestClock();
   const bucks = await createIssuerKit(
     freeze({
       db,
       commodity: freeze({ mnemonic: 'BUCKS' }),
       makeGuid,
-      nowMs,
+      clock,
     }),
   );
   const euros = await createIssuerKit(
@@ -54,7 +54,7 @@ test('wrong-brand payments rejected on deposit', async t => {
       db,
       commodity: freeze({ mnemonic: 'EUROS' }),
       makeGuid: mockMakeGuid(1000n),
-      nowMs,
+      clock,
     }),
   );
 
@@ -78,16 +78,16 @@ test('holding account is not externally accessible', async t => {
 
   const makeGuid = mockMakeGuid();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const nowMs = makeTestClock();
-  const kit = await createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const clock = makeTestClock();
+  const kit = await createIssuerKit(freeze({ db, clock, commodity, makeGuid }));
 
   const { holdingAccountGuid } = kit.mintInfo.getMintInfo();
   const reopenedKit = await openIssuerKit(
     freeze({
       db,
+      clock: makeTestClock(),
       commodityGuid: kit.commodityGuid,
       makeGuid,
-      nowMs: makeTestClock(),
     }),
   );
   await t.throwsAsync(
@@ -109,8 +109,8 @@ test('payment not live after burn', async t => {
 
   const makeGuid = mockMakeGuid();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const nowMs = makeTestClock();
-  const kit = await createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const clock = makeTestClock();
+  const kit = await createIssuerKit(freeze({ db, clock, commodity, makeGuid }));
   const brand = kit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
 

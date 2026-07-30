@@ -34,9 +34,7 @@ const addChartAndPlaceMintAccounts = async (config, kit, accountType) => {
   const [mintInfo, label, bookRows] = await Promise.all([
     E(kit.mintInfo).getMintInfo(),
     E(kit.brand).getAllegedName(),
-    E(config.db).query(
-      'SELECT root_account_guid FROM books LIMIT 1',
-    ),
+    E(config.db).query('SELECT root_account_guid FROM books LIMIT 1'),
   ]);
   const rootAccountGuid = bookRows[0]?.root_account_guid;
   if (typeof rootAccountGuid !== 'string') {
@@ -56,9 +54,7 @@ const addChartAndPlaceMintAccounts = async (config, kit, accountType) => {
       accountType,
     },
   ];
-  await Promise.all(
-    placements.map(account => E(chart).placeAccount(account)),
-  );
+  await Promise.all(placements.map(account => E(chart).placeAccount(account)));
   return harden({
     ...kit,
     chart,
@@ -138,26 +134,22 @@ const makeChartNameAdmin = ({ chart }) => {
  * @param {{ env: Record<string, string> }} options
  */
 export const makeLedger = async (powers, { env }) => {
-  const db = await E(powers).lookup('sqlite-db');
+  const [db, clock] = await Promise.all([
+    E(powers).lookup('sqlite-db'),
+    E(powers).lookup('clock'),
+  ]);
   const zone = harden({
     exo: (name, methods) => Far(name, methods),
   });
   const makeGuid = mockMakeGuid(BigInt(env.GUID_START ?? '0'));
-  let now = Number(env.NOW_START ?? Date.now());
-  const nowStep = Number(env.NOW_STEP ?? 0);
-  const nowMs = () => {
-    const current = now;
-    now += nowStep;
-    return current;
-  };
   await initGnuCashSchema(db);
 
   const withLedgerPowers = commodityConfig =>
     harden({
       ...commodityConfig,
+      clock,
       db,
       makeGuid,
-      nowMs,
       zone,
     });
   return Far('ledger service', {
@@ -181,9 +173,7 @@ export const makeLedger = async (powers, { env }) => {
       return harden({ ...sharedKit, nameAdmin });
     },
     async makeCommodityIssuerKit(commodity) {
-      const kit = await makeCommodityIssuerKit(
-        withLedgerPowers({ commodity }),
-      );
+      const kit = await makeCommodityIssuerKit(withLedgerPowers({ commodity }));
       const { chart, ...sharedKit } = kit;
       const nameAdmin = makeChartNameAdmin({ chart });
       return harden({ ...sharedKit, nameAdmin });
@@ -191,6 +181,5 @@ export const makeLedger = async (powers, { env }) => {
   });
 };
 
-export const make = (powers, _context, options) =>
-  makeLedger(powers, options);
+export const make = (powers, _context, options) => makeLedger(powers, options);
 harden(make);

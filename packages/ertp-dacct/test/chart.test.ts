@@ -1,5 +1,5 @@
 import test from 'ava';
-import { makeTestDb, mockMakeGuid } from './mock-io.js';
+import { makeTestClock, makeTestDb, mockMakeGuid } from './mock-io.js';
 import { createIssuerKit } from '../src/index.js';
 import { makeChartFacet } from '../src/chart.js';
 import { makeSealerUnsealerPair } from '../src/sealer.js';
@@ -16,9 +16,9 @@ test('placePurseAtPath creates and resolves a root-relative account path', async
     mnemonic: 'BUCKS',
     fraction: 100,
   });
-  const nowMs = () => Date.UTC(2020, 0, 1);
+  const clock = makeTestClock(Date.UTC(2020, 0, 1), 0);
   const kit = (await createIssuerKit(
-    freeze({ db, commodity, makeGuid, nowMs }),
+    freeze({ db, clock, commodity, makeGuid }),
   )) as IssuerKitWithPurseGuids;
 
   const purse = await kit.issuer.makeEmptyPurse();
@@ -77,12 +77,12 @@ test('placePurse places beneath an explicit parent', async t => {
   const kit = (await createIssuerKit(
     freeze({
       db,
+      clock: makeTestClock(Date.UTC(2020, 0, 1), 0),
       commodity: freeze({
         namespace: 'COMMODITY',
         mnemonic: 'TOKENS',
       }),
       makeGuid: mockMakeGuid(),
-      nowMs: () => Date.UTC(2020, 0, 1),
     }),
   )) as IssuerKitWithPurseGuids;
   const purse = await kit.issuer.makeEmptyPurse();
@@ -103,10 +103,10 @@ test('placePurse places beneath an explicit parent', async t => {
     parentGuid: root?.root_account_guid,
   });
 
-  const row = await db
-    .prepare<[Guid], { name: string; parent_guid: Guid | null }>(
-      'SELECT name, parent_guid FROM accounts WHERE guid = ?',
-    );
+  const row = await db.prepare<
+    [Guid],
+    { name: string; parent_guid: Guid | null }
+  >('SELECT name, parent_guid FROM accounts WHERE guid = ?');
   const placed = await row.get(kit.purses.getGuid(purse));
   t.deepEqual(placed, {
     name: 'Wallet',
@@ -121,9 +121,9 @@ test('placeAccount updates an account directly', async t => {
 
   const makeGuid = mockMakeGuid();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const nowMs = () => Date.UTC(2020, 0, 1);
+  const clock = makeTestClock(Date.UTC(2020, 0, 1), 0);
   const kit = (await createIssuerKit(
-    freeze({ db, commodity, makeGuid, nowMs }),
+    freeze({ db, clock, commodity, makeGuid }),
   )) as IssuerKitWithPurseGuids;
 
   const purse = await kit.issuer.makeEmptyPurse();
@@ -157,9 +157,9 @@ test('placePurseAtPath rejects an empty path', async t => {
 
   const makeGuid = mockMakeGuid();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const nowMs = () => Date.UTC(2020, 0, 1);
+  const clock = makeTestClock(Date.UTC(2020, 0, 1), 0);
   const kit = (await createIssuerKit(
-    freeze({ db, commodity, makeGuid, nowMs }),
+    freeze({ db, clock, commodity, makeGuid }),
   )) as IssuerKitWithPurseGuids;
 
   const purse = await kit.issuer.makeEmptyPurse();
@@ -170,8 +170,7 @@ test('placePurseAtPath rejects an empty path', async t => {
   });
 
   const sealedPurse = kit.sealer.seal(purse);
-  await t.throwsAsync(
-    () => chart.placePurseAtPath({ sealedPurse, path: [] }),
-    { message: 'account path must not be empty' },
-  );
+  await t.throwsAsync(() => chart.placePurseAtPath({ sealedPurse, path: [] }), {
+    message: 'account path must not be empty',
+  });
 });

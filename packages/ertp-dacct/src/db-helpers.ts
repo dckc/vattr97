@@ -1,6 +1,8 @@
+import { E } from '@endo/eventual-send';
 import { dbAll, dbGet, dbRun } from './sql-db.ts';
 import type { DBRef } from './sql-db.ts';
-import type { CommoditySpec, Guid } from './types.ts';
+import type { Clock, CommoditySpec, Guid } from './types.ts';
+import type { ERef } from '@endo/eventual-send';
 import type { CommodityRow } from './gnucash-schema.ts';
 
 export const ensureCommodityRow = async (
@@ -225,19 +227,19 @@ export const getAccountBalance = async (
 
 export const makeTransferRecorder = ({
   db,
+  clock,
   commodityGuid,
   holdingAccountGuid,
   makeGuid,
-  nowMs,
 }: {
   db: DBRef;
+  clock: ERef<Clock>;
   commodityGuid: Guid;
   holdingAccountGuid: Guid;
   makeGuid: () => Guid;
-  nowMs: () => number;
 }) => {
-  const formatCheckNumber = (nowMsValue: number) => {
-    const date = new Date(nowMsValue);
+  const formatCheckNumber = (timestampMs: number) => {
+    const date = new Date(timestampMs);
     const hh = String(date.getUTCHours()).padStart(2, '0');
     const mm = String(date.getUTCMinutes()).padStart(2, '0');
     return `${hh}:${mm}`;
@@ -295,9 +297,9 @@ export const makeTransferRecorder = ({
     txGuid: Guid,
     amount: bigint,
     checkNumber: string,
-    nowMsValue: number,
+    timestampMs: number,
   ) => {
-    const seconds = Math.floor(nowMsValue / 1000);
+    const seconds = Math.floor(timestampMs / 1000);
     await dbRun(
       db,
       `
@@ -320,12 +322,12 @@ export const makeTransferRecorder = ({
     fromAccountGuid: Guid;
     amount: bigint;
   }) => {
-    const nowMsValue = nowMs();
+    const timestampMs = await E(clock).now();
     const txGuid = makeGuid();
     const resolvedCheckNumber = await resolveCheckNumber(
-      formatCheckNumber(nowMsValue),
+      formatCheckNumber(timestampMs),
     );
-    await recordTransaction(txGuid, amount, resolvedCheckNumber, nowMsValue);
+    await recordTransaction(txGuid, amount, resolvedCheckNumber, timestampMs);
     const holdingSplitGuid = await recordSplit(
       txGuid,
       holdingAccountGuid,

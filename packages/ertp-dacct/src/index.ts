@@ -9,6 +9,7 @@ import { makeDeterministicGuid } from './guids.ts';
 import type {
   AccountPurse,
   AmountLike,
+  Clock,
   CreateIssuerConfig,
   Guid,
   NatIssuerKit,
@@ -33,6 +34,7 @@ import type { Sealed, Sealer, Unsealer } from './sealer.ts';
 export type { Sealed, Sealer, Unsealer } from './sealer.ts';
 
 export type {
+  Clock,
   CommoditySpec,
   CreateIssuerConfig,
   OpenIssuerConfig,
@@ -112,16 +114,16 @@ export const ensureGnuCashSchema = async (
 
 const makeIssuerKitForCommodity = async ({
   db,
+  clock,
   commodityGuid,
   makeGuid,
-  nowMs,
   zone,
   unsealer,
 }: {
   db: ERef<DB>;
+  clock: ERef<Clock>;
   commodityGuid: Guid;
   makeGuid: () => Guid;
-  nowMs: () => number;
   zone: Zone;
   unsealer: Unsealer;
 }): Promise<IssuerKitForCommodity> => {
@@ -199,10 +201,10 @@ const makeIssuerKitForCommodity = async ({
   });
   const transferRecorder = makeTransferRecorder({
     db,
+    clock,
     commodityGuid,
     holdingAccountGuid: balanceAccountGuid,
     makeGuid,
-    nowMs,
   });
   const { ensurePurse, makeNewPurse, openPurse, purseGuids } = makePurseFactory(
     {
@@ -384,24 +386,24 @@ const makeIssuerKitForCommodity = async ({
 
 const makeIssuerKitWithPurseGuids = async ({
   db,
+  clock,
   commodityGuid,
   makeGuid,
-  nowMs,
   zone,
 }: {
   db: ERef<DB>;
+  clock: ERef<Clock>;
   commodityGuid: Guid;
   makeGuid: () => Guid;
-  nowMs: () => number;
   zone: Zone;
 }): Promise<IssuerKitWithPurseGuids> => {
   const { sealer, unsealer } = makeSealerUnsealerPair(zone);
   const { kit, purseGuids, payments, mintInfo } =
     await makeIssuerKitForCommodity({
       db,
+      clock,
       commodityGuid,
       makeGuid,
-      nowMs,
       zone,
       unsealer,
     });
@@ -431,15 +433,15 @@ const makeIssuerKitWithPurseGuids = async ({
 export const createIssuerKit = async (
   config: CreateIssuerConfig,
 ): Promise<IssuerKitWithPurseGuids> => {
-  const { db, commodity, makeGuid, nowMs } = config;
+  const { db, clock, commodity, makeGuid } = config;
   const zone = config.zone ?? defaultZone;
   const commodityGuid = makeGuid();
   await createCommodityRow({ db, guid: commodityGuid, commodity });
   return makeIssuerKitWithPurseGuids({
     db,
+    clock,
     commodityGuid,
     makeGuid,
-    nowMs,
     zone,
   });
 };
@@ -447,12 +449,12 @@ export const createIssuerKit = async (
 export const openIssuerKitWithPurseGuids = async (
   config: OpenIssuerConfig,
 ): Promise<IssuerKitWithPurseGuids> => {
-  const { db, commodityGuid, makeGuid, nowMs } = config;
+  const { db, clock, commodityGuid, makeGuid } = config;
   return makeIssuerKitWithPurseGuids({
     db,
+    clock,
     commodityGuid,
     makeGuid,
-    nowMs,
     zone: config.zone ?? defaultZone,
   });
 };
@@ -460,14 +462,14 @@ export const openIssuerKitWithPurseGuids = async (
 export const openIssuerKit = async (
   config: OpenIssuerConfig,
 ): Promise<IssuerKitForCommodity> => {
-  const { db, commodityGuid, makeGuid, nowMs } = config;
+  const { db, clock, commodityGuid, makeGuid } = config;
   const zone = config.zone ?? defaultZone;
   const { unsealer } = makeSealerUnsealerPair(zone);
   return makeIssuerKitForCommodity({
     db,
+    clock,
     commodityGuid,
     makeGuid,
-    nowMs,
     zone,
     unsealer,
   });

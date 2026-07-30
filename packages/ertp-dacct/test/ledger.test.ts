@@ -63,12 +63,11 @@ test('issuer internal account types follow commodity namespace', async t => {
     .get();
   const kit = await openIssuerKitWithPurseGuids({
     db,
+    clock: makeTestClock(),
     commodityGuid: usd?.guid as Guid,
     makeGuid: mockMakeGuid(),
-    nowMs: makeTestClock(),
   });
-  const { holdingAccountGuid, recoveryPurseGuid } =
-    kit.mintInfo.getMintInfo();
+  const { holdingAccountGuid, recoveryPurseGuid } = kit.mintInfo.getMintInfo();
   const rows = await db
     .prepare<[string, string], { name: string; account_type: string }>(
       'SELECT name, account_type FROM accounts WHERE guid IN (?, ?) ORDER BY name',
@@ -82,9 +81,9 @@ test('issuer internal account types follow commodity namespace', async t => {
 
   const stock = await createIssuerKit({
     db,
+    clock: makeTestClock(),
     commodity: { namespace: 'COMMODITY', mnemonic: 'STOCK' },
     makeGuid: mockMakeGuid(1000n),
-    nowMs: makeTestClock(),
   });
   const stockInfo = stock.mintInfo.getMintInfo();
   const stockRows = await db
@@ -111,9 +110,9 @@ test('issuer kit accepts an eventual database reference', async t => {
   const kit = await createIssuerKit(
     freeze({
       db: dbRef,
+      clock: makeTestClock(),
       commodity: freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' }),
       makeGuid: mockMakeGuid(),
-      nowMs: makeTestClock(),
     }),
   );
   const purse = await kit.issuer.makeEmptyPurse();
@@ -132,14 +131,14 @@ test('brand.isMyIssuer rejects unrelated issuers', async t => {
 
   const makeGuid = mockMakeGuid();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const nowMs = makeTestClock();
-  const kit = await createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const clock = makeTestClock();
+  const kit = await createIssuerKit(freeze({ db, clock, commodity, makeGuid }));
   const other = await createIssuerKit(
     freeze({
       db,
       commodity: freeze({ namespace: 'COMMODITY', mnemonic: 'MOOLA' }),
       makeGuid,
-      nowMs,
+      clock,
     }),
   );
 
@@ -156,9 +155,9 @@ test('alice sends 10 to bob', async t => {
 
   const makeGuid = mockMakeGuid();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const nowMs = makeTestClock();
+  const clock = makeTestClock();
   const issuedKit = await createIssuerKit(
-    freeze({ db, commodity, makeGuid, nowMs }),
+    freeze({ db, clock, commodity, makeGuid }),
   );
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
@@ -182,9 +181,9 @@ test('deposit returns the payment amount', async t => {
 
   const makeGuid = mockMakeGuid();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const nowMs = makeTestClock();
+  const clock = makeTestClock();
   const issuedKit = await createIssuerKit(
-    freeze({ db, commodity, makeGuid, nowMs }),
+    freeze({ db, clock, commodity, makeGuid }),
   );
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
@@ -208,12 +207,9 @@ test('fixture: withdraw-deposit matches ledger rows', async t => {
 
   const makeGuid = mockMakeGuid();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const nowMs = (() => {
-    const fixed = Date.UTC(2026, 0, 24, 0, 0);
-    return () => fixed;
-  })();
+  const clock = makeTestClock(Date.UTC(2026, 0, 24, 0, 0), 0);
   const issuedKit = await createIssuerKit(
-    freeze({ db, commodity, makeGuid, nowMs }),
+    freeze({ db, clock, commodity, makeGuid }),
   );
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
@@ -324,9 +320,9 @@ test('payments can be reified by check number', async t => {
 
   const makeGuid = mockMakeGuid();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const nowMs = makeTestClock();
+  const clock = makeTestClock();
   const created = await createIssuerKit(
-    freeze({ db, commodity, makeGuid, nowMs }),
+    freeze({ db, clock, commodity, makeGuid }),
   );
   const brand = created.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
@@ -343,9 +339,9 @@ test('payments can be reified by check number', async t => {
   const reopened = await openIssuerKit(
     freeze({
       db,
+      clock: makeTestClock(),
       commodityGuid: created.commodityGuid,
       makeGuid,
-      nowMs: makeTestClock(),
     }),
   );
   const reified = await reopened.payments.openPayment(checkNumber);
@@ -370,9 +366,9 @@ test('mint payments can be reified after reopen', async t => {
   }>();
 
   {
-    const nowMs = makeTestClock();
+    const clock = makeTestClock();
     const created = await createIssuerKit(
-      freeze({ db, commodity, makeGuid, nowMs }),
+      freeze({ db, clock, commodity, makeGuid }),
     );
     const brand = created.brand as Brand<'nat'>;
     const bucks = (value: bigint): NatAmount => freeze({ brand, value });
@@ -384,7 +380,7 @@ test('mint payments can be reified after reopen', async t => {
   {
     const { commodityGuid, checkNumber } = await infoP.promise;
     const reopened = await openIssuerKit(
-      freeze({ db, commodityGuid, makeGuid, nowMs: makeTestClock() }),
+      freeze({ db, clock: makeTestClock(), commodityGuid, makeGuid }),
     );
     const reified = await reopened.payments.openPayment(checkNumber);
     const live = await reopened.kit.issuer.isLive(reified as never);
@@ -403,9 +399,9 @@ test('createIssuerKit persists balances across re-open', async t => {
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
 
   const [aliceGuid, bobGuid, createdCommodityGuid] = await (async () => {
-    const nowMs = makeTestClock();
+    const clock = makeTestClock();
     const created = await createIssuerKit(
-      freeze({ db, commodity, makeGuid, nowMs }),
+      freeze({ db, clock, commodity, makeGuid }),
     );
     t.truthy(created.issuer);
     t.truthy(created.brand);
@@ -431,9 +427,9 @@ test('createIssuerKit persists balances across re-open', async t => {
   const reopened = await openIssuerKit(
     freeze({
       db,
+      clock: makeTestClock(),
       commodityGuid: createdCommodityGuid,
       makeGuid,
-      nowMs: makeTestClock(),
     }),
   );
   t.is(

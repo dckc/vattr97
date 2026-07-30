@@ -24,6 +24,7 @@ const sqliteModule = new URL(
   '../../sqlite-plugin/src/sqlite-db.js',
   import.meta.url,
 ).href;
+const clockModule = new URL('devices/clock.js', import.meta.url).href;
 const ledgerModule = new URL('guests/ledger.js', import.meta.url).href;
 const traderModule = new URL('guests/trader.js', import.meta.url).href;
 const lit = x => JSON.stringify(x);
@@ -108,14 +109,22 @@ const endoMake = async ({ agent, moduleLocation, archiveName, caplets }) => {
 
 const setupLedger = async ({ host, databasePath, archiveNonce }) => {
   const dbName = 'escrow-sqlite-db';
-  await E(host).makeUnconfined('@node', sqliteModule, {
-    powersName: ['@none'],
-    resultName: dbName,
-    env: { DB_PATH: databasePath },
-  });
+  const clockName = 'escrow-clock';
+  await Promise.all([
+    E(host).makeUnconfined('@node', sqliteModule, {
+      powersName: ['@none'],
+      resultName: dbName,
+      env: { DB_PATH: databasePath },
+    }),
+    E(host).makeUnconfined('@node', clockModule, {
+      powersName: ['@none'],
+      resultName: clockName,
+    }),
+  ]);
 
   const ledgerAgent = await provideGuest(host, 'ledger');
   await E(host).move([dbName], [ledgerAgent, 'sqlite-db']);
+  await E(host).move([clockName], [ledgerAgent, 'clock']);
   const ledgerWorker = 'ledger-worker';
   const ledgerName = 'ledger';
   await E(host).provideWorker(ledgerWorker);
@@ -129,11 +138,7 @@ const setupLedger = async ({ host, databasePath, archiveNonce }) => {
         options: {
           powersName: ledgerAgent,
           resultName: ledgerName,
-          env: {
-            GUID_START: '0',
-            NOW_START: String(Date.UTC(2020, 0, 1, 9, 15)),
-            NOW_STEP: String(3 * 24 * 60 * 60 * 1000),
-          },
+          env: { GUID_START: '0' },
         },
       },
     ],

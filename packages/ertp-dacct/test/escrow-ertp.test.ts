@@ -18,21 +18,21 @@ test('escrow exchange completes money-for-stock swap', async t => {
   await initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
-  const nowMs = makeTestClock();
+  const clock = makeTestClock();
   const moneyKit = (await createIssuerKit(
     freeze({
       db,
+      clock,
       commodity: { mnemonic: 'USD' },
       makeGuid,
-      nowMs,
     }),
   )) as unknown as IssuerKitWithPurseGuids;
   const stockKit = (await createIssuerKit(
     freeze({
       db,
+      clock,
       commodity: { mnemonic: 'STOCK' },
       makeGuid: mockMakeGuid(1000n),
-      nowMs,
     }),
   )) as unknown as IssuerKitWithPurseGuids;
 
@@ -94,21 +94,21 @@ test('escrow exchange refunds on cancellation', async t => {
   await initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
-  const nowMs = makeTestClock();
+  const clock = makeTestClock();
   const moneyKit = (await createIssuerKit(
     freeze({
       db,
+      clock,
       commodity: { mnemonic: 'USD' },
       makeGuid,
-      nowMs,
     }),
   )) as unknown as IssuerKitWithPurseGuids;
   const stockKit = (await createIssuerKit(
     freeze({
       db,
+      clock,
       commodity: { mnemonic: 'STOCK' },
       makeGuid: mockMakeGuid(1000n),
-      nowMs,
     }),
   )) as unknown as IssuerKitWithPurseGuids;
 
@@ -167,21 +167,21 @@ test('escrow exchange refunds on insufficient offer', async t => {
   await initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
-  const nowMs = makeTestClock();
+  const clock = makeTestClock();
   const moneyKit = (await createIssuerKit(
     freeze({
       db,
+      clock,
       commodity: { mnemonic: 'USD' },
       makeGuid,
-      nowMs,
     }),
   )) as unknown as IssuerKitWithPurseGuids;
   const stockKit = (await createIssuerKit(
     freeze({
       db,
+      clock,
       commodity: { mnemonic: 'STOCK' },
       makeGuid: mockMakeGuid(1000n),
-      nowMs,
     }),
   )) as unknown as IssuerKitWithPurseGuids;
 

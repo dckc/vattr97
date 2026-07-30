@@ -27,19 +27,20 @@ const makeDb = async t => {
   return db;
 };
 
+const makeRemoteClock = () => makeTestClock();
+
 test('ledger guest places commodity mint accounts', async t => {
   const db = await makeDb(t);
   const kit = await makeCommodityIssuerKit(
     harden({
       db,
+      clock: makeRemoteClock(),
       commodity: harden({ namespace: 'COMMODITY', mnemonic: 'STOCK' }),
       makeGuid: mockMakeGuid(),
-      nowMs: makeTestClock(),
       zone: defaultZone,
     }),
   );
-  const { holdingAccountGuid, recoveryPurseGuid } =
-    kit.mintInfo.getMintInfo();
+  const { holdingAccountGuid, recoveryPurseGuid } = kit.mintInfo.getMintInfo();
   const rows = await db
     .prepare(
       `
@@ -86,14 +87,13 @@ test('ledger guest opens a currency and places its mint accounts', async t => {
   const kit = await makeCurrencyIssuerKit(
     harden({
       db,
+      clock: makeRemoteClock(),
       commodityGuid: usd.guid,
       makeGuid: mockMakeGuid(),
-      nowMs: makeTestClock(),
       zone: defaultZone,
     }),
   );
-  const { holdingAccountGuid, recoveryPurseGuid } =
-    kit.mintInfo.getMintInfo();
+  const { holdingAccountGuid, recoveryPurseGuid } = kit.mintInfo.getMintInfo();
   const rows = await db
     .prepare(
       `
@@ -117,17 +117,28 @@ test('ledger guest opens a currency and places its mint accounts', async t => {
 
 test('ledger gives traders scoped account name admins', async t => {
   const db = makeRawDb(t);
+  const clockNow = Date.UTC(2031, 3, 5, 6, 7);
+  let clockReads = 0;
+  const clock = Far('clock', {
+    now: () => {
+      clockReads += 1;
+      return clockNow;
+    },
+  });
   const powers = Far('ledger powers', {
     lookup: name => {
-      t.is(name, 'sqlite-db');
-      return db;
+      if (name === 'sqlite-db') {
+        return db;
+      }
+      if (name === 'clock') {
+        return clock;
+      }
+      throw Error(`unknown ledger power: ${name}`);
     },
   });
   const ledger = await makeLedger(powers, {
     env: {
       GUID_START: '0',
-      NOW_START: String(Date.UTC(2020, 0, 1)),
-      NOW_STEP: '1',
     },
   });
   const [moneyKit, stockKit] = await Promise.all([
@@ -162,4 +173,14 @@ test('ledger gives traders scoped account name admins', async t => {
     () => myAccounts.update('USD', stockKit.sealer.seal(stockPurse)),
     { message: "That's not my sealed object!" },
   );
+
+  await moneyKit.mint.mintPayment(harden({ brand: moneyKit.brand, value: 1n }));
+  const transaction = await db
+    .prepare('SELECT num, post_date FROM transactions')
+    .get();
+  t.is(clockReads, 1);
+  t.deepEqual(transaction, {
+    num: '06:07',
+    post_date: '2031-04-05 00:00:00',
+  });
 });

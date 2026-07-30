@@ -1,5 +1,5 @@
 import test from 'ava';
-import { makeTestDb, mockMakeGuid } from './mock-io.js';
+import { makeTestClock, makeTestDb, mockMakeGuid } from './mock-io.js';
 import {
   createCommodityRow,
   ensureCommodityRow,
@@ -195,10 +195,10 @@ test('createHold and finalizeHold transfer balance', async t => {
 
   const transferRecorder = makeTransferRecorder({
     db,
+    clock: makeTestClock(Date.UTC(2026, 0, 1), 0),
     commodityGuid,
     holdingAccountGuid: holdingGuid,
     makeGuid,
-    nowMs: () => Date.UTC(2026, 0, 1),
   });
 
   const { txGuid, holdingSplitGuid, checkNumber } =

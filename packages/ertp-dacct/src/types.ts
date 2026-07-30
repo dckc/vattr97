@@ -15,20 +15,25 @@ export type CommoditySpec = {
   quoteFlag?: number;
 };
 
+export type Clock = {
+  /** Return milliseconds since the Unix epoch. */
+  now: () => number;
+};
+
 export type CreateIssuerConfig = {
   db: ERef<DB>;
+  clock: ERef<Clock>;
   commodity: CommoditySpec;
   zone?: Zone;
   makeGuid: () => Guid;
-  nowMs: () => number;
 };
 
 export type OpenIssuerConfig = {
   db: ERef<DB>;
+  clock: ERef<Clock>;
   commodityGuid: Guid;
   zone?: Zone;
   makeGuid: () => Guid;
-  nowMs: () => number;
 };
 
 export type NatIssuerKit = IssuerKit<'nat'>;

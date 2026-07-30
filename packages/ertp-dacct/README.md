@@ -41,7 +41,9 @@ Within that archive, `guests/ledger.js` is generic. Its distinct
 `makeCurrencyIssuerKit` and `makeCommodityIssuerKit` methods return issuer
 kits with chart-backed account name admins; chart facets and book-root GUIDs
 remain inside the ledger. Trader roles, amounts, and narration live in the
-top-level integration script.
+top-level integration script. The ledger receives both its SQLite database
+and clock as remote powers; timestamp authority remains outside the confined
+worker.
 
 The composition root acts as a trusted narrator. It gives each trader the two
 issuers, an initial payment, and purse-only sealing capabilities. Each trader
