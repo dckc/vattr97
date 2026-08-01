@@ -1,5 +1,7 @@
 import { E } from '@endo/eventual-send';
+import { makeExo } from '@endo/exo';
 import { Far } from '@endo/far';
+import { M } from '@endo/patterns';
 
 const freeze = Object.freeze;
 const ownKeys = Reflect.ownKeys;
@@ -40,3 +42,5 @@ const makeHardener = ({ traversePrototypes }) => {
 globalThis.harden = makeHardener({ traversePrototypes: false });
 globalThis.E = E;
 globalThis.Far = Far;
+globalThis.M = M;
+globalThis.makeExo = makeExo;

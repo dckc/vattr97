@@ -33,6 +33,8 @@
   "dependencies": {
     "@agoric/ertp": "0.16.3-dev-dc67c18.0.dc67c18",
     "@endo/eventual-send": "^1.5.0",
+    "@endo/exo": "^1.6.0",
+    "@endo/patterns": "^1.8.0",
     "@finquick/sqlite-plugin": "workspace:^",
     "better-sqlite3": "^12.6.2"
   },
