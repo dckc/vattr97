@@ -144,10 +144,10 @@ export const makeErtpEscrow = async <
     escrowExchange,
     getSealedPurses: () => {
       if (!sealers) throw new Error('sealers not provided');
-      return freeze({
-        A: sealers.A.seal(escrows.A),
-        B: sealers.B.seal(escrows.B),
-      });
+      return Promise.all([
+        E(sealers.A).seal(escrows.A),
+        E(sealers.B).seal(escrows.B),
+      ]).then(([A, B]) => freeze({ A, B }));
     },
   });
 };

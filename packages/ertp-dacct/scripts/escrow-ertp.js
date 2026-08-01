@@ -170,13 +170,39 @@ const setupLedger = async ({ host, databasePath, archiveNonce }) => {
       brand: moneyKit.brand,
       kitName: moneyKitName,
       issuer: moneyKit.issuer,
+      nameAdmin: moneyKit.nameAdmin,
+      sealer: moneyKit.sealer,
     }),
     stock: harden({
       brand: stockKit.brand,
       kitName: stockKitName,
       issuer: stockKit.issuer,
+      nameAdmin: stockKit.nameAdmin,
+      sealer: stockKit.sealer,
     }),
   });
+};
+
+const placeEscrowPurses = async ({
+  moneyNameAdmin,
+  stockNameAdmin,
+  sealedEscrow,
+  pairIndex,
+}) => {
+  const escrowRoot = 'Escrow';
+  const pairName = `Escrow ${pairIndex}`;
+  const [moneyRoot, stockRoot] = await Promise.all([
+    E(moneyNameAdmin).provideChild(escrowRoot),
+    E(stockNameAdmin).provideChild(escrowRoot),
+  ]);
+  const [moneyPair, stockPair] = await Promise.all([
+    E(moneyRoot.nameAdmin).provideChild(pairName),
+    E(stockRoot.nameAdmin).provideChild(pairName),
+  ]);
+  await Promise.all([
+    E(moneyPair.nameAdmin).update('USD', sealedEscrow.A),
+    E(stockPair.nameAdmin).update('STOCK', sealedEscrow.B),
+  ]);
 };
 
 export const main = async (
@@ -336,9 +362,17 @@ export const main = async (
     ]);
     offerReports.forEach(relay);
 
-    const { escrowExchange } = await makeErtpEscrow({
+    const escrow = await makeErtpEscrow({
       issuers: { A: money.issuer, B: stock.issuer },
+      sealers: { A: money.sealer, B: stock.sealer },
     });
+    await placeEscrowPurses({
+      moneyNameAdmin: money.nameAdmin,
+      stockNameAdmin: stock.nameAdmin,
+      sealedEscrow: await escrow.getSealedPurses(),
+      pairIndex: 1,
+    });
+    const { escrowExchange } = escrow;
     const [bobPayout, alicePayout] = await escrowExchange(aliceOffer, bobOffer);
     const outcome = harden({ alicePayout, bobPayout });
     assert.equal(outcome.alicePayout.value, 10n);

@@ -9,6 +9,7 @@ import {
 import {
   initGnuCashSchema,
   wrapBetterSqlite3DatabaseAsync,
+  makeErtpEscrow,
 } from '../src/index.ts';
 import { defaultZone } from '../src/jessie-tools.ts';
 import { mockMakeGuid } from '../src/guids.ts';
@@ -112,6 +113,57 @@ test('ledger guest opens a currency and places its mint accounts', async t => {
   t.deepEqual(rows, [
     { name: 'US Dollar Mint Holding', account_type: 'BANK' },
     { name: 'US Dollar Mint Recovery', account_type: 'BANK' },
+  ]);
+});
+
+test('escrow purses are placed under an Escrow parent', async t => {
+  const db = makeRawDb(t);
+  const clock = makeRemoteClock();
+  const powers = Far('ledger powers', {
+    lookup: name => {
+      if (name === 'sqlite-db') return db;
+      if (name === 'clock') return clock;
+      throw Error(`unknown ledger power: ${name}`);
+    },
+  });
+  const ledger = await makeLedger(powers, { env: {} });
+  const [moneyKit, stockKit] = await Promise.all([
+    ledger.makeCurrencyIssuerKit({ mnemonic: 'USD' }),
+    ledger.makeCommodityIssuerKit({ mnemonic: 'STOCK' }),
+  ]);
+
+  const escrow = await makeErtpEscrow({
+    issuers: { A: moneyKit.issuer, B: stockKit.issuer },
+    sealers: { A: moneyKit.sealer, B: stockKit.sealer },
+  });
+  const sealed = await escrow.getSealedPurses();
+  const moneyRoot = moneyKit.nameAdmin.provideChild('Escrow').nameAdmin;
+  const stockRoot = stockKit.nameAdmin.provideChild('Escrow').nameAdmin;
+  const moneyPair = moneyRoot.provideChild('Escrow 1').nameAdmin;
+  const stockPair = stockRoot.provideChild('Escrow 1').nameAdmin;
+  await Promise.all([
+    moneyPair.update('USD', sealed.A),
+    stockPair.update('STOCK', sealed.B),
+  ]);
+
+  const aGuid = moneyKit.purses.getGuidFromSealed(sealed.A);
+  const bGuid = stockKit.purses.getGuidFromSealed(sealed.B);
+  const rows = await db
+    .prepare(
+      `
+        SELECT child.name, parent.name AS parent_name, grandparent.name AS grandparent_name
+        FROM accounts AS child
+        JOIN accounts AS parent ON parent.guid = child.parent_guid
+        JOIN accounts AS grandparent ON grandparent.guid = parent.parent_guid
+        WHERE child.guid IN (?, ?)
+        ORDER BY child.name
+      `,
+    )
+    .all(aGuid, bGuid);
+
+  t.deepEqual(rows, [
+    { name: 'STOCK', parent_name: 'Escrow 1', grandparent_name: 'Escrow' },
+    { name: 'USD', parent_name: 'Escrow 1', grandparent_name: 'Escrow' },
   ]);
 });
 
