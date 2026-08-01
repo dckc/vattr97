@@ -138,7 +138,6 @@ const setupLedger = async ({ host, databasePath, archiveNonce }) => {
         options: {
           powersName: ledgerAgent,
           resultName: ledgerName,
-          env: { GUID_START: '0' },
         },
       },
     ],

@@ -106,3 +106,12 @@ export const mockMakeGuid = (start: bigint = 0n): (() => Guid) => {
     return asGuid(guid.toString(16).padStart(32, '0'));
   };
 };
+
+export const makeHashedGuids = (seed: string): (() => Guid) => {
+  let counter = 0n;
+  return () => {
+    const guid = makeDeterministicGuid(`${seed}:${counter}`);
+    counter += 1n;
+    return guid;
+  };
+};

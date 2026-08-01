@@ -1,5 +1,10 @@
 import test from 'ava';
-import { makeDeterministicGuid, mockMakeGuid, asGuid } from '../src/guids.js';
+import {
+  makeDeterministicGuid,
+  makeHashedGuids,
+  mockMakeGuid,
+  asGuid,
+} from '../src/guids.js';
 import type { Guid } from '../src/guids.js';
 
 test('makeDeterministicGuid produces deterministic output', t => {
@@ -26,6 +31,23 @@ test('mockMakeGuid produces sequential values', t => {
   t.is(makeGuid(), asGuid('00000000000000000000000000000000'));
   t.is(makeGuid(), asGuid('00000000000000000000000000000001'));
   t.is(makeGuid(), asGuid('00000000000000000000000000000002'));
+});
+
+test('makeHashedGuids produces distinct hashed guids', t => {
+  const makeGuid = makeHashedGuids('seed');
+  const a = makeGuid();
+  const b = makeGuid();
+  t.not(a, b);
+  t.is(a.length, 32);
+  t.regex(a, /^[0-9a-f]{32}$/);
+  t.is(a, makeDeterministicGuid('seed:0'));
+  t.is(b, makeDeterministicGuid('seed:1'));
+});
+
+test('makeHashedGuids uses distinct seeds', t => {
+  const a = makeHashedGuids('one')();
+  const b = makeHashedGuids('two')();
+  t.not(a, b);
 });
 
 test('mockMakeGuid starts from given offset', t => {

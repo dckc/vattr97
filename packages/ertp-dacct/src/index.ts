@@ -43,7 +43,7 @@ export type {
   IssuerKitWithPurseGuids,
   NatIssuerKit,
 } from './types.ts';
-export { asGuid, mockMakeGuid } from './guids.ts';
+export { asGuid, makeHashedGuids, mockMakeGuid } from './guids.ts';
 export { makeChartFacet } from './chart.ts';
 export { makeErtpEscrow } from './escrow-ertp.ts';
 export { makeSettlementFacet } from './settlement.ts';

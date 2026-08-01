@@ -136,11 +136,7 @@ test('ledger gives traders scoped account name admins', async t => {
       throw Error(`unknown ledger power: ${name}`);
     },
   });
-  const ledger = await makeLedger(powers, {
-    env: {
-      GUID_START: '0',
-    },
-  });
+  const ledger = await makeLedger(powers, { env: {} });
   const [moneyKit, stockKit] = await Promise.all([
     ledger.makeCurrencyIssuerKit({ mnemonic: 'USD' }),
     ledger.makeCommodityIssuerKit({ mnemonic: 'STOCK' }),
@@ -178,7 +174,7 @@ test('ledger gives traders scoped account name admins', async t => {
   const transaction = await db
     .prepare('SELECT num, post_date FROM transactions')
     .get();
-  t.is(clockReads, 1);
+  t.is(clockReads, 2);
   t.deepEqual(transaction, {
     num: '06:07',
     post_date: '2031-04-05 00:00:00',

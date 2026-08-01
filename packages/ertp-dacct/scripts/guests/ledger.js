@@ -7,7 +7,7 @@ import {
   createIssuerKit,
   initGnuCashSchema,
   makeChartFacet,
-  mockMakeGuid,
+  makeHashedGuids,
   openIssuerKitWithPurseGuids,
 } from '../../src/index.ts';
 import { getCommodityRow } from '../../src/db-helpers.ts';
@@ -141,7 +141,8 @@ export const makeLedger = async (powers, { env }) => {
   const zone = harden({
     exo: (name, methods) => Far(name, methods),
   });
-  const makeGuid = mockMakeGuid(BigInt(env.GUID_START ?? '0'));
+  const guidSeed = await E(clock).now();
+  const makeGuid = makeHashedGuids(String(guidSeed));
   await initGnuCashSchema(db);
 
   const withLedgerPowers = commodityConfig =>
