@@ -60,6 +60,24 @@ test('ledger guest reuses an initialized GnuCash schema', async t => {
   t.truthy(ledger);
 });
 
+test('ledger guest rejects an incomplete commodity before querying SQLite', async t => {
+  const db = await makeDb(t);
+  const clock = makeRemoteClock();
+  const powers = Far('ledger powers', {
+    lookup: name => {
+      if (name === 'sqlite-db') return db;
+      if (name === 'clock') return clock;
+      throw Error(`unknown ledger power: ${name}`);
+    },
+  });
+  const ledger = await makeLedger(powers, { env: {} });
+
+  await t.throwsAsync(() => E(ledger).makeCommodityIssuerKit(), {
+    message:
+      'In "makeCommodityIssuerKit" method of (LedgerService): Expected at least 1 arguments: []',
+  });
+});
+
 test('ledger guest places commodity mint accounts', async t => {
   const db = await makeDb(t);
   const kit = await makeCommodityIssuerKit(

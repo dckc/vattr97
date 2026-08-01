@@ -1,11 +1,11 @@
 // @ts-check
 
 // Endo confined workers endow these globals; importing them would enlarge the archive.
-/* global E, Far, harden */
+/* global E, Far, M, harden, makeExo */
 
 import {
   createIssuerKit,
-  initGnuCashSchema,
+  ensureGnuCashSchema,
   makeChartFacet,
   makeHashedGuids,
   openIssuerKitWithPurseGuids,
@@ -89,6 +89,23 @@ export const makeCommodityIssuerKit = async config => {
 };
 harden(makeCommodityIssuerKit);
 
+const MnemonicShape = M.splitRecord({ mnemonic: M.string() });
+
+const CommodityShape = M.splitRecord(
+  { mnemonic: M.string() },
+  {
+    fullname: M.string(),
+    fraction: M.number(),
+    quoteFlag: M.number(),
+  },
+);
+
+const LedgerServiceI = M.interface('LedgerService', {
+  help: M.call().returns(M.string()),
+  makeCurrencyIssuerKit: M.call(MnemonicShape).returns(M.promise()),
+  makeCommodityIssuerKit: M.call(CommodityShape).returns(M.promise()),
+});
+
 const makeChartNameAdmin = ({ chart }) => {
   const makeNameHubKit = path => {
     const values = new Map();
@@ -148,7 +165,7 @@ export const makeLedger = async (powers, { env }) => {
       makeGuid,
       zone,
     });
-  return Far('ledger service', {
+  return makeExo('LedgerService', LedgerServiceI, {
     async makeCurrencyIssuerKit({ mnemonic }) {
       const rows = await E(db).query(
         `
@@ -173,6 +190,13 @@ export const makeLedger = async (powers, { env }) => {
       const { chart, ...sharedKit } = kit;
       const nameAdmin = makeChartNameAdmin({ chart });
       return harden({ ...sharedKit, nameAdmin });
+    },
+    help() {
+      return [
+        'Ledger service:',
+        "makeCurrencyIssuerKit({ mnemonic: 'USD' })",
+        "makeCommodityIssuerKit({ mnemonic: 'STOCK', fullname?, fraction?, quoteFlag? })",
+      ].join('\n');
     },
   });
 };
