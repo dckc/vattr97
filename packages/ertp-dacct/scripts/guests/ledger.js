@@ -138,7 +138,7 @@ export const makeLedger = async (powers, { env }) => {
   });
   const guidSeed = await E(clock).now();
   const makeGuid = makeHashedGuids(String(guidSeed));
-  await initGnuCashSchema(db);
+  await ensureGnuCashSchema(db);
 
   const withLedgerPowers = commodityConfig =>
     harden({

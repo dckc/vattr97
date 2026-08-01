@@ -44,6 +44,22 @@ const makeAccountPath = (db, guid) => {
   return path.reverse().slice(1);
 };
 
+test('ledger guest reuses an initialized GnuCash schema', async t => {
+  const db = await makeDb(t);
+  const clock = makeRemoteClock();
+  const powers = Far('ledger powers', {
+    lookup: name => {
+      if (name === 'sqlite-db') return db;
+      if (name === 'clock') return clock;
+      throw Error(`unknown ledger power: ${name}`);
+    },
+  });
+
+  const ledger = await makeLedger(powers, { env: {} });
+
+  t.truthy(ledger);
+});
+
 test('ledger guest places commodity mint accounts', async t => {
   const db = await makeDb(t);
   const kit = await makeCommodityIssuerKit(
