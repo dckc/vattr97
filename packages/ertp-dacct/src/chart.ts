@@ -147,6 +147,31 @@ export const makeChartFacet = ({
     });
   };
 
+  const placeAccount = async ({
+    accountGuid,
+    name,
+    parentGuid = null,
+    accountType = 'ASSET',
+    placeholder = false,
+    code = null,
+  }: {
+    accountGuid: Guid;
+    name: string;
+    parentGuid?: Guid | null;
+    accountType?: string;
+    placeholder?: boolean;
+    code?: string | null;
+  }) => {
+    await updateAccount({
+      accountGuid,
+      name,
+      parentGuid,
+      accountType,
+      placeholder,
+      code,
+    });
+  };
+
   return exo('ChartFacet', {
     placePurse,
     placePurseAtPath: async ({
@@ -193,8 +218,36 @@ export const makeChartFacet = ({
       accountType?: string;
       placeholder?: boolean;
       code?: string | null;
+    }) => placeAccount({
+      accountGuid,
+      name,
+      parentGuid,
+      accountType,
+      placeholder,
+      code,
+    }),
+    placeAccountAtPath: async ({
+      accountGuid,
+      path,
+      accountType = 'ASSET',
+      placeholder = false,
+      code = null,
+    }: {
+      accountGuid: Guid;
+      path: string[];
+      accountType?: string;
+      placeholder?: boolean;
+      code?: string | null;
     }) => {
-      await updateAccount({
+      if (path.length === 0) {
+        throw new Error('account path must not be empty');
+      }
+      if (path.some(name => name.length === 0)) {
+        throw new Error('account path names must not be empty');
+      }
+      const name = path[path.length - 1]!;
+      const parentGuid = await resolveParentPath(path.slice(0, -1));
+      await placeAccount({
         accountGuid,
         name,
         parentGuid,

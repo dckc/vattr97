@@ -79,7 +79,7 @@ export type PaymentAccess = {
 export type MintInfoAccess = {
   getMintInfo: () => {
     holdingAccountGuid: Guid;
-    recoveryPurseGuid: Guid;
+    issuancePurseGuid: Guid;
   };
 };
 
@@ -103,6 +103,13 @@ export type ChartFacet = {
     accountGuid: Guid;
     name: string;
     parentGuid?: Guid | null;
+    accountType?: string;
+    placeholder?: boolean;
+    code?: string | null;
+  }) => Promise<void>;
+  placeAccountAtPath: (args: {
+    accountGuid: Guid;
+    path: string[];
     accountType?: string;
     placeholder?: boolean;
     code?: string | null;

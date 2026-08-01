@@ -29,6 +29,6 @@ export const ertpOnly = <T extends IssuerKit<'nat'>>(kit: T) => ({
     brand: kit.brand,
     value: BigInt(numeral(amt)),
   }),
-  mintRecoveryPurse: kit.mintRecoveryPurse,
+  mintIssuancePurse: kit.mintIssuancePurse,
   displayInfo: kit.displayInfo,
 });

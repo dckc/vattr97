@@ -252,15 +252,15 @@ const makeIssuerKitForCommodity = async ({
       return makeAmount(record.amount);
     },
   });
-  const mintRecoveryGuid = makeDeterministicGuid(
-    `dacct:recovery:${commodityGuid}`,
+  const mintIssuanceGuid = makeDeterministicGuid(
+    `dacct:issuance:${commodityGuid}`,
   );
   await ensureAccountRow({
     db,
-    accountGuid: mintRecoveryGuid,
-    name: `${commodityLabel} Mint Recovery`,
+    accountGuid: mintIssuanceGuid,
+    name: `${commodityLabel} Mint Issuance`,
     commodityGuid,
-    accountType: internalAccountType,
+    accountType: 'LIABILITY',
   });
   const mint = exo(`${commodityLabel} Mint`, {
     getIssuer: () => issuer,
@@ -268,33 +268,33 @@ const makeIssuerKitForCommodity = async ({
       const amountValue = assertAmount(amount);
       const { txGuid, holdingSplitGuid, checkNumber } =
         await transferRecorder.createHold({
-          fromAccountGuid: mintRecoveryGuid,
+          fromAccountGuid: mintIssuanceGuid,
           amount: amountValue,
         });
       return makePayment(
         amount,
-        mintRecoveryGuid,
+        mintIssuanceGuid,
         txGuid,
         holdingSplitGuid,
         checkNumber,
       );
     },
   });
-  const mintRecoveryPurse = await openPurse(
-    mintRecoveryGuid,
-    `${commodityLabel} Mint Recovery`,
+  const mintIssuancePurse = await openPurse(
+    mintIssuanceGuid,
+    `${commodityLabel} Mint Issuance`,
   );
   const kit = freeze({
     brand,
     issuer,
     mint,
-    mintRecoveryPurse,
+    mintIssuancePurse,
     displayInfo,
   }) as unknown as NatIssuerKit;
   const mintInfo = exo('MintInfoAccess', {
     getMintInfo: () => ({
       holdingAccountGuid: balanceAccountGuid,
-      recoveryPurseGuid: mintRecoveryGuid,
+      issuancePurseGuid: mintIssuanceGuid,
     }),
   });
   const payments = exo('PaymentAccess', {

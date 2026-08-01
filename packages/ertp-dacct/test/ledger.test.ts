@@ -67,16 +67,16 @@ test('issuer internal account types follow commodity namespace', async t => {
     commodityGuid: usd?.guid as Guid,
     makeGuid: mockMakeGuid(),
   });
-  const { holdingAccountGuid, recoveryPurseGuid } = kit.mintInfo.getMintInfo();
+  const { holdingAccountGuid, issuancePurseGuid } = kit.mintInfo.getMintInfo();
   const rows = await db
     .prepare<[string, string], { name: string; account_type: string }>(
       'SELECT name, account_type FROM accounts WHERE guid IN (?, ?) ORDER BY name',
     )
-    .all(holdingAccountGuid, recoveryPurseGuid);
+    .all(holdingAccountGuid, issuancePurseGuid);
 
   t.deepEqual(rows, [
     { name: 'US Dollar Mint Holding', account_type: 'BANK' },
-    { name: 'US Dollar Mint Recovery', account_type: 'BANK' },
+    { name: 'US Dollar Mint Issuance', account_type: 'LIABILITY' },
   ]);
 
   const stock = await createIssuerKit({
@@ -90,10 +90,10 @@ test('issuer internal account types follow commodity namespace', async t => {
     .prepare<[string, string], { name: string; account_type: string }>(
       'SELECT name, account_type FROM accounts WHERE guid IN (?, ?) ORDER BY name',
     )
-    .all(stockInfo.holdingAccountGuid, stockInfo.recoveryPurseGuid);
+    .all(stockInfo.holdingAccountGuid, stockInfo.issuancePurseGuid);
   t.deepEqual(stockRows, [
     { name: 'STOCK Mint Holding', account_type: 'STOCK' },
-    { name: 'STOCK Mint Recovery', account_type: 'STOCK' },
+    { name: 'STOCK Mint Issuance', account_type: 'LIABILITY' },
   ]);
 });
 
@@ -217,7 +217,7 @@ test('fixture: withdraw-deposit matches ledger rows', async t => {
   const payment = await issuedKit.mint.mintPayment(bucks(5000n));
   await purse.deposit(payment);
 
-  const { recoveryPurseGuid } = issuedKit.mintInfo.getMintInfo();
+  const { issuancePurseGuid } = issuedKit.mintInfo.getMintInfo();
   const destAccountGuid = issuedKit.purses.getGuid(purse);
   const expectedTx = parseCsv(
     await asset('./fixtures/withdraw-deposit-transactions.csv'),
@@ -231,7 +231,7 @@ test('fixture: withdraw-deposit matches ledger rows', async t => {
       resolved.currency_guid = issuedKit.commodityGuid;
     }
     if (resolved.account_guid === 'acct-source') {
-      resolved.account_guid = recoveryPurseGuid;
+      resolved.account_guid = issuancePurseGuid;
     }
     if (resolved.account_guid === 'acct-dest') {
       resolved.account_guid = destAccountGuid;

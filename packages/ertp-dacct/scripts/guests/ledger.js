@@ -31,34 +31,29 @@ const addChartAndPlaceMintAccounts = async (config, kit, accountType) => {
     accountType,
     zone: config.zone,
   });
-  const [mintInfo, label, bookRows] = await Promise.all([
+  const [mintInfo, label] = await Promise.all([
     E(kit.mintInfo).getMintInfo(),
     E(kit.brand).getAllegedName(),
-    E(config.db).query('SELECT root_account_guid FROM books LIMIT 1'),
   ]);
-  const rootAccountGuid = bookRows[0]?.root_account_guid;
-  if (typeof rootAccountGuid !== 'string') {
-    throw Error('book root account not found');
-  }
   const placements = [
     {
       accountGuid: mintInfo.holdingAccountGuid,
-      name: `${label} Mint Holding`,
-      parentGuid: rootAccountGuid,
+      path: ['Issuer', label, 'Holding'],
       accountType,
     },
     {
-      accountGuid: mintInfo.recoveryPurseGuid,
-      name: `${label} Mint Recovery`,
-      parentGuid: rootAccountGuid,
-      accountType,
+      accountGuid: mintInfo.issuancePurseGuid,
+      path: ['Issuer', label, 'Issuance'],
+      accountType: 'LIABILITY',
     },
   ];
-  await Promise.all(placements.map(account => E(chart).placeAccount(account)));
+  await Promise.all(
+    placements.map(account => E(chart).placeAccountAtPath(account)),
+  );
   return harden({
     ...kit,
     chart,
-    mintAccountNames: placements.map(({ name }) => name),
+    mintAccountNames: placements.map(({ path }) => path.join('/')),
   });
 };
 

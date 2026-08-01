@@ -118,7 +118,7 @@ export type Mint<K extends AssetKind = AssetKind, M extends Key = Key> = {
 
 export type IssuerKit<K extends AssetKind = AssetKind, M extends Key = Key> = {
   mint: Mint<K, M>;
-  mintRecoveryPurse: Purse<K, M>;
+  mintIssuancePurse: Purse<K, M>;
   issuer: Issuer<K, M>;
   brand: Brand<K>;
   displayInfo: DisplayInfo;

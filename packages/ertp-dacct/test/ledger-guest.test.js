@@ -30,6 +30,20 @@ const makeDb = async t => {
 
 const makeRemoteClock = () => makeTestClock();
 
+const makeAccountPath = (db, guid) => {
+  const path = [];
+  let current = guid;
+  while (current) {
+    const row = db
+      .prepare('SELECT name, parent_guid FROM accounts WHERE guid = ?')
+      .get(current);
+    if (!row) break;
+    path.push(row.name);
+    current = row.parent_guid;
+  }
+  return path.reverse().slice(1);
+};
+
 test('ledger guest places commodity mint accounts', async t => {
   const db = await makeDb(t);
   const kit = await makeCommodityIssuerKit(
@@ -41,36 +55,35 @@ test('ledger guest places commodity mint accounts', async t => {
       zone: defaultZone,
     }),
   );
-  const { holdingAccountGuid, recoveryPurseGuid } = kit.mintInfo.getMintInfo();
+  const { holdingAccountGuid, issuancePurseGuid } = kit.mintInfo.getMintInfo();
   const rows = await db
     .prepare(
       `
-        SELECT name, account_type, parent_guid
+        SELECT name, account_type
         FROM accounts
         WHERE guid IN (?, ?)
         ORDER BY name
       `,
     )
-    .all(holdingAccountGuid, recoveryPurseGuid);
-  const root = await db
-    .prepare('SELECT root_account_guid FROM books LIMIT 1')
-    .get();
+    .all(holdingAccountGuid, issuancePurseGuid);
 
   t.deepEqual(kit.mintAccountNames, [
-    'STOCK Mint Holding',
-    'STOCK Mint Recovery',
+    'Issuer/STOCK/Holding',
+    'Issuer/STOCK/Issuance',
   ]);
   t.deepEqual(rows, [
-    {
-      name: 'STOCK Mint Holding',
-      account_type: 'STOCK',
-      parent_guid: root?.root_account_guid,
-    },
-    {
-      name: 'STOCK Mint Recovery',
-      account_type: 'STOCK',
-      parent_guid: root?.root_account_guid,
-    },
+    { name: 'Holding', account_type: 'STOCK' },
+    { name: 'Issuance', account_type: 'LIABILITY' },
+  ]);
+  t.deepEqual(makeAccountPath(db, holdingAccountGuid), [
+    'Issuer',
+    'STOCK',
+    'Holding',
+  ]);
+  t.deepEqual(makeAccountPath(db, issuancePurseGuid), [
+    'Issuer',
+    'STOCK',
+    'Issuance',
   ]);
 });
 
@@ -94,7 +107,7 @@ test('ledger guest opens a currency and places its mint accounts', async t => {
       zone: defaultZone,
     }),
   );
-  const { holdingAccountGuid, recoveryPurseGuid } = kit.mintInfo.getMintInfo();
+  const { holdingAccountGuid, issuancePurseGuid } = kit.mintInfo.getMintInfo();
   const rows = await db
     .prepare(
       `
@@ -104,15 +117,25 @@ test('ledger guest opens a currency and places its mint accounts', async t => {
         ORDER BY name
       `,
     )
-    .all(holdingAccountGuid, recoveryPurseGuid);
+    .all(holdingAccountGuid, issuancePurseGuid);
 
   t.deepEqual(kit.mintAccountNames, [
-    'US Dollar Mint Holding',
-    'US Dollar Mint Recovery',
+    'Issuer/US Dollar/Holding',
+    'Issuer/US Dollar/Issuance',
   ]);
   t.deepEqual(rows, [
-    { name: 'US Dollar Mint Holding', account_type: 'BANK' },
-    { name: 'US Dollar Mint Recovery', account_type: 'BANK' },
+    { name: 'Holding', account_type: 'BANK' },
+    { name: 'Issuance', account_type: 'LIABILITY' },
+  ]);
+  t.deepEqual(makeAccountPath(db, holdingAccountGuid), [
+    'Issuer',
+    'US Dollar',
+    'Holding',
+  ]);
+  t.deepEqual(makeAccountPath(db, issuancePurseGuid), [
+    'Issuer',
+    'US Dollar',
+    'Issuance',
   ]);
 });
 
