@@ -435,7 +435,9 @@ export const createIssuerKit = async (
 ): Promise<IssuerKitWithPurseGuids> => {
   const { db, clock, commodity, makeGuid } = config;
   const zone = config.zone ?? defaultZone;
-  const commodityGuid = makeGuid();
+  const commodityGuid = makeDeterministicGuid(
+    `dacct:commodity:${commodity.namespace ?? 'COMMODITY'}:${commodity.mnemonic}`,
+  );
   await createCommodityRow({ db, guid: commodityGuid, commodity });
   return makeIssuerKitWithPurseGuids({
     db,
