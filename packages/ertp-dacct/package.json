@@ -1,0 +1,56 @@
+{
+  "name": "@finquick/ertp-dacct",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "codegen:sql": "node scripts/codegen-sql.mjs",
+    "lint:types": "tsc -p tsconfig.json --noEmit --incremental",
+    "test": "ava",
+    "test:integration": "node --import=ts-blank-space/register scripts/escrow-ertp.js",
+    "check": "npm run lint:types && npm run test"
+  },
+  "ava": {
+    "extensions": {
+      "js": true,
+      "ts": "module"
+    },
+    "files": [
+      "test/**/*.test.*"
+    ],
+    "nodeArguments": [
+      "--import=ses",
+      "--import=@endo/eventual-send/shim.js",
+      "--import=./test/shim.js",
+      "--import=ts-blank-space/register",
+      "--no-warnings"
+    ],
+    "require": []
+  },
+  "dependencies": {
+    "@agoric/ertp": "0.16.3-dev-dc67c18.0.dc67c18",
+    "@endo/eventual-send": "^1.5.0",
+    "@endo/exo": "^1.6.0",
+    "@endo/patterns": "^1.8.0",
+    "@finquick/sqlite-plugin": "workspace:^",
+    "better-sqlite3": "^12.6.2"
+  },
+  "devDependencies": {
+    "@endo/base64": "link:../../../endo/packages/base64",
+    "@endo/bundle-source": "link:../../../endo/packages/bundle-source",
+    "@endo/cancel": "link:../../../endo/packages/cancel",
+    "@endo/daemon": "link:../../../endo/packages/daemon",
+    "@endo/exo-stream": "link:../../../endo/packages/exo-stream",
+    "@endo/far": "^1.1.14",
+    "@endo/init": "link:../../../endo/packages/init",
+    "@endo/where": "link:../../../endo/packages/where",
+    "@types/better-sqlite3": "^7.6.1",
+    "ava": "^5.3.1",
+    "ts-blank-space": "^0.6.2",
+    "typescript": "~5.9.3"
+  },
+  "packageManager": "yarn@4.17.0+sha512.c2957de2f9025ab14d63b24d0d8be1f1655810e22c341042c27f7ecd017b180ec12db73d69ac366d71b304ef9f069349ce462de96f04f8f1da317f4f762c95ae"
+}
