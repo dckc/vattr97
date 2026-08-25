@@ -1,4 +1,8 @@
-import type { SqliteDb, SqliteStatement } from '../src/sqlite-db.js';
+import type {
+  SqliteDb,
+  SqliteDbMaker,
+  SqliteStatement,
+} from '../src/sqlite-db.js';
 
 declare const db: SqliteDb;
 

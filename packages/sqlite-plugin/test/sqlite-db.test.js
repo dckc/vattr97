@@ -1,16 +1,25 @@
 import test from 'ava';
 import { E } from '@endo/eventual-send';
 
-import { make as makeSqliteDb } from '../src/sqlite-db.js';
+import { make as makeSqliteDbMaker } from '../src/sqlite-db.js';
 
-const makeMemoryDb = () =>
-  makeSqliteDb(undefined, undefined, {
-    env: { DB_PATH: ':memory:' },
-  });
+const dbMaker = makeSqliteDbMaker();
+const makeMemoryDb = () => dbMaker.makeDb(':memory:');
 
-test('requires an injected database path', t => {
-  const error = t.throws(() => makeSqliteDb());
-  t.regex(error?.message || '', /DB_PATH/);
+test('maker opens databases at independent paths', async t => {
+  const first = dbMaker.makeDb(':memory:');
+  const second = dbMaker.makeDb(':memory:');
+  t.teardown(() => E(first).close());
+  t.teardown(() => E(second).close());
+
+  await E(first).execute('CREATE TABLE item (name TEXT PRIMARY KEY)');
+  await E(first).execute('INSERT INTO item (name) VALUES (?)', ['first']);
+  await E(second).execute('CREATE TABLE item (name TEXT PRIMARY KEY)');
+
+  t.deepEqual(await E(first).query('SELECT name FROM item'), [
+    { name: 'first' },
+  ]);
+  t.deepEqual(await E(second).query('SELECT name FROM item'), []);
 });
 
 test('root capability supports autocommit operations', async t => {

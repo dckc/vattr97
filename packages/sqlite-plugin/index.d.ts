@@ -40,8 +40,8 @@ export type SqliteDb = {
   close: () => void;
 };
 
-export declare const make: (
-  powers?: unknown,
-  context?: unknown,
-  options?: { env?: Record<string, string> },
-) => SqliteDb;
+export type SqliteDbMaker = {
+  makeDb: (path: string) => SqliteDb;
+};
+
+export declare const make: () => SqliteDbMaker;

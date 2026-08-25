@@ -1,7 +1,8 @@
 # SQLite plugin
 
-`@finquick/sqlite-plugin` is an unconfined Endo plugin that opens one
-injected SQLite path and exposes an attenuated SQL capability.
+`@finquick/sqlite-plugin` is an unconfined Endo plugin that exposes a maker
+capability. Its `makeDb(path)` method opens an independent attenuated SQLite
+capability for the given path.
 
 The root capability provides autocommit `execute`, `query`, and `prepare`
 methods. `prepare<TParams, TRow>()` returns a typed statement capability with
@@ -56,5 +57,5 @@ ambiguous-result window if a commit succeeds but its response is lost.
 
 ```sh
 endo make --UNCONFINED packages/sqlite-plugin/src/sqlite-db.js \
-  -n sqlite-db -E DB_PATH=/path/to/ledger.sqlite
+  -n sqlite-db-maker
 ```

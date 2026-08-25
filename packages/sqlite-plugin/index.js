@@ -3,6 +3,7 @@
 export { make } from './src/sqlite-db.js';
 
 /**
+ * @typedef {import('./src/sqlite-db.js').SqliteDbMaker} SqliteDbMaker
  * @typedef {import('./src/sqlite-db.js').SqliteDb} SqliteDb
  * @typedef {import('./src/sqlite-db.js').SqliteStatement} SqliteStatement
  * @typedef {import('./src/sqlite-db.js').SqliteTransaction} SqliteTransaction

@@ -3,10 +3,10 @@
 /**
  * Endo daemon plugin for attenuated SQLite access.
  *
- * The database path is injected when the unconfined plugin is made. Clients
- * can use autocommit operations through the root capability or reserve the
- * connection by calling begin(), which returns the sole capability permitted
- * to use the connection until commit() or rollback().
+ * The unconfined plugin returns a maker that can open a database at any path.
+ * Database clients can use autocommit operations through the root capability
+ * or reserve the connection by calling begin(), which returns the sole
+ * capability permitted to use the connection until commit() or rollback().
  */
 
 import { makeExo } from '@endo/exo';
@@ -36,6 +36,10 @@ const SqliteDbI = M.interface('SqliteDb', {
   prepare: M.call(M.string()).returns(M.remotable('SqliteStatement')),
   begin: M.call().returns(M.remotable('SqliteTransaction')),
   close: M.call().returns(M.undefined()),
+});
+
+const SqliteDbMakerI = M.interface('SqliteDbMaker', {
+  makeDb: M.call(M.string()).returns(M.remotable('SqliteDb')),
 });
 
 /**
@@ -93,6 +97,12 @@ const SqliteDbI = M.interface('SqliteDb', {
 
 /**
  * @typedef {{
+ *   makeDb: (path: string) => SqliteDb,
+ * }} SqliteDbMaker
+ */
+
+/**
+ * @typedef {{
  *   active: boolean,
  *   failed: boolean,
  *   failure?: unknown,
@@ -132,23 +142,14 @@ const assertDataStatement = sql => {
 };
 
 /**
- * Open the configured database and return its attenuated remote interface.
+ * Open a database and return its attenuated remote interface.
  *
- * @param {unknown} [_powers]
- * @param {unknown} [_context]
- * @param {{ env?: Record<string, string> }} [options]
+ * @param {string} path
  * @returns {SqliteDb}
  */
-export const make = (
-  _powers = undefined,
-  _context = undefined,
-  options = {},
-) => {
-  void _powers;
-  void _context;
-  const path = options.env?.DB_PATH;
-  if (path === undefined || path === '') {
-    throw Error('DB_PATH must be set in the environment');
+const makeDb = path => {
+  if (path === '') {
+    throw Error('SQLite database path must not be empty');
   }
 
   const db = new Database(path);
@@ -433,4 +434,19 @@ export const make = (
     },
   });
 };
+harden(makeDb);
+
+/**
+ * Make a capability that can open independent SQLite databases.
+ *
+ * @returns {SqliteDbMaker}
+ */
+export const make = () =>
+  /** @type {SqliteDbMaker} */ (
+    /** @type {unknown} */ (
+      makeExo('SqliteDbMaker', SqliteDbMakerI, {
+        makeDb,
+      })
+    )
+  );
 harden(make);
