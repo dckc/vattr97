@@ -4,7 +4,8 @@ This package demonstrates the split between ambient database access and
 confined application logic:
 
 - `@finquick/sqlite-plugin` is the reusable **unconfined** plugin. The
-  plugin loads `better-sqlite3` and opens the path injected as `DB_PATH`.
+  plugin loads `better-sqlite3`; its maker opens the path selected by the
+  composition script's `DB_PATH`.
 - `src/confined-store.js` is a **confined** plugin. It has no filesystem or
   native-module access. It obtains the database capability by asking its
   powers for the `sqlite-db` petname.

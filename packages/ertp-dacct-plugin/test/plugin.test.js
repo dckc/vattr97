@@ -1,18 +1,14 @@
 import test from 'ava';
 import { E } from '@endo/eventual-send';
-import { make as makeSqliteDb } from '@finquick/sqlite-plugin';
+import { make as makeSqliteDbMaker } from '@finquick/sqlite-plugin';
 
 import { make as makeStore } from '../src/confined-store.js';
 
-test('unconfined database requires an injected path', t => {
-  const error = t.throws(() => makeSqliteDb());
-  t.regex(error?.message || '', /DB_PATH/);
-});
+/** @param {string} path */
+const makeSqliteDb = path => makeSqliteDbMaker().makeDb(path);
 
 test('confined store uses the database found by petname', async t => {
-  const db = makeSqliteDb(undefined, undefined, {
-    env: { DB_PATH: ':memory:' },
-  });
+  const db = makeSqliteDb(':memory:');
   t.teardown(() => E(db).close());
 
   /** @type {string[]} */
@@ -34,9 +30,7 @@ test('confined store uses the database found by petname', async t => {
 });
 
 test('confined store maker does not wait for its database', async t => {
-  const db = makeSqliteDb(undefined, undefined, {
-    env: { DB_PATH: ':memory:' },
-  });
+  const db = makeSqliteDb(':memory:');
   t.teardown(() => E(db).close());
 
   /** @type {((db: unknown) => void) | undefined} */

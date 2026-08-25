@@ -1,7 +1,7 @@
 import test from 'ava';
 import Database from 'better-sqlite3';
 import { E } from '@endo/eventual-send';
-import { make as makeSqliteDb } from '@finquick/sqlite-plugin';
+import { make as makeSqliteDbMaker } from '@finquick/sqlite-plugin';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import type { Brand, NatAmount } from '../src/ertp-types.js';
@@ -15,6 +15,8 @@ import {
 } from '../src/index.js';
 import { mockMakeGuid } from '../src/guids.js';
 import { makeTestClock } from './mock-io.js';
+
+const makeSqliteDb = (path: string) => makeSqliteDbMaker().makeDb(path);
 
 const nodeRequire = createRequire(import.meta.url);
 const asset = (spec: string) => readFile(nodeRequire.resolve(spec), 'utf8');
@@ -99,9 +101,7 @@ test('issuer internal account types follow commodity namespace', async t => {
 
 test('issuer kit accepts an eventual database reference', async t => {
   const { freeze } = Object;
-  const db = makeSqliteDb(undefined, undefined, {
-    env: { DB_PATH: ':memory:' },
-  });
+  const db = makeSqliteDb(':memory:');
   const dbRef = Promise.resolve(db);
   t.teardown(() => E(db).close());
 

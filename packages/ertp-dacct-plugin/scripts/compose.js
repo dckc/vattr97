@@ -75,11 +75,11 @@ const host = E(bootstrap).host();
 const archiveName = `tmp-confined-store-${crypto.randomBytes(8).toString('hex')}`;
 
 try {
-  await E(host).makeUnconfined('@node', sqliteModule, {
+  const dbMaker = await E(host).makeUnconfined('@node', sqliteModule, {
     powersName: ['@none'],
-    resultName: ['sqlite-db'],
-    env: { DB_PATH: databasePath },
   });
+  const db = await E(dbMaker).makeDb(databasePath);
+  await E(host).storeValue(db, ['sqlite-db']);
 
   const readPowers = makeReadPowers({ fs, url, crypto, path });
   const archiveBytes = await makeArchive(

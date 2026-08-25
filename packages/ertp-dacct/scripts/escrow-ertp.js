@@ -110,17 +110,17 @@ const endoMake = async ({ agent, moduleLocation, archiveName, caplets }) => {
 const setupLedger = async ({ host, databasePath, archiveNonce }) => {
   const dbName = 'escrow-sqlite-db';
   const clockName = 'escrow-clock';
-  await Promise.all([
+  const [dbMaker] = await Promise.all([
     E(host).makeUnconfined('@node', sqliteModule, {
       powersName: ['@none'],
-      resultName: dbName,
-      env: { DB_PATH: databasePath },
     }),
     E(host).makeUnconfined('@node', clockModule, {
       powersName: ['@none'],
       resultName: clockName,
     }),
   ]);
+  const db = await E(dbMaker).makeDb(databasePath);
+  await E(host).storeValue(db, dbName);
 
   const ledgerAgent = await provideGuest(host, 'ledger');
   await E(host).move([dbName], [ledgerAgent, 'sqlite-db']);
