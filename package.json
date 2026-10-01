@@ -26,6 +26,9 @@
   "dependenciesMeta": {
     "better-sqlite3": {
       "built": true
+    },
+    "kubo": {
+      "built": true
     }
   }
 }

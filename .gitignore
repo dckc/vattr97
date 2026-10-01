@@ -5,3 +5,9 @@ dist/
 coverage/
 *.tsbuildinfo
 .vscode/
+
+# packages/cf-webkey-ipfs: local Worker state, local Kubo repo, generated files
+.wrangler/
+.ipfs/
+packages/cf-webkey-ipfs/public/vendor/
+worker-configuration.d.ts

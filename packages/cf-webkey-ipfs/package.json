@@ -1,0 +1,31 @@
+{
+  "name": "@vattr97/cf-webkey-ipfs",
+  "version": "0.0.1",
+  "private": true,
+  "description": "web-key capabilities over encrypted files on IPFS, served by a Cloudflare Worker",
+  "type": "module",
+  "scripts": {
+    "ipfs": "node scripts/ipfs-daemon.js",
+    "dev": "wrangler dev --port 8797 --inspector-port 9237",
+    "dev:all": "yarn ipfs & yarn dev & wait",
+    "e2e": "node scripts/e2e.js",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:types": "wrangler types && tsc -p jsconfig.json",
+    "check": "yarn lint && yarn lint:types && yarn test"
+  },
+  "dependencies": {
+    "@endo/harden": "^1.1.0",
+    "capnweb": "^0.12.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.1.13",
+    "@vitest/runner": "^4.1.11",
+    "@vitest/snapshot": "^4.1.11",
+    "eslint": "^9.39.4",
+    "kubo": "^0.43.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.135.0"
+  }
+}

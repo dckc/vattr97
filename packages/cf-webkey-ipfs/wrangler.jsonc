@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cf-webkey-ipfs",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-19",
+  "build": {
+    "command": "mkdir -p public/vendor && cp node_modules/capnweb/dist/index.js public/vendor/capnweb.js",
+  },
+  "assets": {
+    "directory": "public",
+  },
+  "vars": {
+    "IPFS_API": "http://127.0.0.1:5781",
+    "IPFS_GATEWAY": "http://127.0.0.1:8781",
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "VAULT_HOST",
+        "class_name": "VaultHost",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["VaultHost"],
+    },
+  ],
+}
