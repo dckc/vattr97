@@ -29,6 +29,10 @@ const farZone: Zone = {
   exo: (interfaceName, methods) => Far(interfaceName, methods),
 };
 
+type LivePayment = Parameters<
+  IssuerKitForCommodity['kit']['issuer']['isLive']
+>[0];
+
 /** The swissnum of the bootstrap object. */
 export const BOOTSTRAP_SWISSNUM = 'ledger';
 
@@ -108,7 +112,7 @@ export const makeLedger = ({
     if (!payment) {
       payment = kit.payments.openPayment(checkNumber);
       payments.set(checkNumber, payment);
-    } else if (!(await kit.kit.issuer.isLive(payment))) {
+    } else if (!(await kit.kit.issuer.isLive(payment as LivePayment))) {
       // as openPayment does for a hold cleared in an earlier incarnation
       throw Error('payment not live');
     }
