@@ -30,7 +30,7 @@
       "test/**/*.test.*"
     ],
     "nodeArguments": [
-      "--import=@endo/init/debug.js",
+      "--import=./test/lockdown.js",
       "--import=ts-blank-space/register",
       "--no-warnings"
     ]
