@@ -55,6 +55,7 @@ export type AccountPurse = {
   deposit: (payment: object) => unknown;
   withdraw: (amount: AmountLike) => object;
   getCurrentAmount: () => AmountLike;
+  getDepositFacet: () => object;
 };
 
 export type AccountPurseAccess = {
@@ -66,6 +67,8 @@ export type IssuerKitForCommodity = {
   kit: NatIssuerKit;
   accounts: AccountPurseAccess;
   purseGuids: WeakMap<AccountPurse, Guid>;
+  /** each purse's deposit facet, by the purse's account */
+  depositFacetGuids: WeakMap<object, Guid>;
   payments: PaymentAccess;
   mintInfo: MintInfoAccess;
 };

@@ -179,20 +179,24 @@ const makeIssuerKitForCommodity = ({
     makeGuid,
     nowMs,
   });
-  const { ensurePurse, makeNewPurse, openPurse, purseGuids } = makePurseFactory(
-    {
-      db,
-      commodityGuid,
-      commodityLabel,
-      makeAmount,
-      makePayment,
-      livePayments,
-      paymentRecords,
-      transferRecorder,
-      getBrand: () => brand,
-      zone,
-    },
-  );
+  const {
+    ensurePurse,
+    makeNewPurse,
+    openPurse,
+    purseGuids,
+    depositFacetGuids,
+  } = makePurseFactory({
+    db,
+    commodityGuid,
+    commodityLabel,
+    makeAmount,
+    makePayment,
+    livePayments,
+    paymentRecords,
+    transferRecorder,
+    getBrand: () => brand,
+    zone,
+  });
   const brand = exo(`${commodityLabel} Brand`, {
     isMyIssuer: async (allegedIssuer: object) => allegedIssuer === issuer,
     getAllegedName: () => getAllegedName(),
@@ -349,7 +353,14 @@ const makeIssuerKitForCommodity = ({
       return openPurse(accountGuid, accountGuid);
     },
   });
-  return freeze({ kit, accounts, purseGuids, payments, mintInfo });
+  return freeze({
+    kit,
+    accounts,
+    purseGuids,
+    depositFacetGuids,
+    payments,
+    mintInfo,
+  });
 };
 
 /**
