@@ -11,11 +11,16 @@ import {
   wrapBetterSqlite3Database,
 } from '@vattr/ertp-books/src/index.js';
 import { mockMakeGuid } from '@vattr/ertp-books/src/guids.js';
-import { connectLedger, makeLedgerHost } from '../src/ledger-ocapn.js';
+import {
+  connectLedger,
+  makeLedgerClient,
+  makeLedgerHost,
+} from '../src/ledger-ocapn.js';
 import type { ByteGateway } from '../src/ocapn-capnweb-netlayer.js';
 import { makeLedger } from '../src/ledger.js';
 import type { SqlDatabase } from '@vattr/ertp-books/src/index.js';
 import {
+  aliceBuysStockFromBob,
   aliceSendsBob10Bucks,
   spentPaymentIsNotLive,
   type Ledger,
@@ -62,6 +67,37 @@ test('alice sends bob 10 BUCKS; brand round-trips', async t => {
 
 test('a spent payment is not live', async t => {
   await spentPaymentIsNotLive(t, await enliven(t));
+});
+
+test('USDC and STOCK on separate ledgers, one client', async t => {
+  const hosts = new Map(
+    await Promise.all(
+      ['usdc', 'stock'].map(
+        async name =>
+          [name, await makeLedgerHost(makeSwissnumTable(), name)] as const,
+      ),
+    ),
+  );
+  const client = await makeLedgerClient(name => {
+    const host = hosts.get(name);
+    if (!host) throw Error(`no ledger ${name}`);
+    const { port1, port2 } = new MessageChannel();
+    newMessagePortRpcSession(port1, host.gateway);
+    t.teardown(() => {
+      port1.close();
+      port2.close();
+    });
+    return newMessagePortRpcSession<ByteGateway>(port2);
+  });
+  t.teardown(() => {
+    client.shutdown();
+    for (const host of hosts.values()) host.shutdown();
+  });
+  await aliceBuysStockFromBob(
+    t,
+    (await client.ledger('usdc')) as Ledger,
+    (await client.ledger('stock')) as Ledger,
+  );
 });
 
 /** A pair of in-memory Cap'n Web transports, for sessions we can inspect. */

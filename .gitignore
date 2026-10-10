@@ -4,4 +4,4 @@ yarn-error.log
 dist/
 coverage/
 *.tsbuildinfo
-.vscode/
+.vscode/.wrangler/
