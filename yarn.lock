@@ -905,6 +905,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fast-check/ava@npm:^3.0.1":
+  version: 3.0.1
+  resolution: "@fast-check/ava@npm:3.0.1"
+  dependencies:
+    fast-check: "npm:^3.0.0 || ^4.0.0"
+  peerDependencies:
+    ava: ^7.0.0 || ^8.0.0
+  checksum: 10c0/ef8c14d52f05ee2d134ebde3ff1bcc5979d3777309fba88295fb0d9a2d52246eeaaa66e096a860412367ce0b9e66965199c86a1c0c5d10390ac6912ac65caf52
+  languageName: node
+  linkType: hard
+
 "@humanfs/core@npm:^0.19.2":
   version: 0.19.2
   resolution: "@humanfs/core@npm:0.19.2"
@@ -1426,10 +1437,12 @@ __metadata:
     "@endo/far": "npm:^1.1.14"
     "@endo/init": "npm:^1.1.13"
     "@endo/ocapn": "npm:^1.1.1"
+    "@fast-check/ava": "npm:^3.0.1"
     "@vattr/ertp-books": "workspace:^"
     ava: "npm:^7.0.0"
     better-sqlite3: "npm:12.10.0"
     capnweb: "npm:^0.12.0"
+    fast-check: "npm:^4.10.2"
     wrangler: "npm:^4.59.2"
   languageName: unknown
   linkType: soft
@@ -2311,6 +2324,15 @@ __metadata:
   version: 3.1.3
   resolution: "exponential-backoff@npm:3.1.3"
   checksum: 10c0/77e3ae682b7b1f4972f563c6dbcd2b0d54ac679e62d5d32f3e5085feba20483cf28bd505543f520e287a56d4d55a28d7874299941faf637e779a1aa5994d1267
+  languageName: node
+  linkType: hard
+
+"fast-check@npm:^3.0.0 || ^4.0.0, fast-check@npm:^4.10.2":
+  version: 4.10.2
+  resolution: "fast-check@npm:4.10.2"
+  dependencies:
+    pure-rand: "npm:^8.0.0"
+  checksum: 10c0/ee9329018cc98d7fb3d7e5c944c4c667796b37133cd96aeb8dd1aeba901cf8561c2cc1355ffd54e1a16d262170a04bcfdc335da2e865294166e7bb8d97313f7d
   languageName: node
   linkType: hard
 
@@ -3292,6 +3314,13 @@ __metadata:
   version: 2.3.1
   resolution: "punycode@npm:2.3.1"
   checksum: 10c0/14f76a8206bc3464f794fb2e3d3cc665ae416c01893ad7a02b23766eb07159144ee612ad67af5e84fa4479ccfe67678c4feb126b0485651b302babf66f04f9e9
+  languageName: node
+  linkType: hard
+
+"pure-rand@npm:^8.0.0":
+  version: 8.4.2
+  resolution: "pure-rand@npm:8.4.2"
+  checksum: 10c0/4b2ef2a2e68a258fb311efd26b65305b4865856e28d6b40ff61f7d65bb6a39b4f8ebbcf7dfc843193b3cfe54e7501dbc2c7aba0ecdb97d13cd634db709df83fd
   languageName: node
   linkType: hard
 
