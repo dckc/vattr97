@@ -3,11 +3,13 @@
  * GnuCash-schema SQL database, as passable remotables, with sturdyrefs
  * that survive restarts.
  *
- * A sturdyref's swissnum maps to a row naming a commodity and a facet
- * (issuer, brand, mint, or a purse's account). After a restart, the
- * object is revived from the ledger on first use; within one
- * incarnation, each commodity and account has one live object, so
- * identity checks (brand, payment liveness) keep working.
+ * A sturdyref's swissnum maps to a row naming a commodity and a facet:
+ * issuer, brand, mint, a purse (by account GUID), or a payment (by
+ * check number). After a restart, the object is revived from the
+ * ledger on first use; a payment is live iff its hold is uncleared.
+ * Within one incarnation each commodity, account, and payment has one
+ * live object, so identity checks keep working and one hold can't be
+ * spent twice.
  */
 import { Far } from '@endo/far';
 import {
@@ -30,11 +32,11 @@ const farZone: Zone = {
 /** The swissnum of the bootstrap object. */
 export const BOOTSTRAP_SWISSNUM = 'ledger';
 
-type Facet = 'issuer' | 'brand' | 'mint' | 'purse';
+type Facet = 'issuer' | 'brand' | 'mint' | 'purse' | 'payment';
 type SturdyRow = {
   commodity_guid: string;
   facet: Facet;
-  account_guid: string | null;
+  detail: string | null;
 };
 
 const ensureSturdyRefTable = (db: SqlDatabase) =>
@@ -42,7 +44,7 @@ const ensureSturdyRefTable = (db: SqlDatabase) =>
     swissnum TEXT PRIMARY KEY,
     commodity_guid TEXT NOT NULL,
     facet TEXT NOT NULL,
-    account_guid TEXT
+    detail TEXT -- purse: account GUID; payment: check number
   )`);
 
 /**
@@ -70,6 +72,7 @@ export const makeLedger = ({
     { commodityGuid: Guid; facet: Facet }
   >();
   const purses = new Map<Guid, AccountPurse>();
+  const payments = new Map<string, object>();
 
   const provideKit = (commodityGuid: Guid) => {
     let kit = kits.get(commodityGuid);
@@ -98,17 +101,49 @@ export const makeLedger = ({
     return purse;
   };
 
+  /** @throws if the payment's hold is cleared */
+  const providePayment = async (commodityGuid: Guid, checkNumber: string) => {
+    const kit = provideKit(commodityGuid);
+    let payment = payments.get(checkNumber);
+    if (!payment) {
+      payment = kit.payments.openPayment(checkNumber);
+      payments.set(checkNumber, payment);
+    } else if (!(await kit.kit.issuer.isLive(payment))) {
+      // as openPayment does for a hold cleared in an earlier incarnation
+      throw Error('payment not live');
+    }
+    return payment;
+  };
+
+  const checkNumberOf = (kit: IssuerKitForCommodity, obj: object) => {
+    try {
+      return kit.payments.getCheckNumber(obj);
+    } catch (err) {
+      if ((err as Error).message === 'unknown payment') return undefined;
+      throw err;
+    }
+  };
+
   const describe = (obj: object) => {
     const known = kitFacets.get(obj);
-    if (known) return { ...known, accountGuid: null };
+    if (known) return { ...known, detail: null };
     for (const [commodityGuid, kit] of kits) {
       const accountGuid = kit.purseGuids.get(obj as AccountPurse);
       if (accountGuid) {
         purses.set(accountGuid, obj as AccountPurse);
-        return { commodityGuid, facet: 'purse' as const, accountGuid };
+        return { commodityGuid, facet: 'purse' as const, detail: accountGuid };
+      }
+      const checkNumber = checkNumberOf(kit, obj);
+      if (checkNumber) {
+        payments.set(checkNumber, obj);
+        return {
+          commodityGuid,
+          facet: 'payment' as const,
+          detail: checkNumber,
+        };
       }
     }
-    throw Error('not an issuer, brand, mint, or purse of this ledger');
+    throw Error('not an issuer, brand, mint, purse, or payment of this ledger');
   };
 
   const bootstrap = Far('LedgerBootstrap', {
@@ -124,19 +159,19 @@ export const makeLedger = ({
     },
     /** @returns a swissnum for `obj`, the same one each time */
     makeSturdyRef: (obj: object) => {
-      const { commodityGuid, facet, accountGuid } = describe(obj);
+      const { commodityGuid, facet, detail } = describe(obj);
       const existing = db
         .prepare<[string, string, string | null], { swissnum: string }>(
           `SELECT swissnum FROM clerk_sturdyrefs
-           WHERE commodity_guid = ? AND facet = ? AND account_guid IS ?`,
+           WHERE commodity_guid = ? AND facet = ? AND detail IS ?`,
         )
-        .get(commodityGuid, facet, accountGuid);
+        .get(commodityGuid, facet, detail);
       if (existing) return existing.swissnum;
       const swissnum = makeSwissnum();
       db.prepare(
         `INSERT INTO clerk_sturdyrefs
-         (swissnum, commodity_guid, facet, account_guid) VALUES (?, ?, ?, ?)`,
-      ).run(swissnum, commodityGuid, facet, accountGuid);
+         (swissnum, commodity_guid, facet, detail) VALUES (?, ?, ?, ?)`,
+      ).run(swissnum, commodityGuid, facet, detail);
       return swissnum;
     },
   });
@@ -145,14 +180,17 @@ export const makeLedger = ({
     if (swissnum === BOOTSTRAP_SWISSNUM) return bootstrap;
     const row = db
       .prepare<[string], SturdyRow>(
-        `SELECT commodity_guid, facet, account_guid FROM clerk_sturdyrefs
+        `SELECT commodity_guid, facet, detail FROM clerk_sturdyrefs
          WHERE swissnum = ?`,
       )
       .get(swissnum);
     if (!row) return undefined;
     const commodityGuid = row.commodity_guid as Guid;
     if (row.facet === 'purse') {
-      return providePurse(commodityGuid, row.account_guid as Guid);
+      return providePurse(commodityGuid, row.detail as Guid);
+    }
+    if (row.facet === 'payment') {
+      return providePayment(commodityGuid, row.detail as string);
     }
     return provideKit(commodityGuid).kit[row.facet];
   };

@@ -132,8 +132,10 @@ export const makeCapnwebNetLayer = ({
     const track = (connection: Connection, inbox: RpcStub<RemoteInbox>) => {
       connections.add(connection);
       inbox.onRpcBroken(reason => {
-        connections.delete(connection);
-        logger.log('capnweb netlayer: connection broken', reason);
+        // a connection we ended ourselves is no longer in the set
+        if (connections.delete(connection)) {
+          logger.log('capnweb netlayer: connection broken', reason);
+        }
         handlers.handleConnectionClose(connection, reason as Error);
       });
     };
@@ -152,14 +154,16 @@ export const makeCapnwebNetLayer = ({
         connection = handlers.makeConnection(
           netlayer,
           true,
-          makeSocket(peerInbox, () => gateway[Symbol.dispose]()),
+          makeSocket(peerInbox, () => {
+            connections.delete(connection!);
+            gateway[Symbol.dispose]();
+          }),
         );
         track(connection, peerInbox);
         return connection;
       },
       shutdown: () => {
-        for (const connection of connections) connection.end();
-        connections.clear();
+        for (const connection of [...connections]) connection.end();
       },
     };
 
@@ -171,7 +175,10 @@ export const makeCapnwebNetLayer = ({
         const connection = handlers.makeConnection(
           netlayer,
           false,
-          makeSocket(peer, () => peer[Symbol.dispose]()),
+          makeSocket(peer, () => {
+            connections.delete(connection);
+            peer[Symbol.dispose]();
+          }),
         );
         track(connection, peer);
         return new ByteInbox(bytes =>

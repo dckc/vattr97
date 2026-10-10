@@ -28,6 +28,6 @@ Both ends run under SES (`@endo/init`), workerd included.
 
 ## Limits
 
-- Live references die with the WebSocket. Sturdyrefs to issuers, brands, mints, and purses survive restarts ([ledger.ts](src/ledger.ts)); payments don't, since their liveness is kept in memory.
+- Live references die with the WebSocket. Sturdyrefs to issuers, brands, mints, purses, and payments survive restarts ([ledger.ts](src/ledger.ts)). A payment's liveness comes from its hold in the ledger; once spent, its sturdyref fails with `payment not live`.
 - The ledger's OCapN key pair is regenerated each time the Durable Object starts. Clients dial by URL, so nothing checks it yet.
 - wrangler can't run in a locked-down process, so the workerd test starts `wrangler dev` as a child process.

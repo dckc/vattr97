@@ -92,23 +92,34 @@ test.serial('a spent payment is not live', async t => {
   await spentPaymentIsNotLive(t, await connect(t));
 });
 
-test.serial('a purse sturdyref survives restarting workerd', async t => {
-  const state = await makeState();
-  const first = await startWrangler(state);
-  t.teardown(first.stop);
-  const { ledger } = await connectTo(t, first.url);
-  const { issuer, brand, mint } = await E(ledger).makeIssuerKit('BUCKS');
-  const alice = await E(issuer).makeEmptyPurse();
-  await E(alice).deposit(
-    await E(mint).mintPayment(harden({ brand, value: 10n })),
-  );
-  const aliceSwiss = await E(ledger).makeSturdyRef(alice);
-  await first.stop();
+test.serial(
+  'purse and payment sturdyrefs survive restarting workerd',
+  async t => {
+    const state = await makeState();
+    const first = await startWrangler(state);
+    t.teardown(first.stop);
+    const { ledger } = await connectTo(t, first.url);
+    const { issuer, brand, mint } = await E(ledger).makeIssuerKit('BUCKS');
+    const alice = await E(issuer).makeEmptyPurse();
+    await E(alice).deposit(
+      await E(mint).mintPayment(harden({ brand, value: 10n })),
+    );
+    const payment = await E(alice).withdraw(harden({ brand, value: 4n }));
+    const aliceSwiss = await E(ledger).makeSturdyRef(alice);
+    const paymentSwiss = await E(ledger).makeSturdyRef(payment);
+    await first.stop();
 
-  const second = await startWrangler(state);
-  t.teardown(second.stop);
-  const client = await connectTo(t, second.url);
-  const balance = await E(await client.enliven(aliceSwiss)).getCurrentAmount();
-  t.is(balance.value, 10n);
-  t.is(await E(balance.brand).getAllegedName(), 'BUCKS');
-});
+    const second = await startWrangler(state);
+    t.teardown(second.stop);
+    const client = await connectTo(t, second.url);
+    const alice2 = await client.enliven(aliceSwiss);
+    const balance = await E(alice2).getCurrentAmount();
+    t.is(balance.value, 6n);
+    t.is(await E(balance.brand).getAllegedName(), 'BUCKS');
+    await E(alice2).deposit(await client.enliven(paymentSwiss));
+    t.is((await E(alice2).getCurrentAmount()).value, 10n);
+    await t.throwsAsync(() => client.enliven(paymentSwiss), {
+      message: /payment not live/,
+    });
+  },
+);
