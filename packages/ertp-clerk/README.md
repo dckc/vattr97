@@ -14,13 +14,20 @@ yarn dev      # serves /api
 A client reaches the ledger by sturdyref (swissnum `ledger`):
 
 ```js
-const { ledger } = await connectLedger(() => newWebSocketRpcSession(url));
+const { ledger, enliven } = await connectLedger(() =>
+  newWebSocketRpcSession(url),
+);
 const { issuer, brand, mint } = await E(ledger).makeIssuerKit('BUCKS');
+const purse = await E(issuer).makeEmptyPurse();
+const swissnum = await E(ledger).makeSturdyRef(purse); // keep this
+// ... later, perhaps after the Durable Object restarts:
+const samePurse = await enliven(swissnum);
 ```
 
 Both ends run under SES (`@endo/init`), workerd included.
 
 ## Limits
 
-- Live references die with the WebSocket. The sturdyref survives, but the ledger's OCapN identity (its key pair) is regenerated each time the Durable Object starts.
+- Live references die with the WebSocket. Sturdyrefs to issuers, brands, mints, and purses survive restarts ([ledger.ts](src/ledger.ts)); payments don't, since their liveness is kept in memory.
+- The ledger's OCapN key pair is regenerated each time the Durable Object starts. Clients dial by URL, so nothing checks it yet.
 - wrangler can't run in a locked-down process, so the workerd test starts `wrangler dev` as a child process.

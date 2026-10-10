@@ -10,7 +10,10 @@ declare module '@endo/ocapn' {
   type SturdyRef = { _brand: 'SturdyRef' };
 
   export const swissnumFromBytes: (bytes: Uint8Array) => SwissNum;
-  export const makeClient: (options?: { debugLabel?: string }) => {
+  export const makeClient: (options?: {
+    debugLabel?: string;
+    swissnumTable?: Map<string, unknown>;
+  }) => {
     registerNetlayer: <T extends NetLayer>(
       makeNetlayer: (
         handlers: NetlayerHandlers,

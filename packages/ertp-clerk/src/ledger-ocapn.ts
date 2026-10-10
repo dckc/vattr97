@@ -6,6 +6,7 @@ import { makeClient, swissnumFromBytes } from '@endo/ocapn';
 import type { RpcStub } from 'capnweb';
 import { makeCapnwebNetLayer, TRANSPORT } from './ocapn-capnweb-netlayer.js';
 import type { ByteGateway, OcapnLocation } from './ocapn-capnweb-netlayer.js';
+import { BOOTSTRAP_SWISSNUM } from './ledger.js';
 
 /** Peers dial the ledger by URL, so its location carries no hints. */
 export const LEDGER_LOCATION: OcapnLocation = {
@@ -14,12 +15,13 @@ export const LEDGER_LOCATION: OcapnLocation = {
   designator: 'ledger',
   hints: false,
 };
-const LEDGER_SWISSNUM = 'ledger';
 
-/** @returns the Cap'n Web main object for incoming connections */
-export const makeLedgerHost = async (bootstrap: object) => {
-  const ocapn = makeClient({ debugLabel: 'ledger' });
-  ocapn.registerSturdyRef(LEDGER_SWISSNUM, bootstrap);
+/**
+ * @param swissnumTable - from `makeLedger`
+ * @returns the Cap'n Web main object for incoming connections
+ */
+export const makeLedgerHost = async (swissnumTable: Map<string, unknown>) => {
+  const ocapn = makeClient({ debugLabel: 'ledger', swissnumTable });
   const netlayer = await ocapn.registerNetlayer(
     makeCapnwebNetLayer({
       designator: LEDGER_LOCATION.designator,
@@ -35,7 +37,12 @@ export const makeLedgerHost = async (bootstrap: object) => {
   };
 };
 
-/** Reach the ledger's bootstrap object through `openGateway`. */
+/**
+ * Reach the ledger through `openGateway`.
+ *
+ * @returns the bootstrap object, and `enliven` for other sturdyrefs
+ *   (swissnums from the bootstrap's `makeSturdyRef`)
+ */
 export const connectLedger = async (
   openGateway: () => RpcStub<ByteGateway>,
   designator = 'client',
@@ -44,9 +51,13 @@ export const connectLedger = async (
   await ocapn.registerNetlayer(
     makeCapnwebNetLayer({ designator, hints: false, openGateway }),
   );
-  const swissnum = swissnumFromBytes(new TextEncoder().encode(LEDGER_SWISSNUM));
-  const ledger = await ocapn.enlivenSturdyRef(
-    ocapn.makeSturdyRef(LEDGER_LOCATION, swissnum),
-  );
-  return { ledger, shutdown: () => ocapn.shutdown() };
+  const enliven = (swissnum: string) =>
+    ocapn.enlivenSturdyRef(
+      ocapn.makeSturdyRef(
+        LEDGER_LOCATION,
+        swissnumFromBytes(new TextEncoder().encode(swissnum)),
+      ),
+    );
+  const ledger = await enliven(BOOTSTRAP_SWISSNUM);
+  return { ledger, enliven, shutdown: () => ocapn.shutdown() };
 };
