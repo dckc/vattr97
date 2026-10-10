@@ -17,8 +17,10 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261010.1",
+    "@fast-check/ava": "^3.0.1",
     "ava": "^7.0.0",
     "better-sqlite3": "12.10.0",
+    "fast-check": "^4.10.2",
     "wrangler": "^4.59.2"
   },
   "ava": {

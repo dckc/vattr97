@@ -11,6 +11,8 @@ yarn test     # in-process, then the Durable Object under `wrangler dev`
 yarn dev      # serves /api and /api/<name>
 ```
 
+[model.test.ts](test/model.test.ts) runs random sequences of ledger and escrow operations, restarts included, against a reference model, and races offers against cancels ([#39](https://github.com/dckc/vattr97/issues/39)). `FC_NUM_RUNS=10000 yarn test` searches longer.
+
 Each ledger is a Durable Object named by the path: `/api/usdc` and `/api/stock` are separate ledgers, and `/api` is the one named `default`. A ledger's OCapN designator is its name.
 
 A client reaches a ledger by sturdyref (swissnum `ledger`):
