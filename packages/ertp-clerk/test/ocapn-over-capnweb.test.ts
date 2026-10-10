@@ -22,6 +22,8 @@ import type { SqlDatabase } from '@vattr/ertp-books/src/index.js';
 import {
   aliceBuysStockFromBob,
   aliceSendsBob10Bucks,
+  escrowOutlivesRestart,
+  escrowSwapsUsdcForStock,
   spentPaymentIsNotLive,
   type Ledger,
 } from './scenarios.js';
@@ -67,6 +69,10 @@ test('alice sends bob 10 BUCKS; brand round-trips', async t => {
 
 test('a spent payment is not live', async t => {
   await spentPaymentIsNotLive(t, await enliven(t));
+});
+
+test('escrow swaps USDC for STOCK, or refunds', async t => {
+  await escrowSwapsUsdcForStock(t, await enliven(t));
 });
 
 test('USDC and STOCK on separate ledgers, one client', async t => {
@@ -247,4 +253,13 @@ test('a payment sturdyref survives a restart and spends once', async t => {
   });
   const bob3 = await three.client.enliven(bobSwiss);
   t.is((await E(bob3).getCurrentAmount()).value, 4n);
+});
+
+test('an escrow outlives a restart between the two offers', async t => {
+  const db = makeDb();
+  const io = makeIO();
+  await escrowOutlivesRestart(t, async () => {
+    const { client, stop } = await startIncarnation(db, io);
+    return { ...client, stop };
+  });
 });

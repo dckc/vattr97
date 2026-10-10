@@ -36,11 +36,15 @@ const usdc = await client.ledger('usdc');
 const stock = await client.ledger('stock');
 ```
 
+## Escrow
+
+`E(ledger).makeEscrow(give, want)` makes a two-party escrow and returns a seat for each party. Each party calls `E(seat).offer(payment, refund, payout)`, where `refund` and `payout` are purses or deposit facets; the second offer settles the swap. Either party may `cancel()` before then, which refunds what was offered. The escrow's state lives in the ledger's database ([escrow.ts](src/escrow.ts)), so a seat's sturdyref works across restarts. Both commodities must be on the same ledger ([#36](https://github.com/dckc/vattr97/issues/36)).
+
 Both ends run under SES (`@endo/init`), workerd included.
 
 ## Limits
 
-- Live references die with the WebSocket. Sturdyrefs to issuers, brands, mints, purses, and payments survive restarts ([ledger.ts](src/ledger.ts)). A payment's liveness comes from its hold in the ledger; once spent, its sturdyref fails with `payment not live`.
+- Live references die with the WebSocket. Every object the ledger exports can have a sturdyref (`makeSturdyRef`): issuers, brands, mints, purses, deposit facets, payments, and escrow seats. Sturdyrefs survive restarts ([ledger.ts](src/ledger.ts)). A payment's liveness comes from its hold in the ledger; once spent, its sturdyref fails with `payment not live`.
 - Ledgers don't dial out, so one ledger can't take another's objects: handing a USDC payment to the STOCK ledger starts an OCapN handoff that fails (`ledger does not dial out`) and the deposit is rejected.
 - The ledger's OCapN key pair is regenerated each time the Durable Object starts. Clients dial by URL, so nothing checks it yet.
 - wrangler can't run in a locked-down process, so the workerd test starts `wrangler dev` as a child process.
