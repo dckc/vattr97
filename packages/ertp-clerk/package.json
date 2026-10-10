@@ -1,0 +1,38 @@
+{
+  "name": "@vattr/ertp-clerk",
+  "version": "0.0.1",
+  "private": true,
+  "description": "ERTP ledger on a Cloudflare Durable Object, reached by CapTP over Cap'n Web",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "ava"
+  },
+  "dependencies": {
+    "@endo/captp": "^4.5.1",
+    "@endo/far": "^1.1.14",
+    "@endo/init": "^1.1.13",
+    "@vattr/ertp-books": "workspace:^",
+    "capnweb": "^0.12.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261010.1",
+    "ava": "^7.0.0",
+    "better-sqlite3": "12.10.0",
+    "wrangler": "^4.59.2"
+  },
+  "ava": {
+    "extensions": {
+      "js": true,
+      "ts": "module"
+    },
+    "files": [
+      "test/**/*.test.*"
+    ],
+    "nodeArguments": [
+      "--import=@endo/init/debug.js",
+      "--import=ts-blank-space/register",
+      "--no-warnings"
+    ]
+  }
+}
