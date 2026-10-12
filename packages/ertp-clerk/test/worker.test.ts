@@ -1,5 +1,5 @@
 /**
- * @file The ledger Durable Object in workerd, reached from Node by CapTP
+ * @file The ledger Durable Object in workerd, reached from Node by OCapN
  * over a Cap'n Web WebSocket session.
  * @see ../src/index.ts
  */
@@ -12,7 +12,8 @@ import { createRequire } from 'node:module';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { connectCapTP } from '../src/captp-over-capnweb.js';
+import { connectLedger } from '../src/ledger-ocapn.js';
+import type { ByteGateway } from '../src/ocapn-capnweb-netlayer.js';
 import {
   aliceSendsBob10Bucks,
   spentPaymentIsNotLive,
@@ -62,15 +63,12 @@ const startWrangler = async () => {
 const worker = await startWrangler();
 test.after.always(() => worker.stop());
 
-const connect = (t: import('ava').ExecutionContext) => {
-  const socket = new WebSocket(worker.url);
-  const gateway = newWebSocketRpcSession(socket);
-  const { getBootstrap, abort } = connectCapTP(gateway as any, 'client');
-  t.teardown(() => {
-    abort();
-    socket.close();
-  });
-  return getBootstrap() as Promise<Ledger>;
+const connect = async (t: import('ava').ExecutionContext) => {
+  const { ledger, shutdown } = await connectLedger(() =>
+    newWebSocketRpcSession<ByteGateway>(worker.url),
+  );
+  t.teardown(shutdown);
+  return ledger as Ledger;
 };
 
 test.serial('alice sends bob 10 BUCKS; brand round-trips', async t => {

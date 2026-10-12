@@ -9,9 +9,9 @@
     "test": "ava"
   },
   "dependencies": {
-    "@endo/captp": "^4.5.1",
     "@endo/far": "^1.1.14",
     "@endo/init": "^1.1.13",
+    "@endo/ocapn": "^1.1.1",
     "@vattr/ertp-books": "workspace:^",
     "capnweb": "^0.12.0"
   },

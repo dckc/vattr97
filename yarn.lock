@@ -340,25 +340,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@endo/bytes@npm:^1.0.1":
+  version: 1.0.2
+  resolution: "@endo/bytes@npm:1.0.2"
+  dependencies:
+    "@endo/harden": "npm:^1.1.0"
+    "@endo/immutable-arraybuffer": "npm:^2.0.0"
+  checksum: 10c0/6bb1e2762ace5bdfee07bdfbf56acdc6de7c05282dc54698e304e98df6d253f9cbf776d6790eaa5e69d654af87d7a6059184239a0661fc1b77accb8a14423d0e
+  languageName: node
+  linkType: hard
+
 "@endo/cache-map@npm:^1.1.0":
   version: 1.1.0
   resolution: "@endo/cache-map@npm:1.1.0"
   checksum: 10c0/7d3df3263bfd581248a1e44472cb6650e73fc473f096bcd6dfe6619c3f8017d959e4376edcd76cea729d56f6b52b33de0a3d40a7f7b192cb4fb0e6822a153993
-  languageName: node
-  linkType: hard
-
-"@endo/captp@npm:^4.5.1":
-  version: 4.5.1
-  resolution: "@endo/captp@npm:4.5.1"
-  dependencies:
-    "@endo/errors": "npm:^1.3.1"
-    "@endo/eventual-send": "npm:^1.5.0"
-    "@endo/harden": "npm:^1.1.0"
-    "@endo/marshal": "npm:^1.10.0"
-    "@endo/nat": "npm:^5.2.0"
-    "@endo/pass-style": "npm:^1.8.0"
-    "@endo/promise-kit": "npm:^1.2.1"
-  checksum: 10c0/3949f1180f6d68f894a2cb046f9b3217b1b30f3565e43afdd3bc64a1fd0f6210ac967765d268e207cc2ab2972d46f6032ecdba5374877759b40823e729658f09
   languageName: node
   linkType: hard
 
@@ -456,10 +451,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@endo/hex@npm:^1.1.1":
+  version: 1.1.1
+  resolution: "@endo/hex@npm:1.1.1"
+  dependencies:
+    "@endo/harden": "npm:^1.1.0"
+  checksum: 10c0/3f7e23e1f1e14cdfe238304688fe5e0e1acece8796e84aaab67547242e0ea38f648ebdb07d347c9e5aaa832436dc2cec709dbc56235384e4c63a2784e4d164e7
+  languageName: node
+  linkType: hard
+
 "@endo/immutable-arraybuffer@npm:^1.1.2":
   version: 1.1.2
   resolution: "@endo/immutable-arraybuffer@npm:1.1.2"
   checksum: 10c0/9ad0915818115999dd5fb618096be49e0f70f6289a234e968f40495ad2b3ced7bbbd09b7f20aaf04a88192fbb398bc42b89eb2dded5760df6a8e7439a20a7b9e
+  languageName: node
+  linkType: hard
+
+"@endo/immutable-arraybuffer@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@endo/immutable-arraybuffer@npm:2.0.0"
+  checksum: 10c0/f04dc647fc0b8f44e6112c21892867092fc3194e009bc1c25f7fe3670a03c3802a4fc4c6a50b2904ded331e186d9392e202f9720f6909716312fb82497badbad
   languageName: node
   linkType: hard
 
@@ -520,6 +531,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@endo/ocapn@npm:^1.1.1":
+  version: 1.1.1
+  resolution: "@endo/ocapn@npm:1.1.1"
+  dependencies:
+    "@endo/bytes": "npm:^1.0.1"
+    "@endo/eventual-send": "npm:^1.5.0"
+    "@endo/harden": "npm:^1.1.0"
+    "@endo/hex": "npm:^1.1.1"
+    "@endo/init": "npm:^1.1.13"
+    "@endo/marshal": "npm:^1.10.0"
+    "@endo/nat": "npm:^5.2.0"
+    "@endo/pass-style": "npm:^1.8.1"
+    "@endo/promise-kit": "npm:^1.2.1"
+    "@endo/stream": "npm:^1.3.1"
+    "@endo/syrup-frame": "npm:^0.1.1"
+    "@noble/curves": "npm:^1.9.0"
+    "@noble/hashes": "npm:^1.8.0"
+    ws: "npm:^8.20.0"
+  checksum: 10c0/6e06b8aba2c0dcf1c6360e8f6588b7bfc7c2072346f7cca88aaf54d1cb5b753eadf16d7f10d02eebff44539725a44737c35a3f37c06dbce794ebddd7f3926491
+  languageName: node
+  linkType: hard
+
 "@endo/pass-style@npm:^1.6.3, @endo/pass-style@npm:^1.8.0, @endo/pass-style@npm:^1.8.1":
   version: 1.8.1
   resolution: "@endo/pass-style@npm:1.8.1"
@@ -564,7 +597,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@endo/stream@npm:^1.2.13":
+"@endo/stream@npm:^1.2.13, @endo/stream@npm:^1.3.1":
   version: 1.3.1
   resolution: "@endo/stream@npm:1.3.1"
   dependencies:
@@ -573,6 +606,18 @@ __metadata:
     "@endo/promise-kit": "npm:^1.2.1"
     ses: "npm:^2.0.0"
   checksum: 10c0/2ea43b6ea360f30c812b848909d636ab55fbd9af177da7c4721f1bbecc7f55d8c4ac92aec86fb1143178ddb58c613125f62292b81f6d37e10812b513c3c17d4c
+  languageName: node
+  linkType: hard
+
+"@endo/syrup-frame@npm:^0.1.1":
+  version: 0.1.1
+  resolution: "@endo/syrup-frame@npm:0.1.1"
+  dependencies:
+    "@endo/harden": "npm:^1.1.0"
+    "@endo/init": "npm:^1.1.13"
+    "@endo/promise-kit": "npm:^1.2.1"
+    "@endo/stream": "npm:^1.3.1"
+  checksum: 10c0/be2943b229e8a4dc16061ff04d51dd952cd3fa450e378fcbc6ddbbd6f99bdfdbe929b709364da44bc0ac2655e321a28712b0fd895b0c41f659abeda06836a2c7
   languageName: node
   linkType: hard
 
@@ -1223,6 +1268,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@noble/curves@npm:^1.9.0":
+  version: 1.9.7
+  resolution: "@noble/curves@npm:1.9.7"
+  dependencies:
+    "@noble/hashes": "npm:1.8.0"
+  checksum: 10c0/150014751ebe8ca06a8654ca2525108452ea9ee0be23430332769f06808cddabfe84f248b6dbf836916bc869c27c2092957eec62c7506d68a1ed0a624017c2a3
+  languageName: node
+  linkType: hard
+
+"@noble/hashes@npm:1.8.0, @noble/hashes@npm:^1.8.0":
+  version: 1.8.0
+  resolution: "@noble/hashes@npm:1.8.0"
+  checksum: 10c0/06a0b52c81a6fa7f04d67762e08b2c476a00285858150caeaaff4037356dd5e119f45b2a530f638b77a5eeca013168ec1b655db41bae3236cb2e9d511484fc77
+  languageName: node
+  linkType: hard
+
 "@nodelib/fs.scandir@npm:2.1.5":
   version: 2.1.5
   resolution: "@nodelib/fs.scandir@npm:2.1.5"
@@ -1362,9 +1423,9 @@ __metadata:
   resolution: "@vattr/ertp-clerk@workspace:packages/ertp-clerk"
   dependencies:
     "@cloudflare/workers-types": "npm:^5.20261010.1"
-    "@endo/captp": "npm:^4.5.1"
     "@endo/far": "npm:^1.1.14"
     "@endo/init": "npm:^1.1.13"
+    "@endo/ocapn": "npm:^1.1.1"
     "@vattr/ertp-books": "workspace:^"
     ava: "npm:^7.0.0"
     better-sqlite3: "npm:12.10.0"
@@ -3972,6 +4033,21 @@ __metadata:
     utf-8-validate:
       optional: true
   checksum: 10c0/ef4a243476283fc49bc7550966c4af4aa0eef56273837211e700de3b664e08604a760cdddcb5ba43c049140e74ccfec5b0ee0bb439e08c2adf9138902fdde5f9
+  languageName: node
+  linkType: hard
+
+"ws@npm:^8.20.0":
+  version: 8.22.0
+  resolution: "ws@npm:8.22.0"
+  peerDependencies:
+    bufferutil: ^4.0.1
+    utf-8-validate: ">=5.0.2"
+  peerDependenciesMeta:
+    bufferutil:
+      optional: true
+    utf-8-validate:
+      optional: true
+  checksum: 10c0/7304d14ef38898dd366a528a85e2da389c4eebf30f4ce8a007bd2dce6025f9b619cefe44fe2354f0bad0ec541b1c9a4da06a3f3e046ab56f01fd52d5784ecfb2
   languageName: node
   linkType: hard
 
