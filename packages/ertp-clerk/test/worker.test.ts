@@ -18,6 +18,8 @@ import type { ByteGateway } from '../src/ocapn-capnweb-netlayer.js';
 import {
   aliceBuysStockFromBob,
   aliceSendsBob10Bucks,
+  escrowOutlivesRestart,
+  escrowSwapsUsdcForStock,
   spentPaymentIsNotLive,
   type Ledger,
 } from './scenarios.js';
@@ -92,6 +94,20 @@ test.serial('alice sends bob 10 BUCKS; brand round-trips', async t => {
 
 test.serial('a spent payment is not live', async t => {
   await spentPaymentIsNotLive(t, await connect(t));
+});
+
+test.serial('escrow swaps USDC for STOCK, or refunds', async t => {
+  await escrowSwapsUsdcForStock(t, await connect(t));
+});
+
+test.serial('an escrow outlives restarting workerd', async t => {
+  const state = await makeState();
+  await escrowOutlivesRestart(t, async () => {
+    const wrangler = await startWrangler(state);
+    t.teardown(wrangler.stop);
+    const client = await connectTo(t, wrangler.url);
+    return { ...client, stop: wrangler.stop };
+  });
 });
 
 /** @param origins - where each ledger, by name, is served */

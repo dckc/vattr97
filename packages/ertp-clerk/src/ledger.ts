@@ -4,8 +4,9 @@
  * that survive restarts.
  *
  * A sturdyref's swissnum maps to a row naming a commodity and a facet:
- * issuer, brand, mint, a purse (by account GUID), or a payment (by
- * check number). After a restart, the object is revived from the
+ * issuer, brand, mint, a purse or deposit facet (by account GUID), a
+ * payment (by check number), or an escrow seat (by escrow GUID and
+ * side; see ertp-books' escrow-seats.ts). After a restart, the object is revived from the
  * ledger on first use; a payment is live iff its hold is uncleared.
  * Within one incarnation each commodity, account, and payment has one
  * live object, so identity checks keep working and one hold can't be
@@ -14,12 +15,15 @@
 import { Far } from '@endo/far';
 import {
   createIssuerKit,
+  makeEscrows,
   openIssuerKit,
+  type Side,
   type SqlDatabase,
   type Zone,
 } from '@vattr/ertp-books/src/index.js';
 import type {
   AccountPurse,
+  AmountLike,
   Guid,
   IssuerKitForCommodity,
 } from '@vattr/ertp-books/src/types.js';
@@ -36,7 +40,8 @@ type LivePayment = Parameters<
 /** The swissnum of the bootstrap object. */
 export const BOOTSTRAP_SWISSNUM = 'ledger';
 
-type Facet = 'issuer' | 'brand' | 'mint' | 'purse' | 'payment';
+type Facet =
+  'issuer' | 'brand' | 'mint' | 'purse' | 'depositFacet' | 'payment' | 'seat';
 type SturdyRow = {
   commodity_guid: string;
   facet: Facet;
@@ -48,7 +53,8 @@ const ensureSturdyRefTable = (db: SqlDatabase) =>
     swissnum TEXT PRIMARY KEY,
     commodity_guid TEXT NOT NULL,
     facet TEXT NOT NULL,
-    detail TEXT -- purse: account GUID; payment: check number
+    detail TEXT -- purse, depositFacet: account GUID; payment: check
+                -- number; seat: escrow GUID:side
   )`);
 
 /**
@@ -119,6 +125,41 @@ export const makeLedger = ({
     return payment;
   };
 
+  const commodityOfBrand = (brand: unknown) => {
+    const known = kitFacets.get(brand as object);
+    if (known?.facet !== 'brand') throw Error('not a brand of this ledger');
+    return known.commodityGuid;
+  };
+
+  const accountOfDepositFacet = (obj: unknown, commodityGuid: Guid) => {
+    const accountGuid = provideKit(commodityGuid).depositFacetGuids.get(
+      obj as object,
+    );
+    if (!accountGuid) throw Error('not a deposit facet of that brand');
+    return accountGuid;
+  };
+
+  // the escrows get no mints, and deposit-only access to parties' accounts
+  const escrows = makeEscrows({
+    db,
+    zone: farZone,
+    makeGuid,
+    commodityOfBrand,
+    issuerOf: commodityGuid => {
+      const { issuer, brand } = provideKit(commodityGuid).kit;
+      return { issuer, brand };
+    },
+    makeHolding: commodityGuid => {
+      const accountGuid = makeGuid();
+      provideKit(commodityGuid).accounts.makeAccountPurse(accountGuid);
+      return accountGuid;
+    },
+    openHolding: providePurse,
+    depositFacetOf: (commodityGuid, accountGuid) =>
+      providePurse(commodityGuid, accountGuid).getDepositFacet(),
+    accountOfDepositFacet,
+  });
+
   const checkNumberOf = (kit: IssuerKitForCommodity, obj: object) => {
     try {
       return kit.payments.getCheckNumber(obj);
@@ -137,6 +178,14 @@ export const makeLedger = ({
         purses.set(accountGuid, obj as AccountPurse);
         return { commodityGuid, facet: 'purse' as const, detail: accountGuid };
       }
+      const facetAccount = kit.depositFacetGuids.get(obj);
+      if (facetAccount) {
+        return {
+          commodityGuid,
+          facet: 'depositFacet' as const,
+          detail: facetAccount,
+        };
+      }
       const checkNumber = checkNumberOf(kit, obj);
       if (checkNumber) {
         payments.set(checkNumber, obj);
@@ -147,7 +196,9 @@ export const makeLedger = ({
         };
       }
     }
-    throw Error('not an issuer, brand, mint, purse, or payment of this ledger');
+    const seat = escrows.describeSeat(obj);
+    if (seat) return { ...seat, facet: 'seat' as const };
+    throw Error('not an object of this ledger');
   };
 
   const bootstrap = Far('LedgerBootstrap', {
@@ -161,6 +212,9 @@ export const makeLedger = ({
       const { issuer, brand, mint } = provideKit(commodityGuid).kit;
       return harden({ issuer, brand, mint });
     },
+    /** @see makeEscrows */
+    makeEscrow: (give: AmountLike, want: AmountLike) =>
+      escrows.makeEscrow(give, want),
     /** @returns a swissnum for `obj`, the same one each time */
     makeSturdyRef: (obj: object) => {
       const { commodityGuid, facet, detail } = describe(obj);
@@ -192,6 +246,13 @@ export const makeLedger = ({
     const commodityGuid = row.commodity_guid as Guid;
     if (row.facet === 'purse') {
       return providePurse(commodityGuid, row.detail as Guid);
+    }
+    if (row.facet === 'depositFacet') {
+      return providePurse(commodityGuid, row.detail as Guid).getDepositFacet();
+    }
+    if (row.facet === 'seat') {
+      const [escrowGuid, side] = (row.detail as string).split(':');
+      return escrows.provideSeat(escrowGuid as Guid, side as Side);
     }
     if (row.facet === 'payment') {
       return providePayment(commodityGuid, row.detail as string);
