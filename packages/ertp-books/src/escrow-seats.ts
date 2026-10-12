@@ -29,6 +29,18 @@ const other = (side: Side): Side => (side === 'a' ? 'b' : 'a');
 
 type EscrowState = 'open' | 'settled' | 'cancelled';
 
+/** One party's place in an escrow. */
+export type EscrowSeat = {
+  getState: () => EscrowState;
+  getTerms: () => { give: AmountLike; want: AmountLike };
+  offer: (
+    payment: object,
+    refund: object,
+    payout: object,
+  ) => Promise<EscrowState>;
+  cancel: () => 'cancelled';
+};
+
 type SideRow = {
   commodity: Guid;
   value: string;
@@ -81,7 +93,7 @@ export const makeEscrows = ({
 }) => {
   ensureEscrowTable(db);
 
-  const seats = new Map<string, object>();
+  const seats = new Map<string, EscrowSeat>();
   const seatIds = new WeakMap<object, { escrowGuid: Guid; side: Side }>();
 
   const getState = (escrowGuid: Guid) => {
@@ -131,7 +143,7 @@ export const makeEscrows = ({
     setState(escrowGuid, 'settled');
   };
 
-  const provideSeat = (escrowGuid: Guid, side: Side) => {
+  const provideSeat = (escrowGuid: Guid, side: Side): EscrowSeat => {
     const key = `${escrowGuid}:${side}`;
     const existing = seats.get(key);
     if (existing) return existing;

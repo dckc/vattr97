@@ -9,6 +9,7 @@ import type {
   Issuer,
   NatAmount,
   Payment,
+  Purse,
 } from '@vattr/ertp-books/src/ertp-types.js';
 import type { makeLedger } from '../src/ledger.js';
 
@@ -84,15 +85,17 @@ export const spentPaymentIsNotLive = async (
 
 type Issuers = { usdc: ERef<Issuer<'nat'>>; stock: ERef<Issuer<'nat'>> };
 
+type Purses = { usdc: ERef<Purse<'nat'>>; stock: ERef<Purse<'nat'>> };
+const balancesOf = async ({ usdc, stock }: Purses) => [
+  (await E(usdc).getCurrentAmount()).value,
+  (await E(stock).getCurrentAmount()).value,
+];
+
 /** A party's own USDC and STOCK purses, and a read of their balances. */
 const makePurses = async (issuers: Issuers) => {
   const usdc = await E(issuers.usdc).makeEmptyPurse();
   const stock = await E(issuers.stock).makeEmptyPurse();
-  const getBalances = async () => [
-    (await E(usdc).getCurrentAmount()).value,
-    (await E(stock).getCurrentAmount()).value,
-  ];
-  return { usdc, stock, getBalances };
+  return { usdc, stock, getBalances: () => balancesOf({ usdc, stock }) };
 };
 
 /** USDC per share */
@@ -185,82 +188,133 @@ export const aliceBuysStockFromBob = async (
   t.deepEqual(await bob.getBalances(), [300n, 7n]);
 };
 
+type Kind = keyof Purses;
+const otherKind = (kind: Kind): Kind => (kind === 'usdc' ? 'stock' : 'usdc');
+type Seat = Awaited<ReturnType<Ledger['makeEscrow']>>['a'];
+/** sturdyrefs to a trader's purses and payout facet */
+type TraderMemory = Record<Kind | 'payout', string>;
+
+/**
+ * A party to escrows who gives `kind` for the other kind. It gives from
+ * its own purse; refunds and payouts reach it only through its deposit
+ * facets.
+ *
+ * @param payout - deposit facet for what it wants
+ */
+const makeTrader = (
+  kind: Kind,
+  purses: Purses,
+  payout: ERef<DepositFacet<'nat'>>,
+) =>
+  harden({
+    /** offer `amount` to `seat`, or by default what the seat gives */
+    offer: async (seat: ERef<Seat>, amount?: NatAmount) => {
+      // the seat's terms name this ledger's brands, so they are nat amounts
+      const give = amount ?? ((await E(seat).getTerms()).give as NatAmount);
+      const payment = await E(purses[kind]).withdraw(give);
+      try {
+        return await E(seat).offer(
+          payment,
+          await E(purses[kind]).getDepositFacet(),
+          payout,
+        );
+      } catch (err) {
+        await E(purses[kind]).deposit(payment); // a refused offer
+        throw err;
+      }
+    },
+    getBalances: () => balancesOf(purses),
+    /** sturdyrefs for a later incarnation; see `reviveTrader` */
+    remember: async (
+      makeSturdyRef: (obj: object) => Promise<string>,
+    ): Promise<TraderMemory> => ({
+      usdc: await makeSturdyRef(purses.usdc),
+      stock: await makeSturdyRef(purses.stock),
+      payout: await makeSturdyRef(payout),
+    }),
+  });
+
+/** @param endowment - what the trader starts with, of `kind` */
+const startTrader = async (
+  issuers: Issuers,
+  kind: Kind,
+  endowment: Payment<'nat'>,
+) => {
+  const { usdc, stock } = await makePurses(issuers);
+  const purses = { usdc, stock };
+  await E(purses[kind]).deposit(endowment);
+  const payout = await E(purses[otherKind(kind)]).getDepositFacet();
+  return makeTrader(kind, purses, payout);
+};
+
+const reviveTrader = async (
+  kind: Kind,
+  memory: TraderMemory,
+  enliven: (swissnum: string) => Promise<unknown>,
+) =>
+  makeTrader(
+    kind,
+    {
+      usdc: (await enliven(memory.usdc)) as Purse<'nat'>,
+      stock: (await enliven(memory.stock)) as Purse<'nat'>,
+    },
+    (await enliven(memory.payout)) as DepositFacet<'nat'>,
+  );
+
 /**
  * Alice buys 3 shares from Bob for 300 USDC through an escrow, so
  * neither has to trust the other; then an escrow Bob abandons refunds
- * Alice.
+ * Alice. The test holds the mints, makes the escrows, and hands each
+ * party only its own seat.
  */
 export const escrowSwapsUsdcForStock = async (
   t: ExecutionContext,
-  ledger: any,
+  ledger: ERef<Ledger>,
 ) => {
   const usdc = await E(ledger).makeIssuerKit('USDC');
   const stock = await E(ledger).makeIssuerKit('STOCK');
+  const issuers = { usdc: usdc.issuer, stock: stock.issuer };
   const dollars = (value: bigint) => harden({ brand: usdc.brand, value });
   const shares = (value: bigint) => harden({ brand: stock.brand, value });
-  const purses = async () => ({
-    usdc: await E(usdc.issuer).makeEmptyPurse(),
-    stock: await E(stock.issuer).makeEmptyPurse(),
-  });
-  const alice = await purses();
-  const bob = await purses();
-  await E(alice.usdc).deposit(await E(usdc.mint).mintPayment(dollars(1000n)));
-  await E(bob.stock).deposit(await E(stock.mint).mintPayment(shares(10n)));
-  const balances = async (who: typeof alice) => [
-    (await E(who.usdc).getCurrentAmount()).value,
-    (await E(who.stock).getCurrentAmount()).value,
-  ];
+  const alice = await startTrader(
+    issuers,
+    'usdc',
+    await E(usdc.mint).mintPayment(dollars(1000n)),
+  );
+  const bob = await startTrader(
+    issuers,
+    'stock',
+    await E(stock.mint).mintPayment(shares(10n)),
+  );
 
   const { a, b } = await E(ledger).makeEscrow(dollars(300n), shares(3n));
   const terms = await E(b).getTerms();
   t.is(terms.give.brand, stock.brand);
   t.is(terms.want.value, 300n);
 
-  const offerA = await E(a).offer(
-    await E(alice.usdc).withdraw(dollars(300n)),
-    await E(alice.usdc).getDepositFacet(),
-    alice.stock,
-  );
-  t.is(offerA, 'open');
-  t.deepEqual(await balances(alice), [700n, 0n], 'escrow holds the 300');
-  await t.throwsAsync(
-    async () =>
-      E(b).offer(await E(bob.stock).withdraw(shares(2n)), bob.stock, bob.usdc),
-    { message: /exactly 3/ },
-  );
-  const offerB = await E(b).offer(
-    await E(bob.stock).withdraw(shares(3n)),
-    bob.stock,
-    bob.usdc,
-  );
-  t.is(offerB, 'settled');
-  t.deepEqual(await balances(alice), [700n, 3n]);
-  t.deepEqual(await balances(bob), [300n, 5n], '2 shares came back above');
+  t.is(await alice.offer(a), 'open');
+  t.deepEqual(await alice.getBalances(), [700n, 0n], 'escrow holds the 300');
+  await t.throwsAsync(() => bob.offer(b, shares(2n)), {
+    message: /exactly 3/,
+  });
+  t.is(await bob.offer(b), 'settled');
+  t.deepEqual(await alice.getBalances(), [700n, 3n]);
+  t.deepEqual(await bob.getBalances(), [300n, 7n], 'the short offer came back');
   await t.throwsAsync(() => E(a).cancel(), { message: /escrow settled/ });
 
   const second = await E(ledger).makeEscrow(dollars(100n), shares(1n));
-  await E(second.a).offer(
-    await E(alice.usdc).withdraw(dollars(100n)),
-    alice.usdc,
-    alice.stock,
-  );
-  t.deepEqual(await balances(alice), [600n, 3n]);
+  await alice.offer(second.a);
+  t.deepEqual(await alice.getBalances(), [600n, 3n]);
   t.is(await E(second.b).cancel(), 'cancelled');
-  t.deepEqual(await balances(alice), [700n, 3n], 'refunded');
-  await t.throwsAsync(
-    async () =>
-      E(second.b).offer(
-        await E(bob.stock).withdraw(shares(1n)),
-        bob.stock,
-        bob.usdc,
-      ),
-    { message: /escrow cancelled/ },
-  );
+  t.deepEqual(await alice.getBalances(), [700n, 3n], 'refunded');
+  await t.throwsAsync(() => bob.offer(second.b), {
+    message: /escrow cancelled/,
+  });
 };
 
 type Incarnation = {
-  ledger: any;
-  enliven: (swissnum: string) => Promise<any>;
+  ledger: ERef<Ledger>;
+  enliven: (swissnum: string) => Promise<unknown>;
   stop: () => unknown;
 };
 
@@ -278,45 +332,37 @@ export const escrowOutlivesRestart = async (
   const { ledger } = one;
   const usdc = await E(ledger).makeIssuerKit('USDC');
   const stock = await E(ledger).makeIssuerKit('STOCK');
+  const issuers = { usdc: usdc.issuer, stock: stock.issuer };
   const dollars = harden({ brand: usdc.brand, value: 300n });
   const shares = harden({ brand: stock.brand, value: 3n });
-  const alice = {
-    usdc: await E(usdc.issuer).makeEmptyPurse(),
-    stock: await E(stock.issuer).makeEmptyPurse(),
-  };
-  const bobStock = await E(stock.issuer).makeEmptyPurse();
-  const bobUsdc = await E(usdc.issuer).makeEmptyPurse();
-  await E(alice.usdc).deposit(await E(usdc.mint).mintPayment(dollars));
-  await E(bobStock).deposit(await E(stock.mint).mintPayment(shares));
-  const { a, b } = await E(ledger).makeEscrow(dollars, shares);
-  await E(a).offer(
-    await E(alice.usdc).withdraw(dollars),
-    alice.usdc,
-    await E(alice.stock).getDepositFacet(),
+  const alice = await startTrader(
+    issuers,
+    'usdc',
+    await E(usdc.mint).mintPayment(dollars),
   );
-  const swiss = {
-    b: await E(ledger).makeSturdyRef(b),
-    bobStock: await E(ledger).makeSturdyRef(bobStock),
-    bobUsdc: await E(ledger).makeSturdyRef(await E(bobUsdc).getDepositFacet()),
-    aliceStock: await E(ledger).makeSturdyRef(alice.stock),
+  const bob = await startTrader(
+    issuers,
+    'stock',
+    await E(stock.mint).mintPayment(shares),
+  );
+  const { a, b } = await E(ledger).makeEscrow(dollars, shares);
+  await alice.offer(a);
+  const makeSturdyRef = (obj: object) => E(ledger).makeSturdyRef(obj);
+  const memory = {
+    alice: await alice.remember(makeSturdyRef),
+    bob: await bob.remember(makeSturdyRef),
+    seatB: await makeSturdyRef(b),
   };
-  t.is(await one.enliven(swiss.b), b, 'same live seat');
+  t.is(await one.enliven(memory.seatB), b, 'same live seat');
   await one.stop();
 
   const two = await start();
   t.teardown(two.stop);
-  const b2 = await two.enliven(swiss.b);
-  const bobStock2 = await two.enliven(swiss.bobStock);
+  const b2 = (await two.enliven(memory.seatB)) as Seat;
   t.is(await E(b2).getState(), 'open');
-  const { give } = await E(b2).getTerms();
-  t.is(give.value, 3n);
-  const state = await E(b2).offer(
-    await E(bobStock2).withdraw(give),
-    bobStock2,
-    await two.enliven(swiss.bobUsdc),
-  );
-  t.is(state, 'settled');
-  const aliceStock2 = await two.enliven(swiss.aliceStock);
-  t.is((await E(aliceStock2).getCurrentAmount()).value, 3n);
-  t.is((await E(bobStock2).getCurrentAmount()).value, 0n);
+  const bob2 = await reviveTrader('stock', memory.bob, two.enliven);
+  t.is(await bob2.offer(b2), 'settled');
+  const alice2 = await reviveTrader('usdc', memory.alice, two.enliven);
+  t.deepEqual(await alice2.getBalances(), [0n, 3n]);
+  t.deepEqual(await bob2.getBalances(), [300n, 0n]);
 };
