@@ -8,6 +8,7 @@ import type {
   DepositFacet,
   Issuer,
   NatAmount,
+  Payment,
 } from '@vattr/ertp-books/src/ertp-types.js';
 import type { makeLedgerBootstrap } from '../src/ledger.js';
 
@@ -17,26 +18,33 @@ import type { makeLedgerBootstrap } from '../src/ledger.js';
  */
 export type Ledger = ReturnType<typeof makeLedgerBootstrap>;
 
-/**
- * A party with a purse of its own. `self` is what it would show anyone:
- * its deposit facet and its balance. `puppet` is for the test alone,
- * to make it act.
- */
-const makeParty = async (issuer: ERef<Issuer<'nat'>>) => {
+/** Bob keeps a purse and hands anyone its deposit facet. */
+const makeBob = async (issuer: ERef<Issuer<'nat'>>) => {
   const purse = await E(issuer).makeEmptyPurse();
   return harden({
-    self: {
-      depositFacet: await E(purse).getDepositFacet(),
-      getBalance: () => E(purse).getCurrentAmount(),
-    },
-    puppet: {
-      pay: async (to: ERef<DepositFacet<'nat'>>, amount: NatAmount) =>
-        E(to).receive(await E(purse).withdraw(amount)),
-    },
+    depositFacet: await E(purse).getDepositFacet(),
+    getBalance: () => E(purse).getCurrentAmount(),
   });
 };
 
-/** The test holds the mint; Alice and Bob each hold only their purse. */
+/**
+ * Alice starts with `savings`; when run, she pays `amount` to `payee`.
+ */
+const makeAlice = async (
+  issuer: ERef<Issuer<'nat'>>,
+  savings: Payment<'nat'>,
+  payee: ERef<DepositFacet<'nat'>>,
+  amount: NatAmount,
+) => {
+  const purse = await E(issuer).makeEmptyPurse();
+  await E(purse).deposit(savings);
+  return harden({
+    run: async () => E(payee).receive(await E(purse).withdraw(amount)),
+    getBalance: () => E(purse).getCurrentAmount(),
+  });
+};
+
+/** The test holds the mint and introduces Alice to Bob's deposit facet. */
 export const aliceSendsBob10Bucks = async (
   t: ExecutionContext,
   ledger: ERef<Ledger>,
@@ -44,16 +52,18 @@ export const aliceSendsBob10Bucks = async (
   const { issuer, brand, mint } = await E(ledger).makeIssuerKit('BUCKS');
   t.is(await E(brand).getAllegedName(), 'BUCKS');
   const bucks = (value: bigint) => harden({ brand, value });
-  const alice = await makeParty(issuer);
-  const bob = await makeParty(issuer);
-
-  await E(alice.self.depositFacet).receive(
+  const bob = await makeBob(issuer);
+  const alice = await makeAlice(
+    issuer,
     await E(mint).mintPayment(bucks(10n)),
+    bob.depositFacet,
+    bucks(10n),
   );
-  await alice.puppet.pay(bob.self.depositFacet, bucks(10n));
 
-  t.is((await alice.self.getBalance()).value, 0n);
-  const bobAmount = await bob.self.getBalance();
+  await alice.run();
+
+  t.is((await alice.getBalance()).value, 0n);
+  const bobAmount = await bob.getBalance();
   t.is(bobAmount.value, 10n);
   t.is(bobAmount.brand, brand, 'brand comes back as the same presence');
   t.is(await E(issuer).getBrand(), brand);
@@ -64,10 +74,10 @@ export const spentPaymentIsNotLive = async (
   ledger: ERef<Ledger>,
 ) => {
   const { issuer, brand, mint } = await E(ledger).makeIssuerKit('BUCKS');
-  const { self: alice } = await makeParty(issuer);
+  const bob = await makeBob(issuer);
   const payment = await E(mint).mintPayment(harden({ brand, value: 10n }));
-  await E(alice.depositFacet).receive(payment);
-  await t.throwsAsync(() => E(alice.depositFacet).receive(payment), {
+  await E(bob.depositFacet).receive(payment);
+  await t.throwsAsync(() => E(bob.depositFacet).receive(payment), {
     message: /payment not live/,
   });
 };
