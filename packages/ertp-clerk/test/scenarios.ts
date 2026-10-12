@@ -10,13 +10,13 @@ import type {
   NatAmount,
   Payment,
 } from '@vattr/ertp-books/src/ertp-types.js';
-import type { makeLedgerBootstrap } from '../src/ledger.js';
+import type { makeLedger } from '../src/ledger.js';
 
 /**
  * What a ledger's peer claims its bootstrap is; a test that connects
  * over the network asserts it, since nothing on the wire checks.
  */
-export type Ledger = ReturnType<typeof makeLedgerBootstrap>;
+export type Ledger = ReturnType<typeof makeLedger>['bootstrap'];
 
 /** Bob keeps a purse and hands anyone its deposit facet. */
 const makeBob = async (issuer: ERef<Issuer<'nat'>>) => {

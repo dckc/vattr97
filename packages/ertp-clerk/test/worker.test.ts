@@ -4,6 +4,7 @@
  * @see ../src/index.ts
  */
 import test from 'ava';
+import { E } from '@endo/far';
 import { newWebSocketRpcSession } from 'capnweb';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -29,11 +30,11 @@ const freePort = async () => {
   return port;
 };
 
-const startWrangler = async () => {
+/** @param state - where Durable Object storage persists */
+const startWrangler = async (state: string) => {
   const port = await freePort();
   const pkg = createRequire(import.meta.url).resolve('wrangler/package.json');
   const bin = join(dirname(pkg), 'bin', 'wrangler.js');
-  const state = await mkdtemp(join(tmpdir(), 'ertp-clerk-'));
   const child = spawn(
     process.execPath,
     [
@@ -57,19 +58,31 @@ const startWrangler = async () => {
     throw Error(`wrangler dev exited before ready:\n${output}`);
   }
   child.stdout.resume();
-  return { url: `ws://127.0.0.1:${port}/api`, stop: () => child.kill() };
+  const url = `ws://127.0.0.1:${port}/api`;
+  const stop = async () => {
+    if (child.exitCode !== null) return;
+    child.kill();
+    await once(child, 'exit');
+  };
+  return { url, stop };
 };
 
-const worker = await startWrangler();
+const makeState = () => mkdtemp(join(tmpdir(), 'ertp-clerk-'));
+const worker = await startWrangler(await makeState());
 test.after.always(() => worker.stop());
 
-const connect = async (t: import('ava').ExecutionContext) => {
-  const { ledger, shutdown } = await connectLedger(() =>
-    newWebSocketRpcSession<ByteGateway>(worker.url),
+const connectTo = async (
+  t: import('ava').ExecutionContext,
+  url = worker.url,
+) => {
+  const client = await connectLedger(() =>
+    newWebSocketRpcSession<ByteGateway>(url),
   );
-  t.teardown(shutdown);
-  return ledger as Ledger;
+  t.teardown(client.shutdown);
+  return client;
 };
+const connect = async (t: import('ava').ExecutionContext) =>
+  (await connectTo(t)).ledger as Ledger;
 
 test.serial('alice sends bob 10 BUCKS; brand round-trips', async t => {
   await aliceSendsBob10Bucks(t, await connect(t));
@@ -78,3 +91,35 @@ test.serial('alice sends bob 10 BUCKS; brand round-trips', async t => {
 test.serial('a spent payment is not live', async t => {
   await spentPaymentIsNotLive(t, await connect(t));
 });
+
+test.serial(
+  'purse and payment sturdyrefs survive restarting workerd',
+  async t => {
+    const state = await makeState();
+    const first = await startWrangler(state);
+    t.teardown(first.stop);
+    const { ledger } = await connectTo(t, first.url);
+    const { issuer, brand, mint } = await E(ledger).makeIssuerKit('BUCKS');
+    const alice = await E(issuer).makeEmptyPurse();
+    await E(alice).deposit(
+      await E(mint).mintPayment(harden({ brand, value: 10n })),
+    );
+    const payment = await E(alice).withdraw(harden({ brand, value: 4n }));
+    const aliceSwiss = await E(ledger).makeSturdyRef(alice);
+    const paymentSwiss = await E(ledger).makeSturdyRef(payment);
+    await first.stop();
+
+    const second = await startWrangler(state);
+    t.teardown(second.stop);
+    const client = await connectTo(t, second.url);
+    const alice2 = await client.enliven(aliceSwiss);
+    const balance = await E(alice2).getCurrentAmount();
+    t.is(balance.value, 6n);
+    t.is(await E(balance.brand).getAllegedName(), 'BUCKS');
+    await E(alice2).deposit(await client.enliven(paymentSwiss));
+    t.is((await E(alice2).getCurrentAmount()).value, 10n);
+    await t.throwsAsync(() => client.enliven(paymentSwiss), {
+      message: /payment not live/,
+    });
+  },
+);
