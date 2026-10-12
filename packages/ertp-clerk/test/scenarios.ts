@@ -191,87 +191,101 @@ export const aliceBuysStockFromBob = async (
 type Kind = keyof Purses;
 const otherKind = (kind: Kind): Kind => (kind === 'usdc' ? 'stock' : 'usdc');
 type Seat = Awaited<ReturnType<Ledger['makeEscrow']>>['a'];
-/** sturdyrefs to a trader's purses and payout facet */
-type TraderMemory = Record<Kind | 'payout', string>;
 
 /**
- * A party to escrows who gives `kind` for the other kind. It gives from
- * its own purse; refunds and payouts reach it only through its deposit
- * facets. `self` shows its balances; `puppet`, for the test alone,
- * makes it offer and remember.
+ * Where a trader keeps sturdyrefs to its own purses and payout facet,
+ * so a later incarnation of it can go on. The test supplies it, as an
+ * operating system supplies a disk.
+ */
+type Disk = Map<Kind | 'payout', string>;
+
+/**
+ * A party to escrows who gives `kind` for the other kind. Given a seat,
+ * it offers what the seat says it gives, from its own purse; refunds
+ * and payouts reach it only through its deposit facets. A refused
+ * offer goes back into its purse.
  *
- * @param payout - deposit facet for what it wants
+ * @param shortBy - how much less than the terms it gives; a cheat
  */
 const makeTrader = (
   kind: Kind,
   purses: Purses,
   payout: ERef<DepositFacet<'nat'>>,
+  shortBy = 0n,
 ) =>
   harden({
-    self: { getBalances: () => balancesOf(purses) },
-    puppet: {
-      /** offer `amount` to `seat`, or by default what the seat gives */
-      offer: async (seat: ERef<Seat>, amount?: NatAmount) => {
-        // the seat's terms name this ledger's brands, so they are nat amounts
-        const give = amount ?? ((await E(seat).getTerms()).give as NatAmount);
-        const payment = await E(purses[kind]).withdraw(give);
-        try {
-          return await E(seat).offer(
-            payment,
-            await E(purses[kind]).getDepositFacet(),
-            payout,
-          );
-        } catch (err) {
-          await E(purses[kind]).deposit(payment); // a refused offer
-          throw err;
-        }
-      },
-      /**
-       * sturdyrefs for a later incarnation, which the test keeps for the
-       * trader; see `reviveTrader`
-       */
-      remember: async (
-        makeSturdyRef: (obj: object) => Promise<string>,
-      ): Promise<TraderMemory> => ({
-        usdc: await makeSturdyRef(purses.usdc),
-        stock: await makeSturdyRef(purses.stock),
-        payout: await makeSturdyRef(payout),
-      }),
+    trade: async (seat: ERef<Seat>) => {
+      // the seat's terms name this ledger's brands, so they are nat amounts
+      const terms = (await E(seat).getTerms()).give as NatAmount;
+      const give = harden({ ...terms, value: terms.value - shortBy });
+      const payment = await E(purses[kind]).withdraw(give);
+      try {
+        return await E(seat).offer(
+          payment,
+          await E(purses[kind]).getDepositFacet(),
+          payout,
+        );
+      } catch (err) {
+        await E(purses[kind]).deposit(payment);
+        throw err;
+      }
     },
+    getBalances: () => balancesOf(purses),
   });
 
-/** @param endowment - what the trader starts with, of `kind` */
+/**
+ * @param endowment - what the trader starts with, of `kind`
+ * @param persist - if given, the trader saves its sturdyrefs there
+ */
 const startTrader = async (
   issuers: Issuers,
   kind: Kind,
   endowment: Payment<'nat'>,
+  {
+    shortBy,
+    persist,
+  }: {
+    shortBy?: bigint;
+    persist?: {
+      makeSturdyRef: (obj: object) => Promise<string>;
+      disk: Disk;
+    };
+  } = {},
 ) => {
   const { usdc, stock } = await makePurses(issuers);
   const purses = { usdc, stock };
   await E(purses[kind]).deposit(endowment);
   const payout = await E(purses[otherKind(kind)]).getDepositFacet();
-  return makeTrader(kind, purses, payout);
+  if (persist) {
+    const { makeSturdyRef, disk } = persist;
+    disk.set('usdc', await makeSturdyRef(usdc));
+    disk.set('stock', await makeSturdyRef(stock));
+    disk.set('payout', await makeSturdyRef(payout));
+  }
+  return makeTrader(kind, purses, payout, shortBy);
 };
 
 const reviveTrader = async (
   kind: Kind,
-  memory: TraderMemory,
+  disk: Disk,
   enliven: (swissnum: string) => Promise<unknown>,
-) =>
-  makeTrader(
+) => {
+  const revive = async (key: Kind | 'payout') => enliven(disk.get(key)!);
+  return makeTrader(
     kind,
     {
-      usdc: (await enliven(memory.usdc)) as Purse<'nat'>,
-      stock: (await enliven(memory.stock)) as Purse<'nat'>,
+      usdc: (await revive('usdc')) as Purse<'nat'>,
+      stock: (await revive('stock')) as Purse<'nat'>,
     },
-    (await enliven(memory.payout)) as DepositFacet<'nat'>,
+    (await revive('payout')) as DepositFacet<'nat'>,
   );
+};
 
 /**
  * Alice buys 3 shares from Bob for 300 USDC through an escrow, so
- * neither has to trust the other; then an escrow Bob abandons refunds
- * Alice. The test holds the mints, makes the escrows, and hands each
- * party only its own seat.
+ * neither has to trust the other; Mallory's short offer is refused.
+ * Then an escrow Bob never joins refunds Alice. The test holds the
+ * mints, makes the escrows, and hands each trader a seat.
  */
 export const escrowSwapsUsdcForStock = async (
   t: ExecutionContext,
@@ -292,36 +306,34 @@ export const escrowSwapsUsdcForStock = async (
     'stock',
     await E(stock.mint).mintPayment(shares(10n)),
   );
+  const mallory = await startTrader(
+    issuers,
+    'stock',
+    await E(stock.mint).mintPayment(shares(10n)),
+    { shortBy: 1n },
+  );
 
   const { a, b } = await E(ledger).makeEscrow(dollars(300n), shares(3n));
   const terms = await E(b).getTerms();
   t.is(terms.give.brand, stock.brand);
   t.is(terms.want.value, 300n);
 
-  t.is(await alice.puppet.offer(a), 'open');
-  t.deepEqual(
-    await alice.self.getBalances(),
-    [700n, 0n],
-    'escrow holds the 300',
-  );
-  await t.throwsAsync(() => bob.puppet.offer(b, shares(2n)), {
-    message: /exactly 3/,
-  });
-  t.is(await bob.puppet.offer(b), 'settled');
-  t.deepEqual(await alice.self.getBalances(), [700n, 3n]);
-  t.deepEqual(
-    await bob.self.getBalances(),
-    [300n, 7n],
-    'the short offer came back',
-  );
+  t.is(await alice.trade(a), 'open');
+  t.deepEqual(await alice.getBalances(), [700n, 0n], 'escrow holds the 300');
+  await t.throwsAsync(() => mallory.trade(b), { message: /exactly 3/ });
+  t.deepEqual(await mallory.getBalances(), [0n, 10n], 'refused, kept');
+  t.is(await bob.trade(b), 'settled');
+  t.deepEqual(await alice.getBalances(), [700n, 3n]);
+  t.deepEqual(await bob.getBalances(), [300n, 7n]);
   await t.throwsAsync(() => E(a).cancel(), { message: /escrow settled/ });
 
   const second = await E(ledger).makeEscrow(dollars(100n), shares(1n));
-  await alice.puppet.offer(second.a);
-  t.deepEqual(await alice.self.getBalances(), [600n, 3n]);
+  await alice.trade(second.a);
+  t.deepEqual(await alice.getBalances(), [600n, 3n]);
+  // Bob never takes his seat; the test, still holding it, cancels
   t.is(await E(second.b).cancel(), 'cancelled');
-  t.deepEqual(await alice.self.getBalances(), [700n, 3n], 'refunded');
-  await t.throwsAsync(() => bob.puppet.offer(second.b), {
+  t.deepEqual(await alice.getBalances(), [700n, 3n], 'refunded');
+  await t.throwsAsync(() => bob.trade(second.b), {
     message: /escrow cancelled/,
   });
 };
@@ -333,8 +345,8 @@ type Incarnation = {
 };
 
 /**
- * Alice offers; the ledger restarts; Bob, holding only sturdyrefs,
- * completes the swap.
+ * Alice offers; the ledger restarts; Bob, from the sturdyrefs on his
+ * disk, completes the swap.
  *
  * @param start - start the ledger over the same storage, and connect
  */
@@ -349,34 +361,30 @@ export const escrowOutlivesRestart = async (
   const issuers = { usdc: usdc.issuer, stock: stock.issuer };
   const dollars = harden({ brand: usdc.brand, value: 300n });
   const shares = harden({ brand: stock.brand, value: 3n });
+  const makeSturdyRef = (obj: object) => E(ledger).makeSturdyRef(obj);
+  const disks = { alice: new Map() as Disk, bob: new Map() as Disk };
   const alice = await startTrader(
     issuers,
     'usdc',
     await E(usdc.mint).mintPayment(dollars),
+    { persist: { makeSturdyRef, disk: disks.alice } },
   );
-  const bob = await startTrader(
-    issuers,
-    'stock',
-    await E(stock.mint).mintPayment(shares),
-  );
+  await startTrader(issuers, 'stock', await E(stock.mint).mintPayment(shares), {
+    persist: { makeSturdyRef, disk: disks.bob },
+  });
   const { a, b } = await E(ledger).makeEscrow(dollars, shares);
-  await alice.puppet.offer(a);
-  const makeSturdyRef = (obj: object) => E(ledger).makeSturdyRef(obj);
-  const memory = {
-    alice: await alice.puppet.remember(makeSturdyRef),
-    bob: await bob.puppet.remember(makeSturdyRef),
-    seatB: await makeSturdyRef(b),
-  };
-  t.is(await one.enliven(memory.seatB), b, 'same live seat');
+  await alice.trade(a);
+  const seatB = await makeSturdyRef(b);
+  t.is(await one.enliven(seatB), b, 'same live seat');
   await one.stop();
 
   const two = await start();
   t.teardown(two.stop);
-  const b2 = (await two.enliven(memory.seatB)) as Seat;
+  const b2 = (await two.enliven(seatB)) as Seat;
   t.is(await E(b2).getState(), 'open');
-  const bob2 = await reviveTrader('stock', memory.bob, two.enliven);
-  t.is(await bob2.puppet.offer(b2), 'settled');
-  const alice2 = await reviveTrader('usdc', memory.alice, two.enliven);
-  t.deepEqual(await alice2.self.getBalances(), [0n, 3n]);
-  t.deepEqual(await bob2.self.getBalances(), [300n, 0n]);
+  const bob = await reviveTrader('stock', disks.bob, two.enliven);
+  t.is(await bob.trade(b2), 'settled');
+  const alice2 = await reviveTrader('usdc', disks.alice, two.enliven);
+  t.deepEqual(await alice2.getBalances(), [0n, 3n]);
+  t.deepEqual(await bob.getBalances(), [300n, 0n]);
 };
