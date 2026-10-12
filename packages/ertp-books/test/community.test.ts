@@ -113,7 +113,7 @@ serial.before(t => {
     db,
     commodityGuid: kit.commodityGuid,
     holdingAccountGuid: makeDeterministicGuid(
-      `ledgerguise-balance:${kit.commodityGuid}`,
+      `ertp-books-balance:${kit.commodityGuid}`,
     ),
     getPurseGuid: kit.purses.getGuid,
     brand: kit.brand,
@@ -321,10 +321,10 @@ serial('stage 3: award contributions to members', t => {
 serial('stage 4: run balance sheet and income statement', t => {
   const { db, kit } = t.context as CommunityContext;
   const holdingGuid = makeDeterministicGuid(
-    `ledgerguise-balance:${kit.commodityGuid}`,
+    `ertp-books-balance:${kit.commodityGuid}`,
   );
   const recoveryGuid = makeDeterministicGuid(
-    `ledgerguise:recovery:${kit.commodityGuid}`,
+    `ertp-books:recovery:${kit.commodityGuid}`,
   );
   // Exclude holding/recovery from statement totals; they act as equity-like backing.
   t.is(

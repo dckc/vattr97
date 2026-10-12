@@ -1,5 +1,5 @@
 /**
- * @file Ledgerguise persistence and transfer tests.
+ * @file ertp-books persistence and transfer tests.
  * @see ../src/index.ts
  */
 

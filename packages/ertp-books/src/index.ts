@@ -142,7 +142,7 @@ const makeIssuerKitForCommodity = ({
       [Symbol.dispose]: () => {
         const record = paymentRecords.get(payment as object);
         if (record?.live) {
-          console.warn('ledgerguise payment disposed while live', {
+          console.warn('ertp-books payment disposed while live', {
             checkNumber: record.checkNumber,
           });
         }
@@ -162,7 +162,7 @@ const makeIssuerKitForCommodity = ({
   const getAllegedName = () => getCommodityAllegedName(db, commodityGuid);
   const commodityLabel = getAllegedName();
   const balanceAccountGuid = makeDeterministicGuid(
-    `ledgerguise-balance:${commodityGuid}`,
+    `ertp-books-balance:${commodityGuid}`,
   );
   ensureAccountRow({
     db,
@@ -226,7 +226,7 @@ const makeIssuerKitForCommodity = ({
     },
   });
   const mintRecoveryGuid = makeDeterministicGuid(
-    `ledgerguise:recovery:${commodityGuid}`,
+    `ertp-books:recovery:${commodityGuid}`,
   );
   ensureAccountRow({
     db,

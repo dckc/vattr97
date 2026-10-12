@@ -249,7 +249,7 @@ export const makeTransferRecorder = ({
       checkNumber,
       seconds,
       seconds,
-      `ledgerguise ${amount.toString()}`,
+      `ertp-books ${amount.toString()}`,
     );
   };
 
