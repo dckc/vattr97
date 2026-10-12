@@ -99,16 +99,16 @@ const makePurses = async (issuers: Issuers) => {
 const PRICE = 100n;
 
 /**
- * Bob sells shares for USDC. Buyers reach him only through his shop.
- * He needs no puppet: he acts only when a buyer calls.
+ * A seller of shares for USDC. Buyers reach it only through its shop;
+ * it acts only when a buyer calls.
  *
- * @param shares - Bob's starting shares
+ * @param shares - the seller's starting shares
  */
-const makeBob = async (issuers: Issuers, shares: Payment<'nat'>) => {
+const makeSeller = async (issuers: Issuers, shares: Payment<'nat'>) => {
   const { usdc, stock, getBalances } = await makePurses(issuers);
   await E(stock).deposit(shares);
   const stockBrand = await E(issuers.stock).getBrand();
-  const shop = Far('BobShop', {
+  const shop = Far('Shop', {
     /** deliver as many shares as `payment` covers to `deliverTo` */
     sell: async (
       payment: Payment<'nat'>,
@@ -122,35 +122,41 @@ const makeBob = async (issuers: Issuers, shares: Payment<'nat'>) => {
       await E(deliverTo).receive(goods);
     },
   });
-  return harden({ self: { shop, getBalances } });
+  return harden({ shop, getBalances });
 };
-type Shop = Awaited<ReturnType<typeof makeBob>>['self']['shop'];
+type Shop = Awaited<ReturnType<typeof makeSeller>>['shop'];
 
 /**
- * Alice buys shares with USDC. Without escrow, she pays first and
- * trusts the seller.
+ * A buyer of shares with USDC. Without escrow, it pays first and trusts
+ * the seller.
  *
- * @param dollars - Alice's starting USDC
+ * @param dollars - the buyer's starting USDC
+ * @param count - how many shares it wants
  */
-const makeAlice = async (issuers: Issuers, dollars: Payment<'nat'>) => {
+const makeBuyer = async (
+  issuers: Issuers,
+  dollars: Payment<'nat'>,
+  count: bigint,
+) => {
   const { usdc, stock, getBalances } = await makePurses(issuers);
   await E(usdc).deposit(dollars);
+  const usdcBrand = await E(issuers.usdc).getBrand();
   return harden({
-    self: { getBalances },
-    puppet: {
-      buy: async (shop: ERef<Shop>, price: NatAmount) =>
-        E(shop).sell(
-          await E(usdc).withdraw(price),
-          await E(stock).getDepositFacet(),
+    tradeWith: async (seller: { shop: ERef<Shop> }) =>
+      E(seller.shop).sell(
+        await E(usdc).withdraw(
+          harden({ brand: usdcBrand, value: count * PRICE }),
         ),
-    },
+        await E(stock).getDepositFacet(),
+      ),
+    getBalances,
   });
 };
 
 /**
  * Alice buys 3 shares from Bob for 300 USDC, each kind of asset on its
- * own ledger. The test holds the mints and introduces Alice to Bob's
- * shop.
+ * own ledger. The test holds the mints, makes Alice and Bob, and has
+ * Alice trade with Bob.
  */
 export const aliceBuysStockFromBob = async (
   t: ExecutionContext,
@@ -164,16 +170,17 @@ export const aliceBuysStockFromBob = async (
   const dollars = (value: bigint) => harden({ brand: usdc.brand, value });
   const shares = (value: bigint) => harden({ brand: stock.brand, value });
 
-  const alice = await makeAlice(
+  const alice = await makeBuyer(
     issuers,
     await E(usdc.mint).mintPayment(dollars(1000n)),
+    3n,
   );
-  const bob = await makeBob(
+  const bob = await makeSeller(
     issuers,
     await E(stock.mint).mintPayment(shares(10n)),
   );
-  await alice.puppet.buy(bob.self.shop, dollars(300n));
+  await alice.tradeWith(bob);
 
-  t.deepEqual(await alice.self.getBalances(), [700n, 3n]);
-  t.deepEqual(await bob.self.getBalances(), [300n, 7n]);
+  t.deepEqual(await alice.getBalances(), [700n, 3n]);
+  t.deepEqual(await bob.getBalances(), [300n, 7n]);
 };
