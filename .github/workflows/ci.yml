@@ -3,8 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+  # every PR, including those stacked on other PRs
   pull_request:
-    branches: [main]
 
 jobs:
   ci:
