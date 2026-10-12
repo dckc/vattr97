@@ -340,7 +340,9 @@ const offerAct = async (
       await real.get(real.purses.get(payout)!),
     );
   if (e.state !== 'open') {
-    await assertRejects(go, 'offer', new RegExp(`escrow ${e.state}`));
+    // a dead payment's sturdyref fails before the offer reaches the seat
+    const why = payment.live ? new RegExp(`escrow ${e.state}`) : undefined;
+    await assertRejects(go, 'offer', why);
     return;
   }
   if (
