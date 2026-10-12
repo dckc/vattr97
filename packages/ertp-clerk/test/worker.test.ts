@@ -13,9 +13,10 @@ import { createRequire } from 'node:module';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { connectLedger } from '../src/ledger-ocapn.js';
+import { connectLedger, makeLedgerClient } from '../src/ledger-ocapn.js';
 import type { ByteGateway } from '../src/ocapn-capnweb-netlayer.js';
 import {
+  aliceBuysStockFromBob,
   aliceSendsBob10Bucks,
   spentPaymentIsNotLive,
   type Ledger,
@@ -58,13 +59,14 @@ const startWrangler = async (state: string) => {
     throw Error(`wrangler dev exited before ready:\n${output}`);
   }
   child.stdout.resume();
-  const url = `ws://127.0.0.1:${port}/api`;
+  const origin = `ws://127.0.0.1:${port}`;
+  const url = `${origin}/api`;
   const stop = async () => {
     if (child.exitCode !== null) return;
     child.kill();
     await once(child, 'exit');
   };
-  return { url, stop };
+  return { origin, url, stop };
 };
 
 const makeState = () => mkdtemp(join(tmpdir(), 'ertp-clerk-'));
@@ -90,6 +92,45 @@ test.serial('alice sends bob 10 BUCKS; brand round-trips', async t => {
 
 test.serial('a spent payment is not live', async t => {
   await spentPaymentIsNotLive(t, await connect(t));
+});
+
+/** @param origins - where each ledger, by name, is served */
+const makeClient = async (
+  t: import('ava').ExecutionContext,
+  origins: Record<string, string>,
+) => {
+  const client = await makeLedgerClient(name =>
+    newWebSocketRpcSession<ByteGateway>(`${origins[name]}/api/${name}`),
+  );
+  t.teardown(client.shutdown);
+  return client;
+};
+
+test.serial('USDC and STOCK in separate Durable Objects', async t => {
+  const { origin } = worker;
+  const client = await makeClient(t, { usdc: origin, stock: origin });
+  await aliceBuysStockFromBob(
+    t,
+    (await client.ledger('usdc')) as Ledger,
+    (await client.ledger('stock')) as Ledger,
+  );
+});
+
+test.serial('USDC and STOCK in separate workerd processes', async t => {
+  // one at a time: concurrent `wrangler dev` startups crash
+  const usdcWorker = await startWrangler(await makeState());
+  t.teardown(usdcWorker.stop);
+  const stockWorker = await startWrangler(await makeState());
+  t.teardown(stockWorker.stop);
+  const client = await makeClient(t, {
+    usdc: usdcWorker.origin,
+    stock: stockWorker.origin,
+  });
+  await aliceBuysStockFromBob(
+    t,
+    (await client.ledger('usdc')) as Ledger,
+    (await client.ledger('stock')) as Ledger,
+  );
 });
 
 test.serial(

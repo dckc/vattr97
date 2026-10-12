@@ -8,10 +8,12 @@ Plain Cap'n Web doesn't preserve identity: a payment or brand sent back to the W
 
 ```sh
 yarn test     # in-process, then the Durable Object under `wrangler dev`
-yarn dev      # serves /api
+yarn dev      # serves /api and /api/<name>
 ```
 
-A client reaches the ledger by sturdyref (swissnum `ledger`):
+Each ledger is a Durable Object named by the path: `/api/usdc` and `/api/stock` are separate ledgers, and `/api` is the one named `default`. A ledger's OCapN designator is its name.
+
+A client reaches a ledger by sturdyref (swissnum `ledger`):
 
 ```js
 const { ledger, enliven } = await connectLedger(() =>
@@ -24,10 +26,21 @@ const swissnum = await E(ledger).makeSturdyRef(purse); // keep this
 const samePurse = await enliven(swissnum);
 ```
 
+One client can hold several ledgers, in one workerd or several; `openGateway` maps a ledger's name to a connection:
+
+```js
+const client = await makeLedgerClient(name =>
+  newWebSocketRpcSession(`${origins[name]}/api/${name}`),
+);
+const usdc = await client.ledger('usdc');
+const stock = await client.ledger('stock');
+```
+
 Both ends run under SES (`@endo/init`), workerd included.
 
 ## Limits
 
 - Live references die with the WebSocket. Sturdyrefs to issuers, brands, mints, purses, and payments survive restarts ([ledger.ts](src/ledger.ts)). A payment's liveness comes from its hold in the ledger; once spent, its sturdyref fails with `payment not live`.
+- Ledgers don't dial out, so one ledger can't take another's objects: handing a USDC payment to the STOCK ledger starts an OCapN handoff that fails (`ledger does not dial out`) and the deposit is rejected.
 - The ledger's OCapN key pair is regenerated each time the Durable Object starts. Clients dial by URL, so nothing checks it yet.
 - wrangler can't run in a locked-down process, so the workerd test starts `wrangler dev` as a child process.

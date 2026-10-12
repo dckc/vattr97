@@ -3,7 +3,7 @@
  * in-process and workerd tests.
  */
 import type { ExecutionContext } from 'ava';
-import { E, type ERef } from '@endo/far';
+import { E, Far, type ERef } from '@endo/far';
 import type {
   DepositFacet,
   Issuer,
@@ -80,4 +80,107 @@ export const spentPaymentIsNotLive = async (
   await t.throwsAsync(() => E(bob.depositFacet).receive(payment), {
     message: /payment not live/,
   });
+};
+
+type Issuers = { usdc: ERef<Issuer<'nat'>>; stock: ERef<Issuer<'nat'>> };
+
+/** A party's own USDC and STOCK purses, and a read of their balances. */
+const makePurses = async (issuers: Issuers) => {
+  const usdc = await E(issuers.usdc).makeEmptyPurse();
+  const stock = await E(issuers.stock).makeEmptyPurse();
+  const getBalances = async () => [
+    (await E(usdc).getCurrentAmount()).value,
+    (await E(stock).getCurrentAmount()).value,
+  ];
+  return { usdc, stock, getBalances };
+};
+
+/** USDC per share */
+const PRICE = 100n;
+
+/**
+ * A seller of shares for USDC. Buyers reach it only through its shop;
+ * it acts only when a buyer calls.
+ *
+ * @param shares - the seller's starting shares
+ */
+const makeSeller = async (issuers: Issuers, shares: Payment<'nat'>) => {
+  const { usdc, stock, getBalances } = await makePurses(issuers);
+  await E(stock).deposit(shares);
+  const stockBrand = await E(issuers.stock).getBrand();
+  const shop = Far('Shop', {
+    /** deliver as many shares as `payment` covers to `deliverTo` */
+    sell: async (
+      payment: Payment<'nat'>,
+      deliverTo: ERef<DepositFacet<'nat'>>,
+    ) => {
+      const paid = await E(usdc).deposit(payment);
+      const count = paid.value / PRICE;
+      const goods = await E(stock).withdraw(
+        harden({ brand: stockBrand, value: count }),
+      );
+      await E(deliverTo).receive(goods);
+    },
+  });
+  return harden({ shop, getBalances });
+};
+type Shop = Awaited<ReturnType<typeof makeSeller>>['shop'];
+
+/**
+ * A buyer of shares with USDC. Without escrow, it pays first and trusts
+ * the seller.
+ *
+ * @param dollars - the buyer's starting USDC
+ * @param count - how many shares it wants
+ */
+const makeBuyer = async (
+  issuers: Issuers,
+  dollars: Payment<'nat'>,
+  count: bigint,
+) => {
+  const { usdc, stock, getBalances } = await makePurses(issuers);
+  await E(usdc).deposit(dollars);
+  const usdcBrand = await E(issuers.usdc).getBrand();
+  return harden({
+    tradeWith: async (seller: { shop: ERef<Shop> }) =>
+      E(seller.shop).sell(
+        await E(usdc).withdraw(
+          harden({ brand: usdcBrand, value: count * PRICE }),
+        ),
+        await E(stock).getDepositFacet(),
+      ),
+    getBalances,
+  });
+};
+
+/**
+ * Alice buys 3 shares from Bob for 300 USDC, each kind of asset on its
+ * own ledger. The test holds the mints, makes Alice and Bob, and has
+ * Alice trade with Bob.
+ */
+export const aliceBuysStockFromBob = async (
+  t: ExecutionContext,
+  usdcLedger: ERef<Ledger>,
+  stockLedger: ERef<Ledger>,
+) => {
+  const usdc = await E(usdcLedger).makeIssuerKit('USDC');
+  const stock = await E(stockLedger).makeIssuerKit('STOCK');
+  t.not(usdc.brand, stock.brand);
+  const issuers = { usdc: usdc.issuer, stock: stock.issuer };
+  const dollars = (value: bigint) => harden({ brand: usdc.brand, value });
+  const shares = (value: bigint) => harden({ brand: stock.brand, value });
+
+  const alice = await makeBuyer(
+    issuers,
+    await E(usdc.mint).mintPayment(dollars(1000n)),
+    3n,
+  );
+  const bob = await makeSeller(
+    issuers,
+    await E(stock.mint).mintPayment(shares(10n)),
+  );
+  await alice.tradeWith(bob);
+
+  t.deepEqual(await alice.getBalances(), [700n, 3n]);
+  t.deepEqual(await bob.getBalances(), [300n, 7n]);
 };
