@@ -6,7 +6,7 @@
  * A sturdyref's swissnum maps to a row naming a commodity and a facet:
  * issuer, brand, mint, a purse or deposit facet (by account GUID), a
  * payment (by check number), or an escrow seat (by escrow GUID and
- * side; see ./escrow.ts). After a restart, the object is revived from the
+ * side; see ertp-books' escrow-seats.ts). After a restart, the object is revived from the
  * ledger on first use; a payment is live iff its hold is uncleared.
  * Within one incarnation each commodity, account, and payment has one
  * live object, so identity checks keep working and one hold can't be
@@ -15,7 +15,9 @@
 import { Far } from '@endo/far';
 import {
   createIssuerKit,
+  makeEscrows,
   openIssuerKit,
+  type Side,
   type SqlDatabase,
   type Zone,
 } from '@vattr/ertp-books/src/index.js';
@@ -25,7 +27,6 @@ import type {
   Guid,
   IssuerKitForCommodity,
 } from '@vattr/ertp-books/src/types.js';
-import { makeEscrows, type Side } from './escrow.js';
 
 /** Marks ertp-books objects as remotables so OCapN can pass them. */
 const farZone: Zone = {
@@ -141,6 +142,7 @@ export const makeLedger = ({
 
   const escrows = makeEscrows({
     db,
+    zone: farZone,
     makeGuid,
     commodityOfBrand,
     provideKit,

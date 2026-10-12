@@ -48,6 +48,8 @@ export type {
 export { asGuid } from './guids.js';
 export { makeChartFacet } from './chart.js';
 export { makeErtpEscrow } from './escrow-ertp.js';
+export { makeEscrows } from './escrow-seats.js';
+export type { Side } from './escrow-seats.js';
 export { makeSettlementFacet } from './settlement.js';
 export type { SettlementFacet, SettlementResult } from './settlement.js';
 export { wrapBetterSqlite3Database } from './sqlite-shim.js';

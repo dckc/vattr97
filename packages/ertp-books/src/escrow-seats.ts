@@ -8,19 +8,21 @@
  * Either party may cancel before then, which refunds whatever was
  * offered.
  *
- * All state is in `clerk_escrows`; a seat is a facade over its row, so
+ * All state is in `books_escrows`; a seat is a facade over its row, so
  * it can be revived after a restart. Each transition after its last
  * `await` is synchronous, so in a Durable Object its writes commit
  * together.
  */
-import { Far } from '@endo/far';
-import type { SqlDatabase } from '@vattr/ertp-books/src/index.js';
+import type { Zone } from './jessie-tools.js';
+import type { SqlDatabase } from './sql-db.js';
 import type {
   AccountPurse,
   AmountLike,
   Guid,
   IssuerKitForCommodity,
-} from '@vattr/ertp-books/src/types.js';
+} from './types.js';
+
+const { freeze } = Object;
 
 export type Side = 'a' | 'b';
 const other = (side: Side): Side => (side === 'a' ? 'b' : 'a');
@@ -36,7 +38,7 @@ type SideRow = {
 };
 
 const ensureEscrowTable = (db: SqlDatabase) =>
-  db.exec(`CREATE TABLE IF NOT EXISTS clerk_escrows (
+  db.exec(`CREATE TABLE IF NOT EXISTS books_escrows (
     guid TEXT PRIMARY KEY,
     state TEXT NOT NULL, -- open, settled, cancelled
     -- per side: what it gives, where the escrow holds it, and, once it
@@ -54,6 +56,7 @@ const ensureEscrowTable = (db: SqlDatabase) =>
   )`);
 
 /**
+ * @param zone - makes the seats
  * @param commodityOfBrand - which of the ledger's commodities a brand
  *   is; throws for a foreign brand
  * @param accountOf - the account behind a purse or deposit facet of the
@@ -61,6 +64,7 @@ const ensureEscrowTable = (db: SqlDatabase) =>
  */
 export const makeEscrows = ({
   db,
+  zone,
   makeGuid,
   commodityOfBrand,
   provideKit,
@@ -68,6 +72,7 @@ export const makeEscrows = ({
   accountOf,
 }: {
   db: SqlDatabase;
+  zone: Zone;
   makeGuid: () => Guid;
   commodityOfBrand: (brand: unknown) => Guid;
   provideKit: (commodityGuid: Guid) => IssuerKitForCommodity;
@@ -82,7 +87,7 @@ export const makeEscrows = ({
   const getState = (escrowGuid: Guid) => {
     const row = db
       .prepare<[string], { state: EscrowState }>(
-        'SELECT state FROM clerk_escrows WHERE guid = ?',
+        'SELECT state FROM books_escrows WHERE guid = ?',
       )
       .get(escrowGuid);
     if (!row) throw Error('no such escrow');
@@ -95,16 +100,16 @@ export const makeEscrows = ({
         `SELECT ${side}_commodity AS commodity, ${side}_value AS value,
                 ${side}_holding AS holding, ${side}_refund AS refund,
                 ${side}_payout AS payout
-         FROM clerk_escrows WHERE guid = ?`,
+         FROM books_escrows WHERE guid = ?`,
       )
       .get(escrowGuid)!;
 
   const amountOf = ({ commodity, value }: SideRow) =>
-    harden({ brand: provideKit(commodity).kit.brand, value: BigInt(value) });
+    freeze({ brand: provideKit(commodity).kit.brand, value: BigInt(value) });
 
   const setState = (escrowGuid: Guid, state: EscrowState) =>
     db
-      .prepare('UPDATE clerk_escrows SET state = ? WHERE guid = ?')
+      .prepare('UPDATE books_escrows SET state = ? WHERE guid = ?')
       .run(state, escrowGuid);
 
   /** move what the escrow holds for `from` into account `to` */
@@ -131,11 +136,11 @@ export const makeEscrows = ({
     const existing = seats.get(key);
     if (existing) return existing;
     getState(escrowGuid); // throws for an unknown escrow
-    const seat = Far('EscrowSeat', {
+    const seat = zone.exo('EscrowSeat', {
       getState: () => getState(escrowGuid),
       /** @returns what this side gives and what it wants */
       getTerms: () =>
-        harden({
+        freeze({
           give: amountOf(getSide(escrowGuid, side)),
           want: amountOf(getSide(escrowGuid, other(side))),
         }),
@@ -160,7 +165,7 @@ export const makeEscrows = ({
         if (getSide(escrowGuid, side).refund) throw Error('already offered');
         providePurse(mine.commodity, mine.holding).deposit(payment);
         db.prepare(
-          `UPDATE clerk_escrows SET ${side}_refund = ?, ${side}_payout = ?
+          `UPDATE books_escrows SET ${side}_refund = ?, ${side}_payout = ?
            WHERE guid = ?`,
         ).run(refundAccount, payoutAccount, escrowGuid);
         if (getSide(escrowGuid, other(side)).refund) settle(escrowGuid);
@@ -208,7 +213,7 @@ export const makeEscrows = ({
       });
     }
     db.prepare(
-      `INSERT INTO clerk_escrows
+      `INSERT INTO books_escrows
        (guid, state, a_commodity, a_value, a_holding,
         b_commodity, b_value, b_holding)
        VALUES (?, 'open', ?, ?, ?, ?, ?, ?)`,
@@ -221,7 +226,7 @@ export const makeEscrows = ({
       row.b_value,
       row.b_holding,
     );
-    return harden({
+    return freeze({
       a: provideSeat(escrowGuid, 'a'),
       b: provideSeat(escrowGuid, 'b'),
     });
