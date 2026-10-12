@@ -18,16 +18,21 @@ import type { makeLedgerBootstrap } from '../src/ledger.js';
 export type Ledger = ReturnType<typeof makeLedgerBootstrap>;
 
 /**
- * A party with a purse of its own. Others get only its deposit facet;
- * the test gets a read of its balance.
+ * A party with a purse of its own. `self` is what it would show anyone:
+ * its deposit facet and its balance. `puppet` is for the test alone,
+ * to make it act.
  */
 const makeParty = async (issuer: ERef<Issuer<'nat'>>) => {
   const purse = await E(issuer).makeEmptyPurse();
   return harden({
-    depositFacet: await E(purse).getDepositFacet(),
-    pay: async (to: ERef<DepositFacet<'nat'>>, amount: NatAmount) =>
-      E(to).receive(await E(purse).withdraw(amount)),
-    getBalance: () => E(purse).getCurrentAmount(),
+    self: {
+      depositFacet: await E(purse).getDepositFacet(),
+      getBalance: () => E(purse).getCurrentAmount(),
+    },
+    puppet: {
+      pay: async (to: ERef<DepositFacet<'nat'>>, amount: NatAmount) =>
+        E(to).receive(await E(purse).withdraw(amount)),
+    },
   });
 };
 
@@ -42,11 +47,13 @@ export const aliceSendsBob10Bucks = async (
   const alice = await makeParty(issuer);
   const bob = await makeParty(issuer);
 
-  await E(alice.depositFacet).receive(await E(mint).mintPayment(bucks(10n)));
-  await alice.pay(bob.depositFacet, bucks(10n));
+  await E(alice.self.depositFacet).receive(
+    await E(mint).mintPayment(bucks(10n)),
+  );
+  await alice.puppet.pay(bob.self.depositFacet, bucks(10n));
 
-  t.is((await alice.getBalance()).value, 0n);
-  const bobAmount = await bob.getBalance();
+  t.is((await alice.self.getBalance()).value, 0n);
+  const bobAmount = await bob.self.getBalance();
   t.is(bobAmount.value, 10n);
   t.is(bobAmount.brand, brand, 'brand comes back as the same presence');
   t.is(await E(issuer).getBrand(), brand);
@@ -57,7 +64,7 @@ export const spentPaymentIsNotLive = async (
   ledger: ERef<Ledger>,
 ) => {
   const { issuer, brand, mint } = await E(ledger).makeIssuerKit('BUCKS');
-  const alice = await makeParty(issuer);
+  const { self: alice } = await makeParty(issuer);
   const payment = await E(mint).mintPayment(harden({ brand, value: 10n }));
   await E(alice.depositFacet).receive(payment);
   await t.throwsAsync(() => E(alice.depositFacet).receive(payment), {
