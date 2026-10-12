@@ -327,17 +327,21 @@ const offerAct = async (
   s: Side,
   j: number,
   p: Party,
+  byPurse = false,
 ) => {
   const e = m.escrows[i];
   const payment = m.payments[j];
   const give = e.gives[s];
   const refund = purseKey(p, give.commodity);
   const payout = purseKey(p, e.gives[other(s)].commodity);
+  const purse = async (key: string) => real.get(real.purses.get(key)!);
+  const facet = async (key: string) => E(await purse(key)).getDepositFacet();
   const go = async () =>
     E(await real.get(real.seats[i][s])).offer(
       await real.get(real.payments[j]),
-      await real.get(real.purses.get(refund)!),
-      await real.get(real.purses.get(payout)!),
+      // a purse would let the escrow withdraw, so it is refused
+      byPurse ? await purse(refund) : await facet(refund),
+      await facet(payout),
     );
   if (e.state !== 'open') {
     // a dead payment's sturdyref fails before the offer reaches the seat
@@ -346,6 +350,7 @@ const offerAct = async (
     return;
   }
   if (
+    byPurse ||
     !payment.live ||
     payment.commodity !== give.commodity ||
     payment.value !== give.value ||
@@ -362,22 +367,34 @@ const offerAct = async (
 };
 
 const offer = fc
-  .record({ e: index, side, pay: index, party })
-  .map(({ e: en, side: s, pay: pn, party: p }) =>
+  .record({ e: index, side, pay: index, party, byPurse: fc.boolean() })
+  .map(({ e: en, side: s, pay: pn, party: p, byPurse }) =>
     command(
-      `escrow #${en}.${s} offers payment #${pn}, ${p}'s purses`,
+      `escrow #${en}.${s} offers payment #${pn}, refund to ${p}'s ${
+        byPurse ? 'purse' : 'deposit facet'
+      }`,
       async (m, real) =>
-        offerAct(m, real, en % m.escrows.length, s, pn % m.payments.length, p),
+        offerAct(
+          m,
+          real,
+          en % m.escrows.length,
+          s,
+          pn % m.payments.length,
+          p,
+          byPurse,
+        ),
       m => m.escrows.length > 0 && m.payments.length > 0,
     ),
   );
 
 /** Random payments rarely match an escrow, so also offer a fresh one. */
 const offerExact = fc
-  .record({ e: index, side, party })
-  .map(({ e: en, side: s, party: p }) =>
+  .record({ e: index, side, party, byPurse: fc.boolean() })
+  .map(({ e: en, side: s, party: p, byPurse }) =>
     command(
-      `escrow #${en}.${s} offers what it gives, minted for ${p}`,
+      `escrow #${en}.${s} offers what it gives, minted for ${p}${
+        byPurse ? ', refund to a purse' : ''
+      }`,
       async (m, real) => {
         const i = en % m.escrows.length;
         const { commodity: c, value: v } = m.escrows[i].gives[s];
@@ -387,7 +404,7 @@ const offerExact = fc
         real.payments.push(await E(real.ledger()).makeSturdyRef(payment));
         m.minted[c] += v;
         m.payments.push({ commodity: c, value: v, live: true });
-        await offerAct(m, real, i, s, m.payments.length - 1, p);
+        await offerAct(m, real, i, s, m.payments.length - 1, p, byPurse);
       },
       m => m.escrows.length > 0,
     ),
@@ -465,9 +482,8 @@ testProp(
       minLength: RACE_OPS.length,
       maxLength: RACE_OPS.length,
     }),
-    fc.boolean(),
   ],
-  async (t, ops, delays, refundToFacet) => {
+  async (t, ops, delays) => {
     const real = await startLedger();
     const purse = async (p: Party, c: Commodity) =>
       real.get(real.purses.get(purseKey(p, c))!);
@@ -500,11 +516,10 @@ testProp(
       give: Commodity,
       want: Commodity,
     ) => {
-      const refund = await purse(p, give);
       return E(await real.get(seatSwiss[s2])).offer(
         await real.get(paymentSwiss),
-        refundToFacet ? await E(refund).getDepositFacet() : refund,
-        await purse(p, want),
+        await E(await purse(p, give)).getDepositFacet(),
+        await E(await purse(p, want)).getDepositFacet(),
       );
     };
 
