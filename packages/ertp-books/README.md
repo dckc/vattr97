@@ -1,4 +1,4 @@
-# ertp-ledgerguise
+# ertp-books
 
 ERTP-compatible facade over a GnuCash SQLite database.
 
