@@ -131,23 +131,33 @@ export const makeLedger = ({
     return known.commodityGuid;
   };
 
-  const accountOf = (obj: unknown, commodityGuid: Guid) => {
-    const kit = provideKit(commodityGuid);
-    const accountGuid =
-      kit.purseGuids.get(obj as AccountPurse) ??
-      kit.depositFacetGuids.get(obj as object);
-    if (!accountGuid) throw Error('not a purse or deposit facet of that brand');
+  const accountOfDepositFacet = (obj: unknown, commodityGuid: Guid) => {
+    const accountGuid = provideKit(commodityGuid).depositFacetGuids.get(
+      obj as object,
+    );
+    if (!accountGuid) throw Error('not a deposit facet of that brand');
     return accountGuid;
   };
 
+  // the escrows get no mints, and deposit-only access to parties' accounts
   const escrows = makeEscrows({
     db,
     zone: farZone,
     makeGuid,
     commodityOfBrand,
-    provideKit,
-    providePurse,
-    accountOf,
+    issuerOf: commodityGuid => {
+      const { issuer, brand } = provideKit(commodityGuid).kit;
+      return { issuer, brand };
+    },
+    makeHolding: commodityGuid => {
+      const accountGuid = makeGuid();
+      provideKit(commodityGuid).accounts.makeAccountPurse(accountGuid);
+      return accountGuid;
+    },
+    openHolding: providePurse,
+    depositFacetOf: (commodityGuid, accountGuid) =>
+      providePurse(commodityGuid, accountGuid).getDepositFacet(),
+    accountOfDepositFacet,
   });
 
   const checkNumberOf = (kit: IssuerKitForCommodity, obj: object) => {

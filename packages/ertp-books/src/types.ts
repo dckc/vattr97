@@ -55,7 +55,7 @@ export type AccountPurse = {
   deposit: (payment: object) => unknown;
   withdraw: (amount: AmountLike) => object;
   getCurrentAmount: () => AmountLike;
-  getDepositFacet: () => object;
+  getDepositFacet: () => { receive: (payment: object) => unknown };
 };
 
 export type AccountPurseAccess = {

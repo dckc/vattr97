@@ -38,7 +38,7 @@ const stock = await client.ledger('stock');
 
 ## Escrow
 
-`E(ledger).makeEscrow(give, want)` makes a two-party escrow and returns a seat for each party. Each party calls `E(seat).offer(payment, refund, payout)`, where `refund` and `payout` are purses or deposit facets; the second offer settles the swap. Either party may `cancel()` before then, which refunds what was offered. The escrow's state lives in the ledger's database ([escrow-seats.ts](../ertp-books/src/escrow-seats.ts)), so a seat's sturdyref works across restarts. Both commodities must be on the same ledger ([#36](https://github.com/dckc/vattr97/issues/36)).
+`E(ledger).makeEscrow(give, want)` makes a two-party escrow and returns a seat for each party. Each party calls `E(seat).offer(payment, refund, payout)`, where `refund` and `payout` are deposit facets: the escrow can put assets in, never take them out; the second offer settles the swap. Either party may `cancel()` before then, which refunds what was offered. The escrow's state lives in the ledger's database ([escrow-seats.ts](../ertp-books/src/escrow-seats.ts)), so a seat's sturdyref works across restarts. Both commodities must be on the same ledger ([#36](https://github.com/dckc/vattr97/issues/36)).
 
 Both ends run under SES (`@endo/init`), workerd included.
 

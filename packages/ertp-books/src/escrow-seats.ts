@@ -71,7 +71,13 @@ const ensureEscrowTable = (db: SqlDatabase) =>
  * @param zone - makes the seats
  * @param commodityOfBrand - which of the ledger's commodities a brand
  *   is; throws for a foreign brand
- * @param accountOf - the account behind a purse or deposit facet of the
+ * @param issuerOf - the issuer and brand of a commodity; no mint
+ * @param makeHolding - a new account for an escrow to hold one side in
+ * @param openHolding - a holding account's purse. Escrows open only the
+ *   holding accounts they made; nothing else enforces that.
+ * @param depositFacetOf - deposit-only access to an account, for
+ *   refunds and payouts
+ * @param accountOfDepositFacet - the account behind a deposit facet of the
  *   given commodity; throws otherwise
  */
 export const makeEscrows = ({
@@ -79,17 +85,26 @@ export const makeEscrows = ({
   zone,
   makeGuid,
   commodityOfBrand,
-  provideKit,
-  providePurse,
-  accountOf,
+  issuerOf,
+  makeHolding,
+  openHolding,
+  depositFacetOf,
+  accountOfDepositFacet,
 }: {
   db: SqlDatabase;
   zone: Zone;
   makeGuid: () => Guid;
   commodityOfBrand: (brand: unknown) => Guid;
-  provideKit: (commodityGuid: Guid) => IssuerKitForCommodity;
-  providePurse: (commodityGuid: Guid, accountGuid: Guid) => AccountPurse;
-  accountOf: (obj: unknown, commodityGuid: Guid) => Guid;
+  issuerOf: (
+    commodityGuid: Guid,
+  ) => Pick<IssuerKitForCommodity['kit'], 'issuer' | 'brand'>;
+  makeHolding: (commodityGuid: Guid) => Guid;
+  openHolding: (commodityGuid: Guid, accountGuid: Guid) => AccountPurse;
+  depositFacetOf: (
+    commodityGuid: Guid,
+    accountGuid: Guid,
+  ) => { receive: (payment: object) => unknown };
+  accountOfDepositFacet: (obj: unknown, commodityGuid: Guid) => Guid;
 }) => {
   ensureEscrowTable(db);
 
@@ -117,7 +132,7 @@ export const makeEscrows = ({
       .get(escrowGuid)!;
 
   const amountOf = ({ commodity, value }: SideRow) =>
-    freeze({ brand: provideKit(commodity).kit.brand, value: BigInt(value) });
+    freeze({ brand: issuerOf(commodity).brand, value: BigInt(value) });
 
   const setState = (escrowGuid: Guid, state: EscrowState) =>
     db
@@ -126,8 +141,8 @@ export const makeEscrows = ({
 
   /** move what the escrow holds for `from` into account `to` */
   const release = (from: SideRow, to: Guid) =>
-    providePurse(from.commodity, to).deposit(
-      providePurse(from.commodity, from.holding).withdraw(amountOf(from)),
+    depositFacetOf(from.commodity, to).receive(
+      openHolding(from.commodity, from.holding).withdraw(amountOf(from)),
     );
 
   const assertOpen = (escrowGuid: Guid) => {
@@ -158,16 +173,16 @@ export const makeEscrows = ({
         }),
       /**
        * @param payment - exactly what this side gives
-       * @param refund - purse or deposit facet for the given commodity
-       * @param payout - purse or deposit facet for the wanted commodity
+       * @param refund - deposit facet for the given commodity
+       * @param payout - deposit facet for the wanted commodity
        */
       offer: async (payment: object, refund: object, payout: object) => {
         assertOpen(escrowGuid);
         const mine = getSide(escrowGuid, side);
         const theirs = getSide(escrowGuid, other(side));
-        const refundAccount = accountOf(refund, mine.commodity);
-        const payoutAccount = accountOf(payout, theirs.commodity);
-        const { issuer } = provideKit(mine.commodity).kit;
+        const refundAccount = accountOfDepositFacet(refund, mine.commodity);
+        const payoutAccount = accountOfDepositFacet(payout, theirs.commodity);
+        const { issuer } = issuerOf(mine.commodity);
         const amount = await issuer.getAmountOf(payment as never);
         if ((amount as AmountLike).value !== BigInt(mine.value)) {
           throw Error(`offer must give exactly ${mine.value}`);
@@ -175,7 +190,7 @@ export const makeEscrows = ({
         // the state may have changed while we waited
         assertOpen(escrowGuid);
         if (getSide(escrowGuid, side).refund) throw Error('already offered');
-        providePurse(mine.commodity, mine.holding).deposit(payment);
+        openHolding(mine.commodity, mine.holding).deposit(payment);
         db.prepare(
           `UPDATE books_escrows SET ${side}_refund = ?, ${side}_payout = ?
            WHERE guid = ?`,
@@ -214,10 +229,7 @@ export const makeEscrows = ({
         throw Error('amount value must be a positive bigint');
       }
       const commodity = commodityOfBrand(brand);
-      const holding = accountOf(
-        provideKit(commodity).kit.issuer.makeEmptyPurse(),
-        commodity,
-      );
+      const holding = makeHolding(commodity);
       Object.assign(row, {
         [`${side}_commodity`]: commodity,
         [`${side}_value`]: `${value}`,
