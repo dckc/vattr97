@@ -12,7 +12,11 @@ import {
 import { mockMakeGuid } from '@vattr/ertp-books/src/guids.js';
 import { connectCapTP, Gateway } from '../src/captp-over-capnweb.js';
 import { makeLedgerBootstrap } from '../src/ledger.js';
-import { aliceSendsBob10Bucks, spentPaymentIsNotLive } from './scenarios.js';
+import {
+  aliceSendsBob10Bucks,
+  spentPaymentIsNotLive,
+  type Ledger,
+} from './scenarios.js';
 
 const makeHostAndClient = (t: import('ava').ExecutionContext) => {
   const db = wrapBetterSqlite3Database(new Database(':memory:'));
@@ -32,7 +36,7 @@ const makeHostAndClient = (t: import('ava').ExecutionContext) => {
     port1.close();
     port2.close();
   });
-  return client.getBootstrap() as Promise<any>;
+  return client.getBootstrap() as Promise<Ledger>;
 };
 
 test('alice sends bob 10 BUCKS; brand round-trips', async t => {
@@ -84,7 +88,7 @@ test("Cap'n Web tables stay small as CapTP traffic grows", async t => {
     'client',
   );
 
-  await aliceSendsBob10Bucks(t, await getBootstrap());
+  await aliceSendsBob10Bucks(t, (await getBootstrap()) as Ledger);
   await Promise.all([host.drain(), client.drain()]);
   // main + one inbox each way; per-message results are released
   t.log({ host: host.getStats(), client: client.getStats() });

@@ -13,7 +13,11 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { connectCapTP } from '../src/captp-over-capnweb.js';
-import { aliceSendsBob10Bucks, spentPaymentIsNotLive } from './scenarios.js';
+import {
+  aliceSendsBob10Bucks,
+  spentPaymentIsNotLive,
+  type Ledger,
+} from './scenarios.js';
 
 // wrangler can't share a process with SES lockdown, so it runs in a child.
 const freePort = async () => {
@@ -66,7 +70,7 @@ const connect = (t: import('ava').ExecutionContext) => {
     abort();
     socket.close();
   });
-  return getBootstrap() as Promise<any>;
+  return getBootstrap() as Promise<Ledger>;
 };
 
 test.serial('alice sends bob 10 BUCKS; brand round-trips', async t => {
