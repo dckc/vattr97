@@ -1,4 +1,4 @@
-# ertp-ledgerguise
+# ertp-books
 
 ERTP-compatible facade over a GnuCash SQLite database.
 
@@ -32,4 +32,4 @@ Core ERTP→GnuCash mapping is stable. Contributions welcome—see `CONTRIBUTING
 
 ## Name
 
-"Ledgerguise" hints at an ERTP exterior wrapping a GnuCash ledger interior.
+ERTP's community of practice is small: it descends from [Capability-based Financial Instruments](http://www.erights.org/elib/capability/ode/index.html) (Financial Cryptography 2000) and is used mostly on [Agoric](https://agoric.com/). Double-entry bookkeeping is known to every accountant. ertp-books keeps ERTP's rights on books an accountant can read.

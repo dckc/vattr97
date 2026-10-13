@@ -1,6 +1,6 @@
 # Object-Capability (Ocap) Discipline
 
-Guidelines for maintaining capability discipline in ertp-ledgerguise.
+Guidelines for maintaining capability discipline in ertp-books.
 
 ## Core Principles
 

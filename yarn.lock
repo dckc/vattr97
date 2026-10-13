@@ -766,9 +766,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vattr/ertp-ledgerguise@workspace:packages/ertp-ledgerguise":
+"@vattr/ertp-books@workspace:packages/ertp-books":
   version: 0.0.0-use.local
-  resolution: "@vattr/ertp-ledgerguise@workspace:packages/ertp-ledgerguise"
+  resolution: "@vattr/ertp-books@workspace:packages/ertp-books"
   dependencies:
     "@agoric/ertp": "npm:0.16.3-dev-dc67c18.0.dc67c18"
     "@types/better-sqlite3": "npm:^7.6.1"

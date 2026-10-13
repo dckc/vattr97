@@ -1,6 +1,6 @@
 # Cross-System Integration
 
-How ertp-ledgerguise integrates with external systems via GnuCash's standard fields.
+How ertp-books integrates with external systems via GnuCash's standard fields.
 
 ## Account Codes
 
