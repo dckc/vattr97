@@ -13,7 +13,7 @@
     "format": "prettier --write .",
     "format-check": "prettier --check .",
     "test": "yarn workspaces foreach -A run test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p packages/ertp-clerk"
   },
   "devDependencies": {
     "@endo/init": "^1.1.13",

@@ -10,5 +10,5 @@
     "skipLibCheck": true
   },
   "include": ["**/*.js", "**/*.ts"],
-  "exclude": ["node_modules", "coverage"]
+  "exclude": ["node_modules", "coverage", "packages/ertp-clerk"]
 }
