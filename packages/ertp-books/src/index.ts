@@ -48,6 +48,8 @@ export type {
 export { asGuid } from './guids.js';
 export { makeChartFacet } from './chart.js';
 export { makeErtpEscrow } from './escrow-ertp.js';
+export { makeEscrows } from './escrow-seats.js';
+export type { Side } from './escrow-seats.js';
 export { makeSettlementFacet } from './settlement.js';
 export type { SettlementFacet, SettlementResult } from './settlement.js';
 export { wrapBetterSqlite3Database } from './sqlite-shim.js';
@@ -179,20 +181,24 @@ const makeIssuerKitForCommodity = ({
     makeGuid,
     nowMs,
   });
-  const { ensurePurse, makeNewPurse, openPurse, purseGuids } = makePurseFactory(
-    {
-      db,
-      commodityGuid,
-      commodityLabel,
-      makeAmount,
-      makePayment,
-      livePayments,
-      paymentRecords,
-      transferRecorder,
-      getBrand: () => brand,
-      zone,
-    },
-  );
+  const {
+    ensurePurse,
+    makeNewPurse,
+    openPurse,
+    purseGuids,
+    depositFacetGuids,
+  } = makePurseFactory({
+    db,
+    commodityGuid,
+    commodityLabel,
+    makeAmount,
+    makePayment,
+    livePayments,
+    paymentRecords,
+    transferRecorder,
+    getBrand: () => brand,
+    zone,
+  });
   const brand = exo(`${commodityLabel} Brand`, {
     isMyIssuer: async (allegedIssuer: object) => allegedIssuer === issuer,
     getAllegedName: () => getAllegedName(),
@@ -349,7 +355,14 @@ const makeIssuerKitForCommodity = ({
       return openPurse(accountGuid, accountGuid);
     },
   });
-  return freeze({ kit, accounts, purseGuids, payments, mintInfo });
+  return freeze({
+    kit,
+    accounts,
+    purseGuids,
+    depositFacetGuids,
+    payments,
+    mintInfo,
+  });
 };
 
 /**

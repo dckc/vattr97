@@ -53,6 +53,7 @@ export const makePurseFactory = ({
 }: PurseFactoryOptions) => {
   const { exo } = zone;
   const purseGuids = new WeakMap<AccountPurse, Guid>();
+  const depositFacetGuids = new WeakMap<object, Guid>();
 
   const buildPurse = (accountGuid: Guid, name: string): AccountPurse => {
     const brand = getBrand();
@@ -102,6 +103,7 @@ export const makePurseFactory = ({
       getDepositFacet: () => depositFacet,
     });
     purseGuids.set(purse, accountGuid);
+    depositFacetGuids.set(depositFacet, accountGuid);
     return purse;
   };
 
@@ -120,5 +122,11 @@ export const makePurseFactory = ({
     return buildPurse(accountGuid, name);
   };
 
-  return { ensurePurse, makeNewPurse, openPurse, purseGuids };
+  return {
+    ensurePurse,
+    makeNewPurse,
+    openPurse,
+    purseGuids,
+    depositFacetGuids,
+  };
 };
