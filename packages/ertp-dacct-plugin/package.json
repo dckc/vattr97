@@ -1,0 +1,39 @@
+{
+  "name": "@finquick/ertp-dacct-plugin",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Endo daemon example separating unconfined SQLite access from confined use",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./confined-store": "./src/confined-store.js"
+  },
+  "scripts": {
+    "lint:types": "tsc -p tsconfig.json --noEmit --incremental",
+    "test": "ava",
+    "check": "npm run lint:types && npm run test"
+  },
+  "ava": {
+    "files": [
+      "test/**/*.test.*"
+    ],
+    "nodeArguments": [
+      "--import=./test/prepare.js",
+      "--no-warnings"
+    ],
+    "require": []
+  },
+  "dependencies": {
+    "@endo/eventual-send": "^1.4.0",
+    "@endo/far": "^1.1.14",
+    "@endo/harden": "^1.1.0",
+    "@finquick/sqlite-plugin": "workspace:^"
+  },
+  "devDependencies": {
+    "@agoric/internal": "0.3.3-dev-dc67c18.0.dc67c18",
+    "ava": "^5.3.1",
+    "typescript": "~5.9.3"
+  },
+  "packageManager": "yarn@4.17.0+sha512.c2957de2f9025ab14d63b24d0d8be1f1655810e22c341042c27f7ecd017b180ec12db73d69ac366d71b304ef9f069349ce462de96f04f8f1da317f4f762c95ae"
+}

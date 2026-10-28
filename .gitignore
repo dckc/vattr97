@@ -5,3 +5,8 @@ dist/
 coverage/
 *.tsbuildinfo
 .vscode/
+**/.pnp.*
+**/.yarn/
+**/node_modules/
+/issues
+/wiki
