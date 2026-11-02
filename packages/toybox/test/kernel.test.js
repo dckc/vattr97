@@ -575,3 +575,77 @@ test("a LAN device reaches only what config.capnp's lan service allows: private 
     await new Promise(resolve => site.close(resolve));
   }
 });
+
+test('a bootstrap vat wires a bookmark cache from nix store code; the cache serves its page through an ingress, from a git-tree template; the cookie rotates', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'toybox-kernel-cache-'));
+  await mkdir(join(home, 'state'));
+  const site = createServer((req, res) =>
+    res.end(`${req.method} ${req.url} cookie=${req.headers.cookie ?? 'none'}`),
+  );
+  const host = `127.0.0.1:${await listenLocal(site)}`;
+  /** @type {Awaited<ReturnType<typeof startToybox>> | undefined} */
+  let box;
+  try {
+    box = await startToybox(home, 'test/config-local.capnp');
+    const { port } = box;
+    const client = await connectTo(box.sock, 'cache');
+    // the site's templates, as a git tree of the toybox's worktree
+    const { tree, listing } = await makeRepo(
+      join(here, 'kvats', 'bookmark-templates'),
+      'templates',
+      join(home, 'worktree'),
+    );
+    const { root: boot, adminNode: bootAdmin } = await client.createVat(
+      await kvat('cache-boot.js'),
+      {
+        vatAdmin: await client.makeVatAdmin(),
+        nixStore: await client.makeNixStore(),
+        paths: {
+          webApp: await addToStore(join(here, 'kvats', 'webapp.js')),
+          storeMaker: await addToStore(join(here, 'kvats', 'store-maker.js')),
+          cache: await addToStore(join(here, 'kvats', 'bookmark-cache.js')),
+        },
+        fetch: await client.makeFetchDevice(),
+        ingress: await client.makeIngress({ app: 'bookmarks' }),
+        templates: await E(await client.makeGitWorktree()).getTree(
+          tree,
+          listing,
+        ),
+      },
+    );
+    const { cache, admins } = await E(boot).bootstrap(
+      `http://${host}/bookmarks/`,
+    );
+    const page = async () =>
+      (await fetch(`http://127.0.0.1:${port}/?app=bookmarks`)).text();
+    assert.match(await page(), /<pre>\(none yet\)<\/pre>/);
+    assert.equal(await E(cache).refresh(), 'GET /bookmarks/ cookie=none');
+    await E(boot).setCookie('session=1');
+    assert.equal(await E(cache).refresh(), 'GET /bookmarks/ cookie=session=1');
+
+    for (const admin of [bootAdmin, ...values(admins)])
+      await E(admin).restart();
+    assert.equal(await E(cache).latest(), 'GET /bookmarks/ cookie=session=1');
+    assert.match(
+      await page(),
+      /<pre>GET \/bookmarks\/ cookie=session=1<\/pre>/,
+    );
+    await E(boot).setCookie('session=2');
+    assert.equal(await E(cache).refresh(), 'GET /bookmarks/ cookie=session=2');
+
+    // here the lan service allows loopback, where this test's site is
+    const lan = await client.makeLanDevice();
+    assert.deepEqual(
+      (({ status, body }) => ({ status, body }))(
+        await E(lan).fetch(`http://${host}/models`),
+      ),
+      { status: 200, body: 'GET /models cookie=none' },
+    );
+
+    client.close();
+  } finally {
+    await box?.server.stop();
+    await new Promise(resolve => site.close(resolve));
+    await rm(home, { recursive: true, force: true });
+  }
+});
