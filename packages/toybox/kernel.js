@@ -5,6 +5,7 @@ import { makeMarshal } from '@endo/marshal';
 import { Far } from '@endo/pass-style';
 import KVAT_RUNTIME from 'kvat-runtime.txt';
 import { SCHEMA as BUNDLE_SCHEMA, makeBundles } from './devices/bundles.js';
+import { makeFetchDevices } from './devices/fetch.js';
 import { SCHEMA as GIT_SCHEMA, makeGit } from './devices/git.js';
 import { SCHEMA as INGRESS_SCHEMA, makeIngresses } from './devices/ingress.js';
 import { makeNixStores } from './devices/nix-store.js';
@@ -129,6 +130,8 @@ export class Kernel extends DurableObject {
   #vatAdmins;
   #git;
   #nixStores;
+  #fetchDevices;
+  #lanDevices;
 
   /** @param {DurableObjectState} ctx @param {Env} env */
   constructor(ctx, env) {
@@ -163,7 +166,19 @@ export class Kernel extends DurableObject {
       store: env.NIX_STORE,
       bundles: this.#bundles,
     });
+    this.#fetchDevices = makeFetchDevices(powers, {
+      tag: 'FetchDevice',
+      prefix: 'fetch',
+      net: env.INTERNET,
+    });
+    this.#lanDevices = makeFetchDevices(powers, {
+      tag: 'LanDevice',
+      prefix: 'lan',
+      net: env.LAN,
+    });
     this.#objects = {
+      fetch: this.#fetchDevices,
+      lan: this.#lanDevices,
       kernel: this.#ingresses,
       vatAdmin: this.#vatAdmins.vatAdmins,
       adminNode: this.#vatAdmins.adminNodes,
@@ -459,6 +474,8 @@ export class Kernel extends DurableObject {
               ),
             })),
         makeIngress: labels => toSession(this.#ingresses.make(labels)),
+        makeFetchDevice: () => toSession(this.#fetchDevices.make()),
+        makeLanDevice: () => toSession(this.#lanDevices.make()),
         makeVatAdmin: () => toSession(this.#vatAdmins.make()),
         installBundle: src => toSession(this.#bundles.install(src)),
         makeNixStore: () => toSession(this.#nixStores.make()),
@@ -476,6 +493,8 @@ export class Kernel extends DurableObject {
  * @property {(vref: string, method: string, capdata: CapData) => Promise<CapData>} send
  * @property {() => { root: string, adminNode: string }[]} vats
  * @property {(labels: Record<string, string>) => Promise<string>} makeIngress
+ * @property {() => Promise<string>} makeFetchDevice
+ * @property {() => Promise<string>} makeLanDevice
  * @property {() => Promise<string>} makeVatAdmin
  * @property {(src: string) => Promise<string>} installBundle
  * @property {() => Promise<string>} makeNixStore
@@ -523,6 +542,16 @@ export class KernelSession extends RpcTarget {
   /** An ingress for a mount at `labels`, as a vref of this session. @param {Record<string, string>} labels */
   makeIngress(labels) {
     return this.#powers.makeIngress(labels);
+  }
+
+  /** A fetch device, as a vref of this session. */
+  makeFetchDevice() {
+    return this.#powers.makeFetchDevice();
+  }
+
+  /** A LAN device, as a vref of this session: a fetch device for private addresses. */
+  makeLanDevice() {
+    return this.#powers.makeLanDevice();
   }
 
   /** A vatAdmin, as a vref of this session. */

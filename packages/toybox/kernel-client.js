@@ -51,6 +51,10 @@ export const connectKernel = async ws => {
     /** An ingress for a mount at `labels`. @param {Record<string, string>} labels */
     makeIngress: async labels =>
       ls.slotToVal(await session.makeIngress(labels)),
+    /** A fetch device, for a vat's params. */
+    makeFetchDevice: async () => ls.slotToVal(await session.makeFetchDevice()),
+    /** A LAN device: a fetch device for private addresses (a tailnet's included), for a vat's params. */
+    makeLanDevice: async () => ls.slotToVal(await session.makeLanDevice()),
     /** A vatAdmin, for a bootstrap vat's params. */
     makeVatAdmin: async () => ls.slotToVal(await session.makeVatAdmin()),
     /** Keep `src`; its bundleCap is for a vatAdmin's `createVat`. @param {string} src */

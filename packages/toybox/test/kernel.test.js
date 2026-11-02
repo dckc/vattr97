@@ -314,7 +314,7 @@ test("upgrading a vat's code keeps its durable objects, and others' references t
   );
   assert.equal(await E(holder).bump('c'), 31);
   await assert.rejects(
-    E(admin).upgrade(await k.makeVatAdmin()),
+    E(admin).upgrade(await k.makeFetchDevice()),
     /not a bundleCap/,
   );
 });
@@ -379,7 +379,7 @@ test('a vatAdmin creates vats only from bundleCaps; a bundle has one bundleCap',
     /Must be a remotable BundleCap/,
   );
   await assert.rejects(
-    E(vatAdmin).createVat(await k.makeVatAdmin(), {}),
+    E(vatAdmin).createVat(await k.makeFetchDevice(), {}),
     /not a bundleCap/,
   );
   await assert.rejects(
@@ -561,5 +561,17 @@ test('a kernel vat serves the web through its ingress, after a restart and after
   } finally {
     await box.server.stop();
     await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("a LAN device reaches only what config.capnp's lan service allows: private addresses, not loopback", async () => {
+  const site = createServer((req, res) => res.end('hi'));
+  const port = await listenLocal(site);
+  try {
+    const url = `http://127.0.0.1:${port}/`;
+    for (const device of [await k.makeLanDevice(), await k.makeFetchDevice()])
+      await assert.rejects(E(device).fetch(url), /internal error/);
+  } finally {
+    await new Promise(resolve => site.close(resolve));
   }
 });
