@@ -55,6 +55,8 @@ export const connectKernel = async ws => {
     makeVatAdmin: async () => ls.slotToVal(await session.makeVatAdmin()),
     /** Keep `src`; its bundleCap is for a vatAdmin's `createVat`. @param {string} src */
     installBundle: async src => ls.slotToVal(await session.installBundle(src)),
+    /** A nixStore, whose `getBundleCap(path)` answers a bundleCap for a file in the nix store. */
+    makeNixStore: async () => ls.slotToVal(await session.makeNixStore()),
     close: () => ws.close(),
   });
 };

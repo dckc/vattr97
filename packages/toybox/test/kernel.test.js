@@ -388,6 +388,56 @@ test('a vatAdmin creates vats only from bundleCaps; a bundle has one bundleCap',
   );
 });
 
+test('a nixStore makes a bundleCap for a file in the store, and refuses anything else', async () => {
+  const vatAdmin = await k.makeVatAdmin();
+  const nixStore = await k.makeNixStore();
+  const storePath = await addToStore(join(here, 'kvats', 'counter.js'));
+  const bundleCap = await E(nixStore).getBundleCap(storePath);
+  assert.equal(await E(nixStore).getBundleCap(storePath), bundleCap);
+  const { root } = await E(vatAdmin).createVat(bundleCap, {});
+  assert.equal(await E(E(root).getCounter()).incr(), 1);
+
+  await assert.rejects(
+    E(nixStore).getBundleCap(join(here, 'kvats', 'counter.js')),
+    /not a store path/,
+  );
+  await assert.rejects(
+    E(nixStore).getBundleCap('/nix/store/../../etc/passwd'),
+    /not a store path/,
+  );
+  await assert.rejects(
+    E(nixStore).getBundleCap(
+      '/nix/store/00000000000000000000000000000000-nothing.js',
+    ),
+    /is not in the nix store/,
+  );
+  await assert.rejects(
+    E(nixStore).getBundleCap(await addToStore(join(here, 'kvats'))),
+    /has no worker.json/,
+  );
+});
+
+test('a nixStore bundle can be a directory of modules, its main one named by worker.json', async () => {
+  const vatAdmin = await k.makeVatAdmin();
+  const nixStore = await k.makeNixStore();
+  const bundleCap = await E(nixStore).getBundleCap(
+    await addToStore(join(here, 'test', 'greeter')),
+  );
+  const { adminNode: admin, root } = await E(vatAdmin).createVat(bundleCap, {});
+  assert.equal(await E(root).greet('Fred'), 'Hello, Fred (#1)');
+  await E(admin).restart();
+  assert.equal(await E(root).greet('Fred'), 'Hello, Fred (#2)');
+
+  const withLink = await mkdtemp(join(tmpdir(), 'toybox-symlink-'));
+  await cp(join(here, 'test', 'greeter'), withLink, { recursive: true });
+  await symlink('main.js', join(withLink, 'alias.js'));
+  await assert.rejects(
+    E(nixStore).getBundleCap(await addToStore(withLink)),
+    /alias.js is a symlink/,
+  );
+  await rm(withLink, { recursive: true });
+});
+
 test("a vat's db is its own SQLite, and outlasts a restart", async () => {
   const { adminNode: admin, root } = await k.createVat(await kvat('notes.js'));
   // one row changed, though the note's index is written too

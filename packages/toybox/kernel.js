@@ -6,6 +6,7 @@ import { Far } from '@endo/pass-style';
 import KVAT_RUNTIME from 'kvat-runtime.txt';
 import { SCHEMA as BUNDLE_SCHEMA, makeBundles } from './devices/bundles.js';
 import { SCHEMA as INGRESS_SCHEMA, makeIngresses } from './devices/ingress.js';
+import { makeNixStores } from './devices/nix-store.js';
 import { makeVatAdmins } from './devices/vat-admin.js';
 
 /**
@@ -124,6 +125,7 @@ export class Kernel extends DurableObject {
   #bundles;
   #ingresses;
   #vatAdmins;
+  #nixStores;
 
   /** @param {DurableObjectState} ctx @param {Env} env */
   constructor(ctx, env) {
@@ -153,11 +155,16 @@ export class Kernel extends DurableObject {
         restart: vat => this.ctx.facets.abort(vat, Error('restarted')),
       },
     });
+    this.#nixStores = makeNixStores(powers, {
+      store: env.NIX_STORE,
+      bundles: this.#bundles,
+    });
     this.#objects = {
       kernel: this.#ingresses,
       vatAdmin: this.#vatAdmins.vatAdmins,
       adminNode: this.#vatAdmins.adminNodes,
       bundle: this.#bundles,
+      nixStore: this.#nixStores,
     };
   }
 
@@ -447,6 +454,7 @@ export class Kernel extends DurableObject {
         makeIngress: labels => toSession(this.#ingresses.make(labels)),
         makeVatAdmin: () => toSession(this.#vatAdmins.make()),
         installBundle: src => toSession(this.#bundles.install(src)),
+        makeNixStore: () => toSession(this.#nixStores.make()),
       }),
     );
   }
@@ -462,6 +470,7 @@ export class Kernel extends DurableObject {
  * @property {(labels: Record<string, string>) => Promise<string>} makeIngress
  * @property {() => Promise<string>} makeVatAdmin
  * @property {(src: string) => Promise<string>} installBundle
+ * @property {() => Promise<string>} makeNixStore
  */
 
 /**
@@ -515,6 +524,11 @@ export class KernelSession extends RpcTarget {
   /** Keep `src`; its bundleCap, as a vref of this session, is for a vatAdmin's `createVat`. @param {string} src */
   installBundle(src) {
     return this.#powers.installBundle(src);
+  }
+
+  /** A nixStore, as a vref of this session. */
+  makeNixStore() {
+    return this.#powers.makeNixStore();
   }
 }
 
