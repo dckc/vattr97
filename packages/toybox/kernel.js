@@ -5,6 +5,7 @@ import { makeMarshal } from '@endo/marshal';
 import { Far } from '@endo/pass-style';
 import KVAT_RUNTIME from 'kvat-runtime.txt';
 import { SCHEMA as BUNDLE_SCHEMA, makeBundles } from './devices/bundles.js';
+import { SCHEMA as GIT_SCHEMA, makeGit } from './devices/git.js';
 import { SCHEMA as INGRESS_SCHEMA, makeIngresses } from './devices/ingress.js';
 import { makeNixStores } from './devices/nix-store.js';
 import { makeVatAdmins } from './devices/vat-admin.js';
@@ -21,6 +22,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS kcounter (name TEXT PRIMARY KEY, n INTEGER NOT NULL)',
   ...BUNDLE_SCHEMA,
   ...INGRESS_SCHEMA,
+  ...GIT_SCHEMA,
 ];
 
 /** The owner of the kernel's own objects, in `kobject`. */
@@ -125,6 +127,7 @@ export class Kernel extends DurableObject {
   #bundles;
   #ingresses;
   #vatAdmins;
+  #git;
   #nixStores;
 
   /** @param {DurableObjectState} ctx @param {Env} env */
@@ -155,6 +158,7 @@ export class Kernel extends DurableObject {
         restart: vat => this.ctx.facets.abort(vat, Error('restarted')),
       },
     });
+    this.#git = makeGit(powers, { worktree: env.GIT_WORKTREE });
     this.#nixStores = makeNixStores(powers, {
       store: env.NIX_STORE,
       bundles: this.#bundles,
@@ -165,6 +169,9 @@ export class Kernel extends DurableObject {
       adminNode: this.#vatAdmins.adminNodes,
       bundle: this.#bundles,
       nixStore: this.#nixStores,
+      gitWorktree: this.#git.worktrees,
+      gitTree: this.#git.trees,
+      gitReader: this.#git.readers,
     };
   }
 
@@ -455,6 +462,7 @@ export class Kernel extends DurableObject {
         makeVatAdmin: () => toSession(this.#vatAdmins.make()),
         installBundle: src => toSession(this.#bundles.install(src)),
         makeNixStore: () => toSession(this.#nixStores.make()),
+        makeGitWorktree: () => toSession(this.#git.make()),
       }),
     );
   }
@@ -471,6 +479,7 @@ export class Kernel extends DurableObject {
  * @property {() => Promise<string>} makeVatAdmin
  * @property {(src: string) => Promise<string>} installBundle
  * @property {() => Promise<string>} makeNixStore
+ * @property {() => Promise<string>} makeGitWorktree
  */
 
 /**
@@ -529,6 +538,11 @@ export class KernelSession extends RpcTarget {
   /** A nixStore, as a vref of this session. */
   makeNixStore() {
     return this.#powers.makeNixStore();
+  }
+
+  /** A git worktree, as a vref of this session. */
+  makeGitWorktree() {
+    return this.#powers.makeGitWorktree();
   }
 }
 

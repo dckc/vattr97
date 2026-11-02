@@ -438,6 +438,84 @@ test('a nixStore bundle can be a directory of modules, its main one named by wor
   await rm(withLink, { recursive: true });
 });
 
+test("a git worktree reads only the files a git tree lists, and only while they're what it says", async () => {
+  const worktree = join(dir, 'worktree');
+  // more than one chunk's worth, with a multi-byte character to cut around
+  const big = Array.from({ length: 5000 }, (_, i) =>
+    JSON.stringify([i, 'Café Ñandú', 'x'.repeat(i % 50)]),
+  ).join('\n');
+  await writeFile(join(worktree, 'big.ndjson'), big);
+  const { tree, listing } = await makeRepo(
+    join(here, 'test', 'greeter'),
+    'greeter',
+    worktree,
+  );
+  await writeFile(
+    join(worktree, 'elsewhere.txt'),
+    'in the worktree, not the tree',
+  );
+  const gitWorktree = await k.makeGitWorktree();
+  const greeter = await E(gitWorktree).getTree(tree, listing);
+  assert.deepEqual(await E(greeter).list(), [
+    'big.ndjson',
+    'greeter/greeting.txt',
+    'greeter/lib/count.js',
+    'greeter/main.js',
+    'greeter/worker.json',
+  ]);
+
+  await assert.rejects(
+    E(gitWorktree).getTree('0'.repeat(40), listing),
+    new RegExp(`listing is of tree ${tree}, not 0{40}`),
+  );
+  // no id given: the listing, -z or not, names the tree
+  assert.equal(
+    await E(E(gitWorktree).getTree(null, listing.replaceAll('\0', '\n'))).id(),
+    tree,
+  );
+  assert.equal(await E(greeter).id(), tree);
+  await assert.rejects(
+    E(greeter).read('elsewhere.txt'),
+    /has no file "elsewhere.txt"/,
+  );
+  await assert.rejects(
+    E(greeter).read('greeter/../elsewhere.txt'),
+    /has no file/,
+  );
+  assert.match(await E(greeter).read('greeter/greeting.txt'), /Hello/);
+  await appendFile(
+    join(worktree, 'greeter', 'greeting.txt'),
+    'a forged line\n',
+  );
+  await assert.rejects(
+    E(greeter).read('greeter/greeting.txt'),
+    /is not what tree [0-9a-f]{40} has; it changed since/,
+  );
+
+  const reader = await E(greeter).open('big.ndjson');
+  const chunks = [];
+  for (let r = await E(reader).next(); !r.done; r = await E(reader).next())
+    chunks.push(r.value);
+  assert.ok(chunks.length > 1);
+  assert.ok(chunks.slice(0, -1).every(c => c.endsWith('\n')));
+  assert.equal(chunks.join(''), big);
+  assert.deepEqual(await E(reader).next(), { done: true, value: undefined });
+  await assert.rejects(
+    E(greeter).open('greeter/greeting.txt'),
+    /changed since/,
+  );
+
+  // a file that changes while it's read: what was given out can't be done
+  const midway = await E(greeter).open('big.ndjson');
+  assert.equal((await E(midway).next()).done, false);
+  await writeFile(join(worktree, 'big.ndjson'), big.replaceAll('a', 'b'));
+  const draining = async () => {
+    for (let r = await E(midway).next(); !r.done; r = await E(midway).next());
+  };
+  await assert.rejects(draining(), /changed since/);
+  await assert.rejects(E(midway).next(), /changed since/);
+});
+
 test("a vat's db is its own SQLite, and outlasts a restart", async () => {
   const { adminNode: admin, root } = await k.createVat(await kvat('notes.js'));
   // one row changed, though the note's index is written too

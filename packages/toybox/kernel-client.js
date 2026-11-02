@@ -57,6 +57,8 @@ export const connectKernel = async ws => {
     installBundle: async src => ls.slotToVal(await session.installBundle(src)),
     /** A nixStore, whose `getBundleCap(path)` answers a bundleCap for a file in the nix store. */
     makeNixStore: async () => ls.slotToVal(await session.makeNixStore()),
+    /** A git worktree, whose `getTree(tree, listing)` answers a read-only git tree of the files `git ls-tree -r -z` lists. */
+    makeGitWorktree: async () => ls.slotToVal(await session.makeGitWorktree()),
     close: () => ws.close(),
   });
 };
