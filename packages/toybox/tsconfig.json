@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "checkJs": true,
+    "lib": ["es2024"],
+    "types": ["@cloudflare/workers-types", "node"]
+  },
+  "include": [
+    "*.js",
+    "*.ts",
+    "devices/**/*.js",
+    "kvats/**/*.js",
+    "test/**/*.js",
+    "test/**/*.ts",
+    "../../globals.d.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
+}
