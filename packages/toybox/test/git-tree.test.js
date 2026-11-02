@@ -1,0 +1,52 @@
+/** @file Git object ids agree with git's. */
+import { execFile } from 'node:child_process';
+import { chmod, cp, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { promisify } from 'node:util';
+import assert from 'node:assert/strict';
+import { blobId, parseLsTree, treeId } from '../git-tree.js';
+import { makeGit } from './git.js';
+import { here } from '../workerd-process.js';
+
+const { makeRepo } = makeGit({
+  run: promisify(execFile),
+  cp,
+  makeScratchDir: () => mkdtemp(join(tmpdir(), 'git-tree-')),
+});
+
+test('tree ids from git ls-tree listings, and blob ids, are the ones git reports', async () => {
+  const odd = await mkdtemp(join(tmpdir(), 'git-tree-odd-'));
+  const main = join(here, 'test', 'greeter', 'main.js');
+  // "a.js" < "a/" < "a0": a subtree sorts as if its name ended in "/"
+  await Promise.all(
+    ['a.js', 'a/b.js', 'a0', 'run.sh'].map(f => cp(main, join(odd, f))),
+  );
+  await chmod(join(odd, 'run.sh'), 0o755);
+  try {
+    for (const dir of [
+      join(here, 'test', 'greeter'),
+      join(here, 'kvats'),
+      odd,
+    ]) {
+      const { repo, tree, listing } = await makeRepo(dir, 'sub');
+      const files = parseLsTree(listing);
+      assert.equal(await treeId(files), tree);
+      assert.deepEqual(parseLsTree(listing.replaceAll('\0', '\n')), files);
+      for (const { path, oid } of files)
+        assert.equal(await blobId(await readFile(join(repo, path))), oid);
+      await rm(repo, { recursive: true, force: true });
+    }
+    await symlink('a.js', join(odd, 'link.js'));
+    const { repo, listing } = await makeRepo(odd);
+    await rm(repo, { recursive: true, force: true });
+    assert.throws(() => parseLsTree(listing), /not a regular file/);
+    assert.throws(
+      () => parseLsTree(`100644 blob ${'0'.repeat(40)}\t"tab\\there"\n`),
+      /git quoted this path/,
+    );
+  } finally {
+    await rm(odd, { recursive: true, force: true });
+  }
+});
