@@ -19,7 +19,7 @@ The nixStore tests put files in the nix store (`nix store add-path`), and the gi
 - [config.capnp](config.capnp): workerd's config. Its sockets have no addresses; whoever starts workerd hands them in, so holding a socket is the authority it grants.
 - [types.ts](types.ts) and [worker-env.d.ts](worker-env.d.ts): the types the modules share, and workerd's bindings.
 - [kvats/](kvats/): vats the tests exercise: counters, a mint and purses, lend-the-mower, hello, a WebApp maker, a store maker, a bookmark cache, and a bootstrap vat that wires them.
-- [kvats/wallet/](kvats/wallet/): a boot directory: a boot vat, counters, issuer kits, and a gateway that keeps a NameHub per client and serves the app socket. [scripts/wallet.js](scripts/wallet.js) runs it.
+- [kvats/wallet/](kvats/wallet/): a boot directory: a boot vat, counters, issuer kits, and a gateway that keeps a NameHub per client and serves the app socket. [scripts/serve.js](scripts/serve.js) runs a toybox from any boot directory, and prints the boot vat's `ownerLink()` if it answers one; [scripts/service.sh](scripts/service.sh) runs that as a transient systemd user service, and `yarn wallet` runs the wallet that way.
 
 | socket  | reaches  | what its holder can do                                                                                   |
 | ------- | -------- | -------------------------------------------------------------------------------------------------------- |
@@ -43,7 +43,7 @@ Not yet: promise pipelining between vats (each message waits for its answer), me
 
 ## The boot vat
 
-The kernel named `main` has a boot vat, after SwingSet's bootstrap vat, if config.capnp's `boot` directory (`-d boot=<dir>`) has a `boot.js`. The first request to the app socket starts it, with a vatAdmin, the boot directory's bundles, an entropy device, and the app socket's ingress as its params. On each later start of the kernel, if `boot.js` changed, the kernel upgrades the boot vat to it. Either way it then sends the boot vat `start()`, where it makes, or upgrades, the vats it keeps ([test/boot/boot.js](test/boot/boot.js)). So a service's boot directory says what runs, and restarting the service runs what it says.
+The kernel named `main` has a boot vat, after SwingSet's bootstrap vat, if config.capnp's `boot` directory (`-d boot=<dir>`) has a `boot.js`. The first request to the app socket starts it. It is the service's root of authority: its params are a vatAdmin, the boot directory's bundles, an entropy device, the app socket's ingress, a nixStore, a git worktree, and a fetch and a LAN device, for it to hand on as it sees fit. On each later start of the kernel, if `boot.js` changed, the kernel upgrades the boot vat to it. Either way it then sends the boot vat `start()`, where it makes, or upgrades, the vats it keeps ([test/boot/boot.js](test/boot/boot.js)). So a service's boot directory says what runs, and restarting the service runs what it says.
 
 ## The admin session
 

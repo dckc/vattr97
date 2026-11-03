@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prepack": "node build.js",
     "test": "node build.js && node --import ./node-lockdown.js --test test/*.test.js",
     "build": "node build.js",
     "lint": "eslint .",
@@ -16,9 +17,7 @@
     "@types/node": "22",
     "@types/ws": "8",
     "esbuild": "^0.28.2",
-    "typescript": "^5.5.0",
-    "workerd": "1.20261006.1",
-    "ws": "8.22.0"
+    "typescript": "^5.5.0"
   },
   "dependencies": {
     "@endo/eventual-send": "1.5.0",
@@ -28,7 +27,19 @@
     "@endo/marshal": "1.10.0",
     "@endo/pass-style": "1.8.2",
     "@endo/patterns": "^1.9.1",
-    "capnweb": "0.12.0"
+    "capnweb": "0.12.0",
+    "workerd": "1.20261006.1",
+    "ws": "8.22.0"
   },
+  "files": [
+    "*.js",
+    "*.ts",
+    "config.capnp",
+    "devices",
+    "dist",
+    "kvats",
+    "scripts",
+    "test"
+  ],
   "description": "vats whose code is installed at runtime, on workerd: a kernel after SwingSet, Durable Object facets as vats"
 }
