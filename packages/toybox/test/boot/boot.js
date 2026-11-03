@@ -16,10 +16,8 @@ const VERSION = 'v1';
  */
 
 /** @type {BuildRootObject<Params>} */
-export const buildRootObject = (
-  { E, Far, zone },
-  { vatAdmin, bundles, entropy, ingress },
-) => {
+export const buildRootObject = ({ E, Far, zone }, params) => {
+  const { vatAdmin, bundles, entropy, ingress } = params;
   /** @type {MapStore<string, any>} */
   const kept = zone.mapStore('kept');
   const makeHandler = zone.exoClass('Handler', undefined, () => ({}), {
@@ -53,5 +51,7 @@ export const buildRootObject = (
       }
     },
     child: () => kept.get('child'),
+    /** The names of the powers this vat was made with. */
+    powers: () => harden(Object.keys(params).sort()),
   });
 };

@@ -61,6 +61,16 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
     );
     const [bootVat, childVat] = await main.vats();
     assert.ok(childVat);
+    assert.deepEqual(await E(bootVat.root).powers(), [
+      'bundles',
+      'entropy',
+      'fetch',
+      'gitWorktree',
+      'ingress',
+      'lan',
+      'nixStore',
+      'vatAdmin',
+    ]);
     const counter = await E(E(bootVat.root).child()).getCounter();
     assert.equal(await E(counter).incr(), 1);
     main.close();

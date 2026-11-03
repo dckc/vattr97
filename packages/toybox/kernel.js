@@ -464,8 +464,10 @@ export class Kernel extends DurableObject {
    * upgrades the vats it keeps. Once per incarnation of the kernel; a
    * kernel whose boot directory has no `boot.js` has no boot vat.
    *
-   * The boot vat gets the boot directory's bundles, a vatAdmin, an
-   * entropy device, and the ingress for the `app` socket.
+   * The boot vat is the service's root of authority: it gets the boot
+   * directory's bundles, a vatAdmin, an entropy device, the ingress for
+   * the `app` socket, a nixStore, a git worktree, and a fetch and a LAN
+   * device, to hand on as it sees fit.
    */
   boot() {
     this.#booted ??= this.#boot().catch(e => {
@@ -490,6 +492,10 @@ export class Kernel extends DurableObject {
         bundles: standIn(this.#bootBundles.make()),
         entropy: standIn(this.#entropy.make()),
         ingress: standIn(this.#ingresses.socket('app')),
+        nixStore: standIn(this.#nixStores.make()),
+        gitWorktree: standIn(this.#git.make()),
+        fetch: standIn(this.#fetchDevices.make()),
+        lan: standIn(this.#lanDevices.make()),
       });
       ({ vat } = await this.#startVat(
         hash,
