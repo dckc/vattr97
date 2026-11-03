@@ -80,6 +80,8 @@
           share=$out/share/toybox
           mkdir -p $share $out/bin
           cp -r packages/toybox/dist packages/toybox/config.capnp $share/
+          # the boot directory the units use by default
+          cp -r packages/toybox/kvats/wallet $share/boot
           cat > $out/bin/toybox-serve <<SH
           #!${pkgs.runtimeShell}
           exec ${workerd}/bin/workerd serve --experimental $share/config.capnp "\$@"
@@ -134,6 +136,8 @@
           assert service.User == "dckc";
           assert service.ProtectHome == "read-only";
           assert lib.hasInfix "-d git-worktree=/home/dckc/qtrx" service.ExecStart;
+          assert lib.hasInfix "-S app=5 " service.ExecStart;
+          assert lib.hasInfix "/share/toybox/boot" service.ExecStart;
           assert service.PrivateNetwork;
           pkgs.writeText "toybox-module-check" (builtins.toJSON service);
         # a worktree without a user to read it is refused

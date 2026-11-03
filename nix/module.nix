@@ -12,6 +12,8 @@ let
     bin = "${cfg.package}/bin";
     inherit (cfg)
       listen
+      appListen
+      boot
       stateDir
       gitWorktree
       user
@@ -30,6 +32,16 @@ in
       type = lib.types.str;
       default = "127.0.0.1:8787";
       description = "The public (ingress) port, as systemd's ListenStream= takes it.";
+    };
+    appListen = lib.mkOption {
+      type = lib.types.str;
+      default = "127.0.0.1:8788";
+      description = "The app port, the boot vat's own origin, as systemd's ListenStream= takes it.";
+    };
+    boot = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = "The boot directory: boot.js, and the bundles the boot vat makes vats from; by default, the package's (the wallet).";
     };
     stateDir = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
