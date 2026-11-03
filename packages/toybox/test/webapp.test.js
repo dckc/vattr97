@@ -16,6 +16,9 @@ const noDb = /** @type {SqlDatabase} */ (
     exec: () => {
       throw Error('no db here');
     },
+    transaction: () => {
+      throw Error('no db here');
+    },
     prepare: () => {
       throw Error('no db here');
     },

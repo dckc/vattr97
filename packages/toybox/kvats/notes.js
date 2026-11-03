@@ -13,6 +13,14 @@ export const buildRootObject = ({ Far, db }) => {
   return Far('notes', {
     /** Add a note; answers how many rows that changed. @param {string} text */
     add: text => add.run(text).changes,
+    /** Add every note, or none if any is empty. @param {string[]} texts */
+    addAll: texts =>
+      db.transaction(() =>
+        texts.map(text => {
+          if (!text) throw Error('an empty note');
+          return add.run(text).changes;
+        }),
+      ),
     list: () => harden(all.all().map(r => r.text)),
   });
 };

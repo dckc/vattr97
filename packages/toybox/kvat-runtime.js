@@ -92,13 +92,17 @@ const makeVatstore = sql => {
  * its own durable objects, and no one else's.
  *
  * Statements run when called, not in a transaction: whatever a vat does
- * between awaits commits together, as in any Durable Object.
+ * between awaits commits together, as in any Durable Object. For more,
+ * `transaction(fn)` runs `fn` in one, which rolls back if it throws; `fn`
+ * can't await.
  *
- * @param {SqlStorage} sql
+ * @param {DurableObjectStorage} storage
  * @returns {SqlDatabase}
  */
-const makeSqlDatabase = sql =>
-  harden({
+const makeSqlDatabase = storage => {
+  const { sql } = storage;
+  return harden({
+    transaction: fn => storage.transactionSync(fn),
     /** @param {string} text */
     exec: text => void sql.exec(text),
     /** @param {string} text */
@@ -120,6 +124,7 @@ const makeSqlDatabase = sql =>
           /** @type {any[]} */ (sql.exec(text, ...params).toArray()),
       }),
   });
+};
 
 /**
  * A kernel vat: bundled by build.js and loaded as a facet of the Kernel,
@@ -162,7 +167,7 @@ export class App extends DurableObject {
           Far,
           M,
           zone,
-          db: makeSqlDatabase(this.ctx.storage.sql),
+          db: makeSqlDatabase(this.ctx.storage),
         }),
         params,
       ),

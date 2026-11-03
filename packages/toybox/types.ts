@@ -129,6 +129,8 @@ export type SqlDatabase = {
   prepare: <P extends SqlValue[] = SqlValue[], R = SqlRow>(
     sql: string,
   ) => SqlStatement<P, R>;
+  /** Run `fn` in one transaction, rolled back if it throws; `fn` can't await. */
+  transaction: <T>(fn: () => T) => T;
 };
 
 /** What a kernel vat's `buildRootObject` gets, beside its params. */

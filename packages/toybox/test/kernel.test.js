@@ -497,6 +497,10 @@ test("a vat's db is its own SQLite, and outlasts a restart", async () => {
   await E(root).add('two');
   await E(admin).restart();
   assert.deepEqual(await E(root).list(), ['one', 'two']);
+  // a transaction: all of them, or none
+  await assert.rejects(E(root).addAll(['three', '']), /an empty note/);
+  assert.deepEqual(await E(root).addAll(['three', 'four']), [1, 1]);
+  assert.deepEqual(await E(root).list(), ['one', 'two', 'three', 'four']);
   const { root: other } = await k.createVat(await kvat('notes.js'));
   assert.deepEqual(await E(other).list(), []);
 });
