@@ -5,7 +5,8 @@
  *
  * Unions are flower-style: a shared key with a different value throws, so a
  * later grant cannot quietly contradict an earlier one. Error messages name
- * keys, never header or query values.
+ * keys, never header or query values; a failed send's error quotes the
+ * start of what the site answered, so it says why.
  *
  * Headers that change, such as a session cookie, belong in a map store
  * that someone else keeps (see store-maker.js): give a WebApp the store's
@@ -29,7 +30,8 @@ export const buildRootObject = ({ E, Far, zone }, { egress }) => {
       headers,
       body,
     });
-    if (status >= 400) throw Error(`${status} on ${withoutQuery(url)}`);
+    if (status >= 400)
+      throw Error(`${status} on ${withoutQuery(url)}: ${excerpt(text)}`);
     return text;
   };
 
@@ -109,6 +111,20 @@ export const buildRootObject = ({ E, Far, zone }, { egress }) => {
     makeWebApp: (url, headers = {}) =>
       makeWebApp(new URL(url).href, harden({ ...headers }), harden([])),
   });
+};
+
+/** How much of an error response's body an error says. */
+const EXCERPT = 200;
+
+/**
+ * The start of an error response's body, on one line: what the site said
+ * went wrong. Not the query, which may hold a secret.
+ *
+ * @param {string} body
+ */
+const excerpt = body => {
+  const line = body.replace(/\s+/g, ' ').trim();
+  return line.length > EXCERPT ? `${line.slice(0, EXCERPT)}…` : line;
 };
 
 /** @param {string} url */

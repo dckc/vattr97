@@ -149,6 +149,7 @@ test('the egress decides where a WebApp may go', async () => {
   const { maker } = incarnate(makeKv());
   await assert.rejects(
     E(maker.makeWebApp('http://elsewhere.example/q?token=secret')).get(),
-    /^Error: 403 on http:\/\/elsewhere\.example\/q$/,
+    // what the site said, so a failure says why; not the query
+    /^Error: 403 on http:\/\/elsewhere\.example\/q: egress refused$/,
   );
 });
