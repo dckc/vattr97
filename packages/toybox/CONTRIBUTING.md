@@ -19,6 +19,7 @@ The nixStore tests put files in the nix store (`nix store add-path`), and the gi
 - [config.capnp](config.capnp): workerd's config. Its sockets have no addresses; whoever starts workerd hands them in, so holding a socket is the authority it grants.
 - [types.ts](types.ts) and [worker-env.d.ts](worker-env.d.ts): the types the modules share, and workerd's bindings.
 - [kvats/](kvats/): vats the tests exercise: counters, a mint and purses, lend-the-mower, hello, a WebApp maker, a store maker, a bookmark cache, and a bootstrap vat that wires them.
+- [kvats/wallet/](kvats/wallet/): a boot directory: a boot vat, counters, issuer kits, and a gateway that keeps a NameHub per client and serves the app socket. [scripts/wallet.js](scripts/wallet.js) runs it.
 
 | socket  | reaches  | what its holder can do                                                                                   |
 | ------- | -------- | -------------------------------------------------------------------------------------------------------- |
