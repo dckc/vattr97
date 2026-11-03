@@ -4,7 +4,9 @@ import { RpcTarget, newWorkersRpcResponse } from 'capnweb';
 import { makeMarshal } from '@endo/marshal';
 import { Far } from '@endo/pass-style';
 import KVAT_RUNTIME from 'kvat-runtime.txt';
+import { makeBootBundles } from './devices/boot.js';
 import { SCHEMA as BUNDLE_SCHEMA, makeBundles } from './devices/bundles.js';
+import { makeEntropy } from './devices/entropy.js';
 import { makeFetchDevices } from './devices/fetch.js';
 import { SCHEMA as GIT_SCHEMA, makeGit } from './devices/git.js';
 import { SCHEMA as INGRESS_SCHEMA, makeIngresses } from './devices/ingress.js';
@@ -21,6 +23,8 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS kobject (kref TEXT PRIMARY KEY, owner TEXT NOT NULL, vref TEXT NOT NULL, UNIQUE (owner, vref))',
   'CREATE TABLE IF NOT EXISTS clist (vat TEXT NOT NULL, vref TEXT NOT NULL, kref TEXT NOT NULL, PRIMARY KEY (vat, vref), UNIQUE (vat, kref))',
   'CREATE TABLE IF NOT EXISTS kcounter (name TEXT PRIMARY KEY, n INTEGER NOT NULL)',
+  // the boot vat, if this kernel has one
+  'CREATE TABLE IF NOT EXISTS kboot (vat TEXT NOT NULL)',
   ...BUNDLE_SCHEMA,
   ...INGRESS_SCHEMA,
   ...GIT_SCHEMA,
@@ -132,6 +136,10 @@ export class Kernel extends DurableObject {
   #nixStores;
   #fetchDevices;
   #lanDevices;
+  #bootBundles;
+  #entropy;
+  /** @type {Promise<void> | undefined} this incarnation's {@link boot} */
+  #booted;
 
   /** @param {DurableObjectState} ctx @param {Env} env */
   constructor(ctx, env) {
@@ -176,6 +184,16 @@ export class Kernel extends DurableObject {
       prefix: 'lan',
       net: env.LAN,
     });
+    this.#bootBundles = makeBootBundles(powers, {
+      boot: env.BOOT,
+      bundles: this.#bundles,
+    });
+    this.#entropy = makeEntropy(powers, {
+      // the Kernel is workerd's to construct, so randomness enters here, for
+      // the entropy device to hand out
+      // eslint-disable-next-line no-restricted-properties
+      random: n => crypto.getRandomValues(new Uint8Array(n)),
+    });
     this.#objects = {
       fetch: this.#fetchDevices,
       lan: this.#lanDevices,
@@ -187,6 +205,8 @@ export class Kernel extends DurableObject {
       gitWorktree: this.#git.worktrees,
       gitTree: this.#git.trees,
       gitReader: this.#git.readers,
+      bootBundles: this.#bootBundles,
+      entropy: this.#entropy,
     };
   }
 
@@ -395,9 +415,10 @@ export class Kernel extends DurableObject {
    *
    * @param {string} hash
    * @param {CapData} kparams slots are krefs
+   * @param {(vat: string) => void} [made] records the new vat along with the kernel's own record of it, both or neither
    * @returns {Promise<{ vat: string, root: string }>} the root as a kref
    */
-  async #startVat(hash, kparams) {
+  async #startVat(hash, kparams, made) {
     const vat = `v${this.#next('vat')}`;
     this.ctx.storage.sql.exec(
       'INSERT INTO kvat VALUES (?, ?, ?)',
@@ -405,6 +426,7 @@ export class Kernel extends DurableObject {
       hash,
       JSON.stringify(kparams),
     );
+    made?.(vat);
     const root = this.#clist(vat).toKernel('o+0');
     await this.#vat(vat).ready();
     return { vat, root };
@@ -433,6 +455,67 @@ export class Kernel extends DurableObject {
       this.ctx.facets.abort(vat, Error('upgrade failed'));
       throw e;
     }
+  }
+
+  /**
+   * Start this kernel's boot vat, after SwingSet's bootstrap vat, on
+   * `boot.js` in config.capnp's `boot` directory, or upgrade it if
+   * `boot.js` changed since; then send it `start()`, which makes or
+   * upgrades the vats it keeps. Once per incarnation of the kernel; a
+   * kernel whose boot directory has no `boot.js` has no boot vat.
+   *
+   * The boot vat gets the boot directory's bundles, a vatAdmin, an
+   * entropy device, and the ingress for the `app` socket.
+   */
+  boot() {
+    this.#booted ??= this.#boot().catch(e => {
+      this.#booted = undefined;
+      throw e;
+    });
+    return this.#booted;
+  }
+
+  async #boot() {
+    if (!(await this.#bootBundles.has('boot.js'))) return;
+    const hash = this.#bundles.hashOf(
+      await this.#bootBundles.install('boot.js'),
+    );
+    const { sql } = this.ctx.storage;
+    const [row] = sql.exec('SELECT vat FROM kboot').toArray();
+    let vat = /** @type {string | undefined} TEXT */ (row?.vat);
+    if (!vat) {
+      const { standIn } = this.#krefs;
+      const params = harden({
+        vatAdmin: standIn(this.#vatAdmins.make()),
+        bundles: standIn(this.#bootBundles.make()),
+        entropy: standIn(this.#entropy.make()),
+        ingress: standIn(this.#ingresses.socket('app')),
+      });
+      ({ vat } = await this.#startVat(
+        hash,
+        this.#krefs.toCapData(params),
+        made => sql.exec('INSERT INTO kboot VALUES (?)', made),
+      ));
+    } else {
+      const old = sql.exec('SELECT hash FROM kvat WHERE vat = ?', vat).one();
+      if (old.hash !== hash) await this.#upgradeVat(vat, hash);
+    }
+    await this.#deliver(
+      this.#clist(vat).toKernel('o+0'),
+      'start',
+      this.#krefs.toCapData(harden([])),
+    );
+  }
+
+  /**
+   * A request to the `app` socket, once the boot vat is up, for whoever it
+   * has serve that socket's ingress; `null` when nobody does.
+   *
+   * @param {HttpRequest} request
+   */
+  async serveApp(request) {
+    await this.boot();
+    return this.serveHttp(this.#ingresses.socketKey('app'), request);
   }
 
   /**

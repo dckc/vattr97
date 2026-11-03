@@ -1,4 +1,4 @@
-/** @file toybox's entrypoints: the ingress (`Public`) and the admin socket (`Admin`), in front of {@link Kernel}s; and the {@link Directory} of ingress mounts. */
+/** @file toybox's entrypoints: the ingress (`Public`), the boot vat's own socket (`App`), and the admin socket (`Admin`), in front of {@link Kernel}s; and the {@link Directory} of ingress mounts. */
 import '@endo/init';
 import { DurableObject, WorkerEntrypoint } from 'cloudflare:workers';
 import { mergeLabels } from './labels.js';
@@ -15,6 +15,16 @@ import {
 export { Kernel, Syscall } from './kernel.js';
 
 /** @import { HttpResponse } from './types.js' */
+
+/**
+ * The http socket's pages run no scripts: its mounts share one origin, so
+ * a script on one vat's page could read what another's page keeps.
+ */
+const PUBLIC_POLICY = "script-src 'none'";
+
+/** The app socket is the boot vat's alone, on an origin of its own: its pages' scripts come from it. */
+const APP_POLICY =
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'";
 
 /** A mount, as the Directory finds it: the ingress key it leads to, and its labels. @typedef {{ vat: string, labels: Record<string, string> }} Mount */
 
@@ -127,39 +137,67 @@ export class Public extends WorkerEntrypoint {
    * @param {Request} request
    */
   async #serveKernel(mount, labels, request) {
-    const req = await requestData(mount, labels, request);
+    const req = await requestData(mergeLabels(mount.labels, labels), request);
     const [, id] = mount.vat.split(':');
     return responseFrom(
       await this.env.KERNEL.get(this.env.KERNEL.idFromString(id)).serveHttp(
         mount.vat,
         req,
       ),
+      PUBLIC_POLICY,
     );
   }
 }
 
 /**
- * A request to an ingress's mount, as passable data.
+ * The app socket: every request goes to the boot vat of the kernel named
+ * `main`, started on the first one (see {@link Kernel.boot}), for whoever
+ * it has serve the socket. Its origin is its own, so its pages may keep
+ * secrets in the browser's storage and run their own scripts.
+ */
+/** @extends {WorkerEntrypoint<Env>} */
+export class App extends WorkerEntrypoint {
+  /** @param {Request} request */
+  async fetch(request) {
+    let labels;
+    try {
+      labels = requestLabels(request);
+    } catch (e) {
+      return new Response(`bad labels: ${/** @type {Error} */ (e).message}\n`, {
+        status: 400,
+      });
+    }
+    return responseFrom(
+      await this.env.KERNEL.getByName('main').serveApp(
+        await requestData(labels, request),
+      ),
+      APP_POLICY,
+    );
+  }
+}
+
+/**
+ * A request to an ingress, as passable data.
  *
- * @param {Mount} mount
  * @param {Record<string, string>} labels
  * @param {Request} request
  */
-const requestData = async (mount, labels, request) => {
+const requestData = async (labels, request) => {
   const { pathname } = new URL(request.url);
   const body = ['GET', 'HEAD'].includes(request.method)
     ? ''
     : await request.text();
-  return {
-    method: request.method,
-    path: pathname,
-    labels: mergeLabels(mount.labels, labels),
-    body,
-  };
+  return { method: request.method, path: pathname, labels, body };
 };
 
-/** A handler's answer, as data, or `null`, as an HTTP response. @param {HttpResponse | null} res */
-const responseFrom = res => {
+/**
+ * A handler's answer, as data, or `null`, as an HTTP response, under the
+ * socket's content security policy.
+ *
+ * @param {HttpResponse | null} res
+ * @param {string} policy
+ */
+const responseFrom = (res, policy) => {
   if (!res)
     return new Response('mounted, but nothing serves it now\n', {
       status: 503,
@@ -169,6 +207,7 @@ const responseFrom = res => {
     headers: res.headers ?? {},
   });
   resp.headers.set('Referrer-Policy', 'no-referrer');
+  resp.headers.set('Content-Security-Policy', policy);
   return resp;
 };
 

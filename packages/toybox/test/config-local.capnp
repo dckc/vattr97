@@ -12,9 +12,11 @@ const config :Workerd.Config = (
     (name = "state", disk = (path = "state", writable = true)),
     (name = "nix-store", disk = (path = "/nix/store", allowDotfiles = true)),
     (name = "git-worktree", disk = (path = "git-worktree")),
+    (name = "boot", disk = (path = "boot")),
   ],
   sockets = [
     (name = "http", http = (), service = (name = "main", entrypoint = "Public")),
+    (name = "app", http = (), service = (name = "main", entrypoint = "App")),
     (name = "admin", http = (), service = (name = "main", entrypoint = "Admin")),
   ],
 );

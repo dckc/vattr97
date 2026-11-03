@@ -42,7 +42,7 @@ const MODULE_TYPES = /** @type {Record<string, string>} */ ({
 export const decode = buf =>
   new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(buf);
 
-/** @param {ArrayBuffer} buf */
+/** @param {ArrayBuffer | Uint8Array} buf */
 export const hex = buf =>
   [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 

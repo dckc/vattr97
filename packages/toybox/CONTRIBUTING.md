@@ -14,7 +14,7 @@ The nixStore tests put files in the nix store (`nix store add-path`), and the gi
 - [kernel.js](kernel.js): the `Kernel` Durable Object, which hosts many vats, and `Syscall`, a vat's only way out.
 - [devices/](devices/): each kind of the kernel's own objects, one module apiece.
 - [liveslots.js](liveslots.js) and [kvat-runtime.js](kvat-runtime.js): a vat's side: vrefs, presences, its durable zone, and its SQLite.
-- [supervisor.js](supervisor.js): workerd's two entrypoints, `Public` (the ingress) and `Admin`, and the `Directory` of ingress mounts.
+- [supervisor.js](supervisor.js): workerd's entrypoints, `Public` (the ingress), `App` (the boot vat's socket), and `Admin`, and the `Directory` of ingress mounts.
 - [labels.js](labels.js): [Flower](https://github.com/NuxiNL/flower)'s label rule for mounts.
 - [config.capnp](config.capnp): workerd's config. Its sockets have no addresses; whoever starts workerd hands them in, so holding a socket is the authority it grants.
 - [types.ts](types.ts) and [worker-env.d.ts](worker-env.d.ts): the types the modules share, and workerd's bindings.
@@ -23,6 +23,7 @@ The nixStore tests put files in the nix store (`nix store add-path`), and the gi
 | socket  | reaches  | what its holder can do                                                                                   |
 | ------- | -------- | -------------------------------------------------------------------------------------------------------- |
 | `http`  | `Public` | reach the handler served at the ingress mounted at labels the request carries                            |
+| `app`   | `App`    | reach the handler the boot vat of the kernel `main` serves at the app socket's ingress                   |
 | `admin` | `Admin`  | a WebSocket to `/kernel/<name>`: a session with that kernel, which can make vats, devices, and ingresses |
 
 ## Vats and references
@@ -39,6 +40,10 @@ Every incarnation must define every kind, with the facets it had: a kind can't c
 
 Not yet: promise pipelining between vats (each message waits for its answer), messages that outlive an eviction, and dropping c-list entries nobody holds.
 
+## The boot vat
+
+The kernel named `main` has a boot vat, after SwingSet's bootstrap vat, if config.capnp's `boot` directory (`-d boot=<dir>`) has a `boot.js`. The first request to the app socket starts it, with a vatAdmin, the boot directory's bundles, an entropy device, and the app socket's ingress as its params. On each later start of the kernel, if `boot.js` changed, the kernel upgrades the boot vat to it. Either way it then sends the boot vat `start()`, where it makes, or upgrades, the vats it keeps ([test/boot/boot.js](test/boot/boot.js)). So a service's boot directory says what runs, and restarting the service runs what it says.
+
 ## The admin session
 
 A client reaches a kernel with a WebSocket to `/kernel/<name>` on the admin socket ([kernel-client.js](kernel-client.js)). Its session can `createVat(src, params)`, which answers the vat's root and its admin node; `vats()`, every vat's root and admin node, for a new session to find them again; and make kernel objects: `makeIngress(labels)`, `makeFetchDevice()`, `makeLanDevice()`, `makeVatAdmin()`, `installBundle(src)`, `makeNixStore()`, `makeGitWorktree()`.
@@ -52,11 +57,13 @@ Each kind is a module in devices/, given only the kernel powers it uses, and an 
 - **bundleCap** ([bundles.js](devices/bundles.js)): one per bundle hash, so knowing a hash grants nothing.
 - **nixStore** ([nix-store.js](devices/nix-store.js)): `getBundleCap(path)` reads a store path through config.capnp's read-only `nix-store` service and keys its bundle by NAR hash ([nar.js](nar.js)). A file is a bundle of one module; a directory's files are its modules, its `worker.json` naming the main one ([test/greeter/](test/greeter/)). Symlinks, and anything not in the store, are refused.
 - **Git worktree, tree, and reader** ([git.js](devices/git.js)): for files that must stay out of the world-readable nix store. `getTree(tree, listing)` takes what `git ls-tree -r` lists ([git-tree.js](git-tree.js)); a tree reads a file from config.capnp's `git-worktree` directory only if it lists it, and only while it hashes to the blob id listed. `open(path)` streams a big file, checked before any chunk is given out and again as they are; a reader says done only if what it gave out matches, and doesn't outlive a kernel restart. Text only: our marshal can't carry bytes yet.
+- **Boot bundles** ([boot.js](devices/boot.js)): the boot vat's `getBundleCap(name)` for a name in the boot directory, a file or a directory, read as a nix store path is.
+- **Entropy** ([entropy.js](devices/entropy.js)): `swiss()` answers 128 random bits in hex. Vats have no randomness of their own.
 - **Fetch and LAN devices** ([fetch.js](devices/fetch.js)), after SwingSet's devices: `fetch(url, { method, headers, body })` answers `{ status, headers, body }`. A fetch device reaches config.capnp's `internet` service (public addresses); a LAN device, its `lan` service (private addresses, a tailnet's included, not loopback). Neither attenuates; a WebApp vat ([kvats/webapp.js](kvats/webapp.js)) does.
 
 ## Ingress routing
 
-A request's labels are its query parameters; a key given twice is a 400. A mount must conflict with every other (some shared key, different values), so no request can carry two mounts' labels, and a request reaches a mount only by carrying every one of its labels. That's stricter than Flower's match: an ingress client holds no constrained handle that supplies labels for it. The handler sees the mount's and the request's labels together. Responses carry `Referrer-Policy: no-referrer`.
+A request's labels are its query parameters; a key given twice is a 400. A mount must conflict with every other (some shared key, different values), so no request can carry two mounts' labels, and a request reaches a mount only by carrying every one of its labels. That's stricter than Flower's match: an ingress client holds no constrained handle that supplies labels for it. The handler sees the mount's and the request's labels together. Responses carry `Referrer-Policy: no-referrer`, and `Content-Security-Policy: script-src 'none'`: every mount shares the http socket's origin, so a script on one vat's page could read what another's keeps. The app socket's origin is the boot vat's alone, and its pages may run their own scripts.
 
 Routing carries no secrets: a URL ends up in logs and `Referer`s. A secret travels in-band, as on a webkey page: the page keeps it in its fragment, reaches the vat by public labels, and sends it in the body of a call.
 

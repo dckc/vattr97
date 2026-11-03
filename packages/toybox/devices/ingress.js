@@ -62,6 +62,19 @@ export const makeIngresses = (
       return kernelObject(key);
     },
     /**
+     * The ingress for the socket `name`, which no Directory mount leads to:
+     * the socket's entrypoint goes to this kernel directly.
+     *
+     * @param {string} name
+     */
+    socket(name) {
+      const key = this.socketKey(name);
+      sql.exec('INSERT OR IGNORE INTO kingress VALUES (?, NULL)', key);
+      return kernelObject(key);
+    },
+    /** The key of the socket `name`'s ingress. @param {string} name */
+    socketKey: name => `kernel:${kernel}:${name}`,
+    /**
      * The kref that serves the ingress `key`, if any.
      *
      * @param {string} key

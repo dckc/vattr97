@@ -16,6 +16,8 @@ interface Env {
   NIX_STORE: Fetcher;
   /** the git worktree, read-only */
   GIT_WORKTREE: Fetcher;
+  /** the boot directory, read-only: the boot vat's code, and the bundles it makes vats from */
+  BOOT: Fetcher;
 }
 
 declare namespace Cloudflare {

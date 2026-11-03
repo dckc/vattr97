@@ -2,8 +2,8 @@
 #
 # Sockets have no address here: whoever starts workerd hands them in
 # (-S name=fd from systemd, or -s name=addr), so holding a socket is the
-# authority it grants. `state` and `git-worktree` are likewise overridden
-# with -d state=<dir> and -d git-worktree=<dir>.
+# authority it grants. `state`, `git-worktree`, and `boot` are likewise
+# overridden with -d state=<dir>, -d git-worktree=<dir>, and -d boot=<dir>.
 using Workerd = import "/workerd/workerd.capnp";
 
 const config :Workerd.Config = (
@@ -21,10 +21,16 @@ const config :Workerd.Config = (
     (name = "nix-store", disk = (path = "/nix/store", allowDotfiles = true)),
     # read-only; the kernel's git trees read the files they list from it
     (name = "git-worktree", disk = (path = "git-worktree")),
+    # read-only; the kernel named `main` starts its boot vat from boot.js
+    # here, if there is one, and the boot vat makes vats from the rest
+    (name = "boot", disk = (path = "boot")),
   ],
   sockets = [
     # the ingress: reach the handler mounted at a request's labels
     (name = "http", http = (), service = (name = "main", entrypoint = "Public")),
+    # the boot vat's own ingress, on an origin of its own: the one socket
+    # whose pages may run scripts
+    (name = "app", http = (), service = (name = "main", entrypoint = "App")),
     # a kernel session: create vats, install code, make devices and ingresses
     (name = "admin", http = (), service = (name = "main", entrypoint = "Admin")),
   ],
@@ -50,6 +56,7 @@ const supervisor :Workerd.Worker = (
     (name = "LAN", service = "lan"),
     (name = "NIX_STORE", service = "nix-store"),
     (name = "GIT_WORKTREE", service = "git-worktree"),
+    (name = "BOOT", service = "boot"),
   ],
   globalOutbound = "nowhere",
 );

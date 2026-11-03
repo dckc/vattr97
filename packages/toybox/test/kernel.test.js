@@ -25,6 +25,7 @@ import WebSocket from 'ws';
 import { connectKernel } from '../kernel-client.js';
 import { makeGit } from './git.js';
 import { makeNix } from './nix.js';
+import { makeToyboxes } from './toybox.js';
 import { here, makeWorkerd } from '../workerd-process.js';
 
 const { values } = Object;
@@ -47,6 +48,7 @@ const { makeRepo } = makeGit({
   makeScratchDir: () => mkdtemp(join(tmpdir(), 'git-tree-')),
 });
 const { addToStore } = makeNix({ run });
+const { startToybox } = makeToyboxes({ startWorkerd, freePort, mkdir });
 /** A client of the kernel `name` on the admin socket `sock`. @param {string} sock @param {string} name */
 const connectTo = (sock, name) =>
   connectKernel(new WebSocket(`ws+unix:${sock}:/kernel/${name}`));
@@ -59,34 +61,6 @@ const kvat = name => readFile(join(here, 'kvats', name), 'utf8');
 /** Upgrade the vat whose admin node is `adminNode` to `src`. @param {Remote} adminNode @param {string} src */
 const upgrade = async (adminNode, src) =>
   E(adminNode).upgrade(await k.installBundle(src));
-
-/**
- * A toybox in `dir`, its state kept there across restarts.
- *
- * @param {string} dir
- * @param {string} [config] config.capnp, or test/config-local.capnp for a fetch device that reaches localhost
- */
-const startToybox = async (dir, config = 'config.capnp') => {
-  await mkdir(join(dir, 'worktree'), { recursive: true });
-  const port = await freePort();
-  const sock = join(dir, 'admin.sock');
-  const server = await startWorkerd(
-    config,
-    [
-      '-s',
-      `http=127.0.0.1:${port}`,
-      '-s',
-      `admin=unix:${sock}`,
-      '-d',
-      `state=${join(dir, 'state')}`,
-      '-d',
-      `git-worktree=${join(dir, 'worktree')}`,
-    ],
-    { port, host: '127.0.0.1' },
-    [sock],
-  );
-  return { server, sock, port };
-};
 
 /** @type {string} */
 let dir;
@@ -546,6 +520,11 @@ test('a kernel vat serves the web through its ingress, after a restart and after
     const first = await get('/greet?site=hello');
     assert.equal(first.status, 200);
     assert.equal(first.headers.get('content-type'), 'text/html; charset=utf-8');
+    // a page here runs no scripts: every mount shares this origin
+    assert.equal(
+      first.headers.get('content-security-policy'),
+      "script-src 'none'",
+    );
     assert.match(await first.text(), /from a kernel vat, at \/greet, hit 1</);
     await E(admin).restart();
     assert.match(await (await get('/again?site=hello')).text(), /hit 2</);
@@ -586,7 +565,7 @@ test('a bootstrap vat wires a bookmark cache from nix store code; the cache serv
   /** @type {Awaited<ReturnType<typeof startToybox>> | undefined} */
   let box;
   try {
-    box = await startToybox(home, 'test/config-local.capnp');
+    box = await startToybox(home, { config: 'test/config-local.capnp' });
     const { port } = box;
     const client = await connectTo(box.sock, 'cache');
     // the site's templates, as a git tree of the toybox's worktree

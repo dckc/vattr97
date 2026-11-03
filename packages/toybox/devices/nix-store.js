@@ -67,6 +67,61 @@ const manifestOf = (path, node, files) => {
 };
 
 /**
+ * A reader of a directory tree served as config.capnp's disk services
+ * serve one: a file's contents, or a directory's listing (`[{ name, type }]`,
+ * symlinks followed). It answers the tree as {@link narHash} takes it,
+ * refusing anything but files and directories.
+ *
+ * @param {(segments: string[]) => Promise<Response>} fetchPath
+ * @param {(segments: string[]) => string} describe a path, for messages
+ * @param {string} where the tree as a whole, for messages
+ */
+export const makeTreeReader = (fetchPath, describe, where) => {
+  /**
+   * @param {string[]} segments
+   * @returns {Promise<NarNode>}
+   */
+  const read = async segments => {
+    const resp = await fetchPath(segments);
+    if (!resp.ok) throw Error(`${describe(segments)} is not in ${where}`);
+    if (resp.headers.get('content-type') === 'application/octet-stream')
+      return {
+        type: 'regular',
+        contents: new Uint8Array(await resp.arrayBuffer()),
+      };
+    /** @type {Record<string, NarNode>} */
+    const entries = {};
+    /** @type {{ name: string, type: string }[]} */
+    const listing = await resp.json();
+    for (const { name, type } of listing) {
+      if (type !== 'file' && type !== 'directory')
+        throw Error(
+          `${describe([...segments, name])} is a ${type}; a bundle has only files and directories`,
+        );
+      entries[name] = await read([...segments, name]);
+    }
+    return { type: 'directory', entries };
+  };
+  return read;
+};
+
+/**
+ * Keep the tree `node`, read from `path`, as a bundle, by its NAR hash;
+ * answers its bundleCap's kref. A file is a bundle of one module; a
+ * directory's files are its modules, its `worker.json` naming the main one.
+ *
+ * @param {ReturnType<typeof makeBundles>} bundles
+ * @param {string} path
+ * @param {NarNode} node
+ */
+export const installTree = async (bundles, path, node) => {
+  const files = filesOf(node);
+  const manifest = manifestOf(path, node, files);
+  delete files['worker.json'];
+  return bundles.installNar(await narHash(node), manifest, files);
+};
+
+/**
  * nixStores: `getBundleCap(path)` answers the bundleCap for a store
  * path, read through config.capnp's read-only `nix-store` service and keyed
  * by its NAR hash (nar.js), so the same contents give the same bundleCap. A
@@ -84,48 +139,14 @@ export const makeNixStores = (
   { next, kernelObject, standIn },
   { store, bundles },
 ) => {
-  /**
-   * A store path, through the store service: a file's contents, or a
-   * directory's listing (`[{ name, type }]`, symlinks followed).
-   *
-   * @param {string[]} segments the store path's name, then names within it
-   */
-  const storeFetch = async segments => {
-    const resp = await store.fetch(
-      `http://nix-store/${segments.map(encodeURIComponent).join('/')}`,
-    );
-    if (!resp.ok)
-      throw Error(`/nix/store/${segments.join('/')} is not in the nix store`);
-    return resp;
-  };
-
-  /**
-   * The contents of a store path, as {@link narHash} takes them.
-   *
-   * @param {string[]} segments
-   * @returns {Promise<NarNode>}
-   */
-  const readStore = async segments => {
-    const path = `/nix/store/${segments.join('/')}`;
-    const resp = await storeFetch(segments);
-    if (resp.headers.get('content-type') === 'application/octet-stream')
-      return {
-        type: 'regular',
-        contents: new Uint8Array(await resp.arrayBuffer()),
-      };
-    /** @type {Record<string, NarNode>} */
-    const entries = {};
-    /** @type {{ name: string, type: string }[]} */
-    const listing = await resp.json();
-    for (const { name, type } of listing) {
-      if (type !== 'file' && type !== 'directory')
-        throw Error(
-          `${path}/${name} is a ${type}; a bundle has only files and directories`,
-        );
-      entries[name] = await readStore([...segments, name]);
-    }
-    return { type: 'directory', entries };
-  };
+  const readStore = makeTreeReader(
+    segments =>
+      store.fetch(
+        `http://nix-store/${segments.map(encodeURIComponent).join('/')}`,
+      ),
+    segments => `/nix/store/${segments.join('/')}`,
+    'the nix store',
+  );
 
   return harden({
     ...kernelObjects(
@@ -138,12 +159,8 @@ export const makeNixStores = (
         async getBundleCap(path) {
           const [, name] = path.match(STORE_PATH) ?? [];
           if (!name) throw Error('not a store path');
-          const node = await readStore([name]);
-          const files = filesOf(node);
-          const manifest = manifestOf(path, node, files);
-          delete files['worker.json'];
           return standIn(
-            bundles.installNar(await narHash(node), manifest, files),
+            await installTree(bundles, path, await readStore([name])),
           );
         },
       },
