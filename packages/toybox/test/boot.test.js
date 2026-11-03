@@ -91,3 +91,33 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('a boot directory may hold its boot vat as `boot/`, a bundle of several modules', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'toybox-boot-dir-'));
+  const boot = join(dir, 'bootdir');
+  await mkdir(join(boot, 'boot'), { recursive: true });
+  await writeFile(
+    join(boot, 'boot', 'worker.json'),
+    JSON.stringify({ mainModule: 'boot.js' }),
+  );
+  await writeFile(
+    join(boot, 'boot', 'boot.js'),
+    (await readFile(join(here, 'test', 'boot', 'boot.js'), 'utf8')).replace(
+      "const VERSION = 'v1';",
+      "import { VERSION } from './version.js';",
+    ),
+  );
+  await writeFile(
+    join(boot, 'boot', 'version.js'),
+    "export const VERSION = 'from a module beside it';\n",
+  );
+  await copyFile(join(here, 'kvats', 'counter.js'), join(boot, 'child.js'));
+  const box = await startToybox(dir, { boot });
+  try {
+    const page = await fetch(`http://127.0.0.1:${box.appPort}/`);
+    assert.equal(await page.text(), 'from a module beside it started 1');
+  } finally {
+    await box.server.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});

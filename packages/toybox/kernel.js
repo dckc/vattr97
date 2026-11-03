@@ -459,10 +459,11 @@ export class Kernel extends DurableObject {
 
   /**
    * Start this kernel's boot vat, after SwingSet's bootstrap vat, on
-   * `boot.js` in config.capnp's `boot` directory, or upgrade it if
-   * `boot.js` changed since; then send it `start()`, which makes or
-   * upgrades the vats it keeps. Once per incarnation of the kernel; a
-   * kernel whose boot directory has no `boot.js` has no boot vat.
+   * `boot.js` in config.capnp's `boot` directory (or `boot`, a directory
+   * bundle of several modules), or upgrade it if that changed since; then
+   * send it `start()`, which makes or upgrades the vats it keeps. Once per
+   * incarnation of the kernel; a kernel whose boot directory has neither
+   * has no boot vat.
    *
    * The boot vat is the service's root of authority: it gets the boot
    * directory's bundles, a vatAdmin, an entropy device, the ingress for
@@ -478,10 +479,15 @@ export class Kernel extends DurableObject {
   }
 
   async #boot() {
-    if (!(await this.#bootBundles.has('boot.js'))) return;
-    const hash = this.#bundles.hashOf(
-      await this.#bootBundles.install('boot.js'),
-    );
+    const [name] = (
+      await Promise.all(
+        ['boot.js', 'boot'].map(async n =>
+          (await this.#bootBundles.has(n)) ? [n] : [],
+        ),
+      )
+    ).flat();
+    if (!name) return;
+    const hash = this.#bundles.hashOf(await this.#bootBundles.install(name));
     const { sql } = this.ctx.storage;
     const [row] = sql.exec('SELECT vat FROM kboot').toArray();
     let vat = /** @type {string | undefined} TEXT */ (row?.vat);

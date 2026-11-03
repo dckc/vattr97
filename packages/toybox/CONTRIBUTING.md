@@ -43,7 +43,7 @@ Not yet: promise pipelining between vats (each message waits for its answer), me
 
 ## The boot vat
 
-The kernel named `main` has a boot vat, after SwingSet's bootstrap vat, if config.capnp's `boot` directory (`-d boot=<dir>`) has a `boot.js`. The first request to the app socket starts it. It is the service's root of authority: its params are a vatAdmin, the boot directory's bundles, an entropy device, the app socket's ingress, a nixStore, a git worktree, and a fetch and a LAN device, for it to hand on as it sees fit. On each later start of the kernel, if `boot.js` changed, the kernel upgrades the boot vat to it. Either way it then sends the boot vat `start()`, where it makes, or upgrades, the vats it keeps ([test/boot/boot.js](test/boot/boot.js)). So a service's boot directory says what runs, and restarting the service runs what it says.
+The kernel named `main` has a boot vat, after SwingSet's bootstrap vat, if config.capnp's `boot` directory (`-d boot=<dir>`) has a `boot.js`, or `boot`, a directory bundle of several modules. The first request to the app socket starts it. It is the service's root of authority: its params are a vatAdmin, the boot directory's bundles, an entropy device, the app socket's ingress, a nixStore, a git worktree, and a fetch and a LAN device, for it to hand on as it sees fit. On each later start of the kernel, if its code there changed, the kernel upgrades the boot vat to it. Either way it then sends the boot vat `start()`, where it makes, or upgrades, the vats it keeps ([test/boot/boot.js](test/boot/boot.js)). So a service's boot directory says what runs, and restarting the service runs what it says.
 
 ## The admin session
 
