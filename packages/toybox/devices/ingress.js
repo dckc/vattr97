@@ -4,7 +4,7 @@
  * kref, so a request after any restart starts its vat if need be.
  */
 import { M } from '@endo/patterns';
-import { kernelObjects } from './objects.js';
+import { kzone } from './objects.js';
 
 /** @import { IngressKey, Kref, TablePowers } from '../types.js' */
 
@@ -27,7 +27,7 @@ export const makeIngresses = (
   { kernel, directory },
 ) =>
   harden({
-    ...kernelObjects(
+    ...kzone.exoClass(
       'Ingress',
       M.interface('Ingress', {
         serve: M.call(M.remotable()).returns(M.undefined()),

@@ -2,7 +2,7 @@
 import { M } from '@endo/patterns';
 import { blobId, parseLsTree, treeId } from '../git-tree.js';
 import { hex } from './bundles.js';
-import { kernelObjects } from './objects.js';
+import { kzone } from './objects.js';
 
 /** @import { KernelKey, TablePowers } from '../types.js' */
 
@@ -169,7 +169,7 @@ export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
   /** Each open reader's next chunk, by key: in memory only. @type {Map<string, () => Promise<IteratorResult<string, undefined>>>} */
   const live = new Map();
 
-  const worktrees = kernelObjects(
+  const worktrees = kzone.exoClass(
     'GitWorktree',
     M.interface('GitWorktree', {
       getTree: M.call(M.or(TreeId, M.null()), M.string()).returns(M.promise()),
@@ -194,7 +194,7 @@ export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
     },
   );
 
-  const trees = kernelObjects(
+  const trees = kzone.exoClass(
     'GitTree',
     M.interface('GitTree', {
       id: M.call().returns(TreeId),
@@ -242,7 +242,7 @@ export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
     },
   );
 
-  const readers = kernelObjects(
+  const readers = kzone.exoClass(
     'GitReader',
     M.interface('GitReader', {
       next: M.callWhen().returns(

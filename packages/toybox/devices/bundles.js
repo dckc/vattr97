@@ -1,6 +1,6 @@
 /** @file Bundles, kept by hash, and their bundleCaps. */
 import { M } from '@endo/patterns';
-import { kernelObjects } from './objects.js';
+import { kzone } from './objects.js';
 
 /** @import { Kref, TablePowers } from '../types.js' */
 
@@ -80,7 +80,7 @@ export const makeBundles = ({ db, kernelObject, keyOf }) => {
   const cap = (alg, digest) => kernelObject(`bundle:${alg}:${digest}`);
 
   return harden({
-    ...kernelObjects('BundleCap', M.interface('BundleCap', {}), {}),
+    ...kzone.exoClass('BundleCap', M.interface('BundleCap', {}), {}),
     cap,
     /**
      * Keep `src` as a bundle; answers its bundleCap.

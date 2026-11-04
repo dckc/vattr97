@@ -1,7 +1,7 @@
 /** @file Entropy: unguessable numbers, for vats, which have no randomness of their own. */
 import { M } from '@endo/patterns';
 import { hex } from './bundles.js';
-import { kernelObjects } from './objects.js';
+import { kzone } from './objects.js';
 
 /** @import { KernelPowers } from '../types.js' */
 
@@ -15,7 +15,7 @@ import { kernelObjects } from './objects.js';
  */
 export const makeEntropy = ({ next, kernelObject }, { random }) =>
   harden({
-    ...kernelObjects(
+    ...kzone.exoClass(
       'Entropy',
       M.interface('Entropy', { swiss: M.call().returns(M.string()) }),
       {

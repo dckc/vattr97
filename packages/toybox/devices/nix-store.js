@@ -2,7 +2,7 @@
 import { M } from '@endo/patterns';
 import { narHash } from '../nar.js';
 import { COMPATIBILITY_DATE, decode } from './bundles.js';
-import { kernelObjects } from './objects.js';
+import { kzone } from './objects.js';
 
 /**
  * @import { KernelPowers } from '../types.js';
@@ -149,7 +149,7 @@ export const makeNixStores = (
   );
 
   return harden({
-    ...kernelObjects(
+    ...kzone.exoClass(
       'NixStore',
       M.interface('NixStore', {
         getBundleCap: M.call(M.string()).returns(M.promise()),

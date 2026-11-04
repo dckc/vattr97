@@ -2,10 +2,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { M } from '@endo/patterns';
-import { kernelObjects } from '../devices/objects.js';
+import { kzone } from '../devices/objects.js';
 
 test("a kernel object's message reaches only its kind's own methods, through the guard", () => {
-  const greeters = kernelObjects(
+  const greeters = kzone.exoClass(
     'Greeter',
     M.interface('Greeter', { hi: M.call().returns(M.string()) }),
     {

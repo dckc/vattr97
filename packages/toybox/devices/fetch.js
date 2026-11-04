@@ -1,7 +1,7 @@
 /** @file Fetch and LAN devices, after SwingSet's devices: HTTP for vats, as data. */
 
 import { M } from '@endo/patterns';
-import { kernelObjects } from './objects.js';
+import { kzone } from './objects.js';
 
 /** @import { FetchAnswer, FetchInit, KernelPowers } from '../types.js' */
 
@@ -52,7 +52,7 @@ export const makeFetchDevices = (
 ) => {
   const device = makeFetchDevice(request => net.fetch(request));
   return harden({
-    ...kernelObjects(
+    ...kzone.exoClass(
       tag,
       M.interface(tag, {
         fetch: M.call(M.string())

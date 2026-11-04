@@ -17,7 +17,7 @@ import { defineExoClass } from '@endo/exo';
  * @param {Methods & ThisType<{ state: { rest: string } }>} methods
  * @returns {KernelObjects}
  */
-export const kernelObjects = (tag, interfaceGuard, methods) => {
+const kernelObjects = (tag, interfaceGuard, methods) => {
   const make = defineExoClass(
     tag,
     interfaceGuard,
@@ -35,3 +35,6 @@ export const kernelObjects = (tag, interfaceGuard, methods) => {
     },
   });
 };
+
+/** The kernel's zone: its `exoClass` needs no `init`, since an object's only state is its key. */
+export const kzone = harden({ exoClass: kernelObjects });

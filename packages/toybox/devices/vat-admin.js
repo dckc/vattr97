@@ -1,6 +1,6 @@
 /** @file vatAdmins and admin nodes, after SwingSet's. */
 import { M } from '@endo/patterns';
-import { kernelObjects } from './objects.js';
+import { kzone } from './objects.js';
 
 /**
  * @import { KernelPowers, Kref, VatId } from '../types.js';
@@ -44,7 +44,7 @@ export const makeVatAdmins = (
   const hashOf = bundleCap => bundles.hashOf(krefOf(bundleCap));
 
   return harden({
-    vatAdmins: kernelObjects(
+    vatAdmins: kzone.exoClass(
       'VatAdmin',
       M.interface('VatAdmin', {
         createVat: M.call(BundleCap).optional(M.record()).returns(M.promise()),
@@ -60,7 +60,7 @@ export const makeVatAdmins = (
         },
       },
     ),
-    adminNodes: kernelObjects(
+    adminNodes: kzone.exoClass(
       'AdminNode',
       M.interface('AdminNode', {
         upgrade: M.call(BundleCap).returns(M.promise()),

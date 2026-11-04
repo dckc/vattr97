@@ -1,7 +1,7 @@
 /** @file The boot directory: bundleCaps for what config.capnp's `boot` directory holds, for the boot vat to make vats from. */
 import { M } from '@endo/patterns';
 import { installTree, makeTreeReader } from './nix-store.js';
-import { kernelObjects } from './objects.js';
+import { kzone } from './objects.js';
 
 /**
  * @import { KernelPowers } from '../types.js';
@@ -50,7 +50,7 @@ export const makeBootBundles = (
   };
 
   return harden({
-    ...kernelObjects(
+    ...kzone.exoClass(
       'BootBundles',
       M.interface('BootBundles', {
         getBundleCap: M.call(M.string()).returns(M.promise()),
