@@ -242,6 +242,17 @@ export type KernelObjects = {
   deliver: (rest: string, method: string, args: unknown[]) => unknown;
 };
 
+/**
+ * An I/O device, as the kernel knows it: all it does with one is route
+ * messages to its kinds, and make one of its objects for whoever may hold it.
+ */
+export type Device = {
+  /** the kinds of object it defines, by key prefix */
+  kinds: Record<string, KernelObjects>;
+  /** a new object of this device, as a kref */
+  make: () => Kref;
+};
+
 /** What every kind of kernel object may use of the kernel. */
 export type KernelPowers = {
   /** the next number in the counter `name` */

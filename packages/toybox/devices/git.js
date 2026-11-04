@@ -4,7 +4,7 @@ import { M } from '@endo/patterns';
 import { blobId, parseLsTree, treeId } from '../git-tree.js';
 import { kzone } from './objects.js';
 
-/** @import { KernelKey, TablePowers } from '../types.js' */
+/** @import { Device, KernelKey, TablePowers } from '../types.js' */
 
 export const TABLES = {
   // a git tree (its id, in hex) and its files: JSON { path: blob id }
@@ -60,6 +60,7 @@ export const cutLines = (pending, size) => {
  * @param {TablePowers<Tables>} powers
  * @param {object} io
  * @param {{ fetch: (url: string) => Promise<Response> }} io.worktree config.capnp's `git-worktree` service
+ * @returns {Device}
  */
 export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
   /** @param {string} tree @returns {Record<string, string>} each file's blob id, by path */
@@ -281,9 +282,7 @@ export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
   );
 
   return harden({
-    worktrees,
-    trees,
-    readers,
+    kinds: { gitWorktree: worktrees, gitTree: trees, gitReader: readers },
     /** A git worktree: whoever holds it can read any file in the worktree whose git blob id they know. */
     make: () => kernelObject(`gitWorktree:${next('gitWorktree')}`),
   });

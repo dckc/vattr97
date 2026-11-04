@@ -11,16 +11,13 @@ import {
   TABLES as ENDOWMENT_TABLES,
   makeEndowments,
 } from './devices/endowments.js';
-import { makeEntropy } from './devices/entropy.js';
-import { makeFetchDevices } from './devices/fetch.js';
-import { TABLES as GIT_TABLES, makeGit } from './devices/git.js';
+import { makeDevices } from './devices/index.js';
 import { TABLES as INGRESS_TABLES, makeIngresses } from './devices/ingress.js';
-import { makeNixStores } from './devices/nix-store.js';
 import { makeVatAdmins } from './devices/vat-admin.js';
 import { makeORM } from './orm.js';
 
 /**
- * @import { CapData, Clist, HttpRequest, HttpResponse, IngressKey, KernelKey, KernelObjects, KernelPowers, Kref, VatId, Vref, WithTables } from './types.js';
+ * @import { CapData, Clist, Device, HttpRequest, HttpResponse, IngressKey, KernelKey, KernelObjects, KernelPowers, Kref, VatId, Vref, WithTables } from './types.js';
  * @import { ORM } from './orm.js';
  */
 
@@ -46,7 +43,7 @@ const TABLES = {
  * @property {{ vat: VatId }} kboot
  */
 
-const { keys, values } = Object;
+const { entries, fromEntries, hasOwn, keys, values } = Object;
 
 /** The owner of the kernel's own objects, in `kobject`. */
 const KERNEL = 'kernel';
@@ -155,13 +152,10 @@ export class Kernel extends DurableObject {
   #bundles;
   #ingresses;
   #vatAdmins;
-  #git;
-  #nixStores;
-  #fetchDevices;
-  #lanDevices;
   #bootBundles;
-  #entropy;
   #endowments;
+  /** @type {Record<string, Device>} */
+  #devices;
   /** @type {Promise<void> | undefined} this incarnation's {@link boot} */
   #booted;
 
@@ -214,46 +208,30 @@ export class Kernel extends DurableObject {
         restart: vat => this.ctx.facets.abort(vat, Error('restarted')),
       },
     });
-    this.#git = makeGit(withTables(GIT_TABLES), { worktree: env.GIT_WORKTREE });
-    this.#nixStores = makeNixStores(powers, {
-      store: env.NIX_STORE,
-      bundles: this.#bundles,
-    });
-    this.#fetchDevices = makeFetchDevices(powers, {
-      tag: 'FetchDevice',
-      prefix: 'fetch',
-      net: env.INTERNET,
-    });
-    this.#lanDevices = makeFetchDevices(powers, {
-      tag: 'LanDevice',
-      prefix: 'lan',
-      net: env.LAN,
-    });
     this.#bootBundles = makeBootBundles(powers, {
       boot: env.BOOT,
       bundles: this.#bundles,
     });
-    this.#entropy = makeEntropy(powers, {
+    this.#devices = makeDevices(powers, {
+      env,
+      bundles: this.#bundles,
+      withTables,
       // the Kernel is workerd's to construct, so randomness enters here, for
-      // the entropy device to hand out
+      // a device to hand out
       // eslint-disable-next-line no-restricted-properties
       random: n => crypto.getRandomValues(new Uint8Array(n)),
     });
     this.#objects = {
-      fetch: this.#fetchDevices,
-      lan: this.#lanDevices,
       kernel: this.#ingresses,
       vatAdmin: this.#vatAdmins.vatAdmins,
       adminNode: this.#vatAdmins.adminNodes,
       bundle: this.#bundles,
-      nixStore: this.#nixStores,
-      gitWorktree: this.#git.worktrees,
-      gitTree: this.#git.trees,
-      gitReader: this.#git.readers,
       bootBundles: this.#bootBundles,
-      entropy: this.#entropy,
       endowments: this.#endowments.directories,
       endowment: this.#endowments.endowments,
+      ...fromEntries(
+        values(this.#devices).flatMap(({ kinds }) => entries(kinds)),
+      ),
     };
   }
 
@@ -499,10 +477,9 @@ export class Kernel extends DurableObject {
    * has no boot vat.
    *
    * The boot vat is the service's root of authority: it gets the boot
-   * directory's bundles, a vatAdmin, an entropy device, the ingress for
-   * the `app` socket, a nixStore, a git worktree, a fetch and a LAN device,
-   * and the endowments the operator made grantable, to hand on as it sees
-   * fit.
+   * directory's bundles, a vatAdmin, the ingress for the `app` socket, the
+   * endowments the operator made grantable, and one of each I/O device, to
+   * hand on as it sees fit.
    */
   boot() {
     this.#booted ??= this.#boot().catch(e => {
@@ -528,13 +505,14 @@ export class Kernel extends DurableObject {
       const params = harden({
         vatAdmin: standIn(this.#vatAdmins.make()),
         bundles: standIn(this.#bootBundles.make()),
-        entropy: standIn(this.#entropy.make()),
         ingress: standIn(this.#ingresses.socket('app')),
-        nixStore: standIn(this.#nixStores.make()),
-        gitWorktree: standIn(this.#git.make()),
-        fetch: standIn(this.#fetchDevices.make()),
-        lan: standIn(this.#lanDevices.make()),
         endowments: standIn(this.#endowments.make()),
+        ...fromEntries(
+          entries(this.#devices).map(([name, { make }]) => [
+            name,
+            standIn(make()),
+          ]),
+        ),
       });
       ({ vat } = await this.#startVat(
         hash,
@@ -603,12 +581,12 @@ export class Kernel extends DurableObject {
               ),
             })),
         makeIngress: labels => toSession(this.#ingresses.make(labels)),
-        makeFetchDevice: () => toSession(this.#fetchDevices.make()),
-        makeLanDevice: () => toSession(this.#lanDevices.make()),
+        makeDevice: async name => {
+          if (!hasOwn(this.#devices, name)) throw Error(`no device ${name}`);
+          return toSession(this.#devices[name].make());
+        },
         makeVatAdmin: () => toSession(this.#vatAdmins.make()),
         installBundle: src => toSession(this.#bundles.install(src)),
-        makeNixStore: () => toSession(this.#nixStores.make()),
-        makeGitWorktree: () => toSession(this.#git.make()),
       }),
     );
   }
@@ -622,12 +600,9 @@ export class Kernel extends DurableObject {
  * @property {(vref: Vref, method: string, capdata: CapData) => Promise<CapData>} send
  * @property {() => { root: Vref, adminNode: Vref }[]} vats
  * @property {(labels: Record<string, string>) => Promise<Vref>} makeIngress
- * @property {() => Promise<Vref>} makeFetchDevice
- * @property {() => Promise<Vref>} makeLanDevice
+ * @property {(name: string) => Promise<Vref>} makeDevice
  * @property {() => Promise<Vref>} makeVatAdmin
  * @property {(src: string) => Promise<Vref>} installBundle
- * @property {() => Promise<Vref>} makeNixStore
- * @property {() => Promise<Vref>} makeGitWorktree
  */
 
 /**
@@ -673,14 +648,9 @@ export class KernelSession extends RpcTarget {
     return this.#powers.makeIngress(labels);
   }
 
-  /** A fetch device, as a vref of this session. */
-  makeFetchDevice() {
-    return this.#powers.makeFetchDevice();
-  }
-
-  /** A LAN device, as a vref of this session: a fetch device for private addresses. */
-  makeLanDevice() {
-    return this.#powers.makeLanDevice();
+  /** The I/O device `name` makes (devices/index.js), as a vref of this session. @param {string} name */
+  makeDevice(name) {
+    return this.#powers.makeDevice(name);
   }
 
   /** A vatAdmin, as a vref of this session. */
@@ -691,16 +661,6 @@ export class KernelSession extends RpcTarget {
   /** Keep `src`; its bundleCap, as a vref of this session, is for a vatAdmin's `createVat`. @param {string} src */
   installBundle(src) {
     return this.#powers.installBundle(src);
-  }
-
-  /** A nixStore, as a vref of this session. */
-  makeNixStore() {
-    return this.#powers.makeNixStore();
-  }
-
-  /** A git worktree, as a vref of this session. */
-  makeGitWorktree() {
-    return this.#powers.makeGitWorktree();
   }
 }
 

@@ -55,18 +55,12 @@ export const connectKernel = async ws => {
     /** An ingress for a mount at `labels`. @param {Record<string, string>} labels */
     makeIngress: async labels =>
       ls.slotToVal(await session.makeIngress(labels)),
-    /** A fetch device, for a vat's params. */
-    makeFetchDevice: async () => ls.slotToVal(await session.makeFetchDevice()),
-    /** A LAN device: a fetch device for private addresses (a tailnet's included), for a vat's params. */
-    makeLanDevice: async () => ls.slotToVal(await session.makeLanDevice()),
+    /** An I/O device, for a vat's params: `fetch`, `lan`, `nixStore`, `gitWorktree`, or `entropy` (devices/index.js). @param {string} name */
+    makeDevice: async name => ls.slotToVal(await session.makeDevice(name)),
     /** A vatAdmin, for a bootstrap vat's params. */
     makeVatAdmin: async () => ls.slotToVal(await session.makeVatAdmin()),
     /** Keep `src`; its bundleCap is for a vatAdmin's `createVat`. @param {string} src */
     installBundle: async src => ls.slotToVal(await session.installBundle(src)),
-    /** A nixStore, whose `getBundleCap(path)` answers a bundleCap for a file in the nix store. */
-    makeNixStore: async () => ls.slotToVal(await session.makeNixStore()),
-    /** A git worktree, whose `getTree(tree, listing)` answers a read-only git tree of the files `git ls-tree -r -z` lists. */
-    makeGitWorktree: async () => ls.slotToVal(await session.makeGitWorktree()),
     close: () => ws.close(),
   });
 };

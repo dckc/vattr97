@@ -5,7 +5,7 @@ import { COMPATIBILITY_DATE, decode } from './bundles.js';
 import { kzone } from './objects.js';
 
 /**
- * @import { KernelPowers, Manifest, NarNode } from '../types.js';
+ * @import { Device, KernelPowers, Manifest, NarNode } from '../types.js';
  * @import { makeBundles } from './bundles.js';
  */
 
@@ -143,6 +143,7 @@ export const installTree = async (bundles, path, node) => {
  * @param {object} io
  * @param {{ fetch: (url: string) => Promise<Response> }} io.store config.capnp's `nix-store` service
  * @param {ReturnType<typeof makeBundles>} io.bundles
+ * @returns {Device}
  */
 export const makeNixStores = (
   { next, kernelObject, standIn },
@@ -158,22 +159,24 @@ export const makeNixStores = (
   );
 
   return harden({
-    ...kzone.exoClass(
-      'NixStore',
-      M.interface('NixStore', {
-        getBundleCap: M.call(M.string()).returns(M.promise()),
-      }),
-      {
-        /** @param {string} path */
-        async getBundleCap(path) {
-          const [, name] = path.match(STORE_PATH) ?? [];
-          if (!name) throw Error('not a store path');
-          return standIn(
-            await installTree(bundles, path, await readStore([name])),
-          );
+    kinds: {
+      nixStore: kzone.exoClass(
+        'NixStore',
+        M.interface('NixStore', {
+          getBundleCap: M.call(M.string()).returns(M.promise()),
+        }),
+        {
+          /** @param {string} path */
+          async getBundleCap(path) {
+            const [, name] = path.match(STORE_PATH) ?? [];
+            if (!name) throw Error('not a store path');
+            return standIn(
+              await installTree(bundles, path, await readStore([name])),
+            );
+          },
         },
-      },
-    ),
+      ),
+    },
     /** A nixStore: whoever holds it can make a bundleCap for any file in the nix store. */
     make: () => kernelObject(`nixStore:${next('nixStore')}`),
   });

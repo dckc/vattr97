@@ -3,7 +3,7 @@ import { encodeHex } from '@endo/hex';
 import { M } from '@endo/patterns';
 import { kzone } from './objects.js';
 
-/** @import { KernelPowers } from '../types.js' */
+/** @import { Device, KernelPowers } from '../types.js' */
 
 /**
  * Entropy devices: `swiss()` answers 128 random bits in hex, as a swiss
@@ -12,21 +12,24 @@ import { kzone } from './objects.js';
  * @param {KernelPowers} powers
  * @param {object} io
  * @param {(n: number) => Uint8Array} io.random `n` random bytes
+ * @returns {Device}
  */
 export const makeEntropy = ({ next, kernelObject }, { random }) =>
   harden({
-    ...kzone.exoClass(
-      'Entropy',
-      M.interface('Entropy', { swiss: M.call().returns(M.string()) }),
-      {
-        swiss() {
-          const bytes = random(16);
-          if (bytes.length !== 16)
-            throw Error('random gave other than 16 bytes');
-          return encodeHex(bytes);
+    kinds: {
+      entropy: kzone.exoClass(
+        'Entropy',
+        M.interface('Entropy', { swiss: M.call().returns(M.string()) }),
+        {
+          swiss() {
+            const bytes = random(16);
+            if (bytes.length !== 16)
+              throw Error('random gave other than 16 bytes');
+            return encodeHex(bytes);
+          },
         },
-      },
-    ),
+      ),
+    },
     /** An entropy device: whoever holds it can draw swiss numbers. */
     make: () => kernelObject(`entropy:${next('entropy')}`),
   });

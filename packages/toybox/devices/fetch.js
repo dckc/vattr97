@@ -3,7 +3,7 @@
 import { M } from '@endo/patterns';
 import { kzone } from './objects.js';
 
-/** @import { FetchAnswer, FetchInit, KernelPowers } from '../types.js' */
+/** @import { Device, FetchAnswer, FetchInit, KernelPowers } from '../types.js' */
 
 const { fromEntries } = Object;
 
@@ -45,6 +45,7 @@ export const makeFetchDevice = fetch =>
  * @param {string} io.tag `FetchDevice` or `LanDevice`
  * @param {string} io.prefix their keys' prefix
  * @param {{ fetch: (request: Request) => Promise<Response> }} io.net
+ * @returns {Device}
  */
 export const makeFetchDevices = (
   { next, kernelObject },
@@ -52,27 +53,29 @@ export const makeFetchDevices = (
 ) => {
   const device = makeFetchDevice(request => net.fetch(request));
   return harden({
-    ...kzone.exoClass(
-      tag,
-      M.interface(tag, {
-        fetch: M.call(M.string())
-          .optional(
-            M.splitRecord(
-              {},
-              {
-                method: M.string(),
-                headers: M.recordOf(M.string(), M.string()),
-                body: M.string(),
-              },
-            ),
-          )
-          .returns(M.promise()),
-      }),
-      {
-        /** @param {string} url @param {FetchInit} [init] */
-        fetch: (url, init) => device.fetch(url, init),
-      },
-    ),
+    kinds: {
+      [prefix]: kzone.exoClass(
+        tag,
+        M.interface(tag, {
+          fetch: M.call(M.string())
+            .optional(
+              M.splitRecord(
+                {},
+                {
+                  method: M.string(),
+                  headers: M.recordOf(M.string(), M.string()),
+                  body: M.string(),
+                },
+              ),
+            )
+            .returns(M.promise()),
+        }),
+        {
+          /** @param {string} url @param {FetchInit} [init] */
+          fetch: (url, init) => device.fetch(url, init),
+        },
+      ),
+    },
     /** A device: whoever holds it can fetch anything `net` reaches. */
     make: () => kernelObject(`${prefix}:${next(prefix)}`),
   });

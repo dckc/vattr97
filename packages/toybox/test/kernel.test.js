@@ -288,7 +288,7 @@ test("upgrading a vat's code keeps its durable objects, and others' references t
   );
   assert.equal(await E(holder).bump('c'), 31);
   await assert.rejects(
-    E(admin).upgrade(await k.makeFetchDevice()),
+    E(admin).upgrade(await k.makeDevice('fetch')),
     /not a bundleCap/,
   );
 });
@@ -367,7 +367,7 @@ test('a vatAdmin creates vats only from bundleCaps; a bundle has one bundleCap',
     /Must be a remotable BundleCap/,
   );
   await assert.rejects(
-    E(vatAdmin).createVat(await k.makeFetchDevice(), {}),
+    E(vatAdmin).createVat(await k.makeDevice('fetch'), {}),
     /not a bundleCap/,
   );
   await assert.rejects(
@@ -376,9 +376,14 @@ test('a vatAdmin creates vats only from bundleCaps; a bundle has one bundleCap',
   );
 });
 
+test('a session makes only the devices there are', async () => {
+  await assert.rejects(k.makeDevice('nope'), /no device nope/);
+  await assert.rejects(k.makeDevice('__proto__'), /no device __proto__/);
+});
+
 test('a nixStore makes a bundleCap for a file in the store, and refuses anything else', async () => {
   const vatAdmin = await k.makeVatAdmin();
-  const nixStore = await k.makeNixStore();
+  const nixStore = await k.makeDevice('nixStore');
   const storePath = await addToStore(join(here, 'kvats', 'counter.js'));
   const bundleCap = await E(nixStore).getBundleCap(storePath);
   assert.equal(await E(nixStore).getBundleCap(storePath), bundleCap);
@@ -407,7 +412,7 @@ test('a nixStore makes a bundleCap for a file in the store, and refuses anything
 
 test('a nixStore bundle can be a directory of modules, its main one named by worker.json', async () => {
   const vatAdmin = await k.makeVatAdmin();
-  const nixStore = await k.makeNixStore();
+  const nixStore = await k.makeDevice('nixStore');
   const bundleCap = await E(nixStore).getBundleCap(
     await addToStore(join(here, 'test', 'greeter')),
   );
@@ -442,7 +447,7 @@ test("a git worktree reads only the files a git tree lists, and only while they'
     join(worktree, 'elsewhere.txt'),
     'in the worktree, not the tree',
   );
-  const gitWorktree = await k.makeGitWorktree();
+  const gitWorktree = await k.makeDevice('gitWorktree');
   const greeter = await E(gitWorktree).getTree(tree, listing);
   assert.deepEqual(await E(greeter).list(), [
     'big.ndjson',
@@ -595,7 +600,10 @@ test("a LAN device reaches only what config.capnp's lan service allows: private 
   const port = await listenLocal(site);
   try {
     const url = `http://127.0.0.1:${port}/`;
-    for (const device of [await k.makeLanDevice(), await k.makeFetchDevice()])
+    for (const device of [
+      await k.makeDevice('lan'),
+      await k.makeDevice('fetch'),
+    ])
       await assert.rejects(E(device).fetch(url), /internal error/);
   } finally {
     await new Promise(resolve => site.close(resolve));
@@ -625,15 +633,15 @@ test('a bootstrap vat wires a bookmark cache from nix store code; the cache serv
       await kvat('cache-boot.js'),
       {
         vatAdmin: await client.makeVatAdmin(),
-        nixStore: await client.makeNixStore(),
+        nixStore: await client.makeDevice('nixStore'),
         paths: {
           webApp: await addToStore(join(here, 'kvats', 'webapp.js')),
           storeMaker: await addToStore(join(here, 'kvats', 'store-maker.js')),
           cache: await addToStore(join(here, 'kvats', 'bookmark-cache.js')),
         },
-        fetch: await client.makeFetchDevice(),
+        fetch: await client.makeDevice('fetch'),
         ingress: await client.makeIngress({ app: 'bookmarks' }),
-        templates: await E(await client.makeGitWorktree()).getTree(
+        templates: await E(await client.makeDevice('gitWorktree')).getTree(
           tree,
           listing,
         ),
@@ -660,7 +668,7 @@ test('a bootstrap vat wires a bookmark cache from nix store code; the cache serv
     assert.equal(await E(cache).refresh(), 'GET /bookmarks/ cookie=session=2');
 
     // here the lan service allows loopback, where this test's site is
-    const lan = await client.makeLanDevice();
+    const lan = await client.makeDevice('lan');
     assert.deepEqual(
       (({ status, body }) => ({ status, body }))(
         await E(lan).fetch(`http://${host}/models`),
