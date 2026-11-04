@@ -305,6 +305,8 @@ const makeZone = ({
         ? Number(enc.slice(1))
         : slotToVal(/** @type {Vref} as encoded here */ (enc.slice(1)));
 
+  // FIXME: a store named `a` also finds the entries of one named `a.b`, whose
+  // keys start with `store.a.` too, so its size is wrong and keys() throws
   /** A store's entries are under `store.<id>.`; a named store's id is its name. @param {string} id @param {unknown} key @returns {VatstoreKey} */
   const at = (id, key) => `store.${id}.${encodeKey(key)}`;
   /** @param {string} id @returns {[unknown, unknown][]} */
@@ -427,6 +429,8 @@ const makeZone = ({
    */
   const defineKind = (tag, facets, makeKind) => {
     const shape = facets ? JSON.stringify([...facets].sort()) : 'self';
+    // FIXME: `kind.next` is also the counter of kinds, so a kind tagged `next`
+    // reads that as its id, and loses its objects on the next incarnation
     let kindId = kv.get(`kind.${tag}`);
     if (kindId === undefined) {
       kindId = String(nextIn(kv, 'kind.next'));
