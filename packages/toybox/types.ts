@@ -5,6 +5,7 @@
  */
 import type { E as EType, Far as FarType } from '@endo/far';
 import type { M as MType } from '@endo/patterns';
+import type { ORM, Row } from './orm.js';
 
 /** A message's arguments or answer: marshalled data, and the references in it, by slot. */
 export type CapData = { body: string; slots: string[] };
@@ -191,8 +192,6 @@ export type KernelObjects = {
 
 /** What every kind of kernel object may use of the kernel. */
 export type KernelPowers = {
-  /** the kernel's SQLite; each kind keeps its own tables in it */
-  sql: SqlStorage;
   /** the next number in the counter `name` */
   next: (name: string) => number;
   /** the kref of the kernel object `key`, made the first time it's asked for */
@@ -204,6 +203,17 @@ export type KernelPowers = {
   /** the key of the kernel's own object `kref`, if it is one */
   keyOf: (kref: string) => string | undefined;
 };
+
+/** What a kind of kernel object with tables of its own gets: statements on those, and no others. */
+export type TablePowers<DB extends Record<string, Row>> = KernelPowers & {
+  db: ORM<DB>;
+};
+
+/**
+ * Create `tables` (DDL by table name), and answer powers limited to them.
+ * The rows' types are the module's that declares the tables.
+ */
+export type WithTables = (tables: Record<string, string>) => TablePowers<any>;
 
 /**
  * A reference to an object in another vat, or a kernel object: E() reaches

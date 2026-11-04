@@ -6,21 +6,24 @@
 import { M } from '@endo/patterns';
 import { kernelObjects } from './objects.js';
 
-/** @import { KernelPowers } from '../types.js' */
+/** @import { TablePowers } from '../types.js' */
 
-export const SCHEMA = [
+export const TABLES = {
   // an ingress (a kernel object; its key is its vref) and the kref of whoever serves it
-  'CREATE TABLE IF NOT EXISTS kingress (key TEXT PRIMARY KEY, handler TEXT)',
-];
+  kingress:
+    'CREATE TABLE IF NOT EXISTS kingress (key TEXT PRIMARY KEY, handler TEXT)',
+};
+
+/** @typedef {{ kingress: { key: string, handler: string | null } }} Tables */
 
 /**
- * @param {KernelPowers} powers
+ * @param {TablePowers<Tables>} powers
  * @param {object} io
  * @param {string} io.kernel this kernel's id, which an ingress's key names, so the Directory's mount leads back here
  * @param {{ mount: (key: string, labels: Record<string, string>) => Promise<void> }} io.directory
  */
 export const makeIngresses = (
-  { sql, next, kernelObject, krefOf },
+  { db, next, kernelObject, krefOf },
   { kernel, directory },
 ) =>
   harden({
@@ -35,11 +38,9 @@ export const makeIngresses = (
           const kref = krefOf(handler);
           if (!kref)
             throw Error('serve takes a reference the kernel handed out');
-          sql.exec(
-            'UPDATE kingress SET handler = ? WHERE key = ?',
-            kref,
-            `kernel:${this.state.rest}`,
-          );
+          db.lookup('kingress', { key: `kernel:${this.state.rest}` }).update({
+            handler: kref,
+          });
         },
       },
     ),
@@ -52,11 +53,11 @@ export const makeIngresses = (
       const key = `kernel:${kernel}:${next('ingress')}`;
       // the row first: a crash between the two leaves a row no request can
       // reach, not a mount whose requests find no ingress
-      sql.exec('INSERT INTO kingress VALUES (?, NULL)', key);
+      db.insert('kingress', { key, handler: null });
       try {
         await directory.mount(key, harden({ ...labels }));
       } catch (err) {
-        sql.exec('DELETE FROM kingress WHERE key = ?', key);
+        db.lookup('kingress', { key }).delete();
         throw err;
       }
       return kernelObject(key);
@@ -69,7 +70,7 @@ export const makeIngresses = (
      */
     socket(name) {
       const key = this.socketKey(name);
-      sql.exec('INSERT OR IGNORE INTO kingress VALUES (?, NULL)', key);
+      db.insertOrIgnore('kingress', { key, handler: null });
       return kernelObject(key);
     },
     /** The key of the socket `name`'s ingress. @param {string} name */
@@ -80,13 +81,6 @@ export const makeIngresses = (
      * @param {string} key
      * @returns {string | undefined}
      */
-    handlerOf(key) {
-      const [row] = sql
-        .exec('SELECT handler FROM kingress WHERE key = ?', key)
-        .toArray();
-      return (
-        /** @type {string | null | undefined} TEXT, or NULL */ (row?.handler) ??
-        undefined
-      );
-    },
+    handlerOf: key =>
+      db.lookup('kingress', { key }).get()?.handler ?? undefined,
   });

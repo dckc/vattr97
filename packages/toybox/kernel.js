@@ -5,30 +5,43 @@ import { makeMarshal } from '@endo/marshal';
 import { Far } from '@endo/pass-style';
 import KVAT_RUNTIME from 'kvat-runtime.txt';
 import { makeBootBundles } from './devices/boot.js';
-import { SCHEMA as BUNDLE_SCHEMA, makeBundles } from './devices/bundles.js';
+import { TABLES as BUNDLE_TABLES, makeBundles } from './devices/bundles.js';
 import { makeEntropy } from './devices/entropy.js';
 import { makeFetchDevices } from './devices/fetch.js';
-import { SCHEMA as GIT_SCHEMA, makeGit } from './devices/git.js';
-import { SCHEMA as INGRESS_SCHEMA, makeIngresses } from './devices/ingress.js';
+import { TABLES as GIT_TABLES, makeGit } from './devices/git.js';
+import { TABLES as INGRESS_TABLES, makeIngresses } from './devices/ingress.js';
 import { makeNixStores } from './devices/nix-store.js';
 import { makeVatAdmins } from './devices/vat-admin.js';
+import { makeORM } from './orm.js';
 
 /**
- * @import { CapData, Clist, HttpRequest, HttpResponse, KernelObjects, KernelPowers } from './types.js';
+ * @import { CapData, Clist, HttpRequest, HttpResponse, KernelObjects, KernelPowers, WithTables } from './types.js';
+ * @import { ORM } from './orm.js';
  */
 
-const SCHEMA = [
+const TABLES = {
   // hash: of a bundle (devices/bundles.js); params: CapData whose slots are krefs
-  'CREATE TABLE IF NOT EXISTS kvat (vat TEXT PRIMARY KEY, hash TEXT NOT NULL, params TEXT NOT NULL)',
-  'CREATE TABLE IF NOT EXISTS kobject (kref TEXT PRIMARY KEY, owner TEXT NOT NULL, vref TEXT NOT NULL, UNIQUE (owner, vref))',
-  'CREATE TABLE IF NOT EXISTS clist (vat TEXT NOT NULL, vref TEXT NOT NULL, kref TEXT NOT NULL, PRIMARY KEY (vat, vref), UNIQUE (vat, kref))',
-  'CREATE TABLE IF NOT EXISTS kcounter (name TEXT PRIMARY KEY, n INTEGER NOT NULL)',
+  kvat: 'CREATE TABLE IF NOT EXISTS kvat (vat TEXT PRIMARY KEY, hash TEXT NOT NULL, params TEXT NOT NULL)',
+  kobject:
+    'CREATE TABLE IF NOT EXISTS kobject (kref TEXT PRIMARY KEY, owner TEXT NOT NULL, vref TEXT NOT NULL, UNIQUE (owner, vref))',
+  clist:
+    'CREATE TABLE IF NOT EXISTS clist (vat TEXT NOT NULL, vref TEXT NOT NULL, kref TEXT NOT NULL, PRIMARY KEY (vat, vref), UNIQUE (vat, kref))',
+  kcounter:
+    'CREATE TABLE IF NOT EXISTS kcounter (name TEXT PRIMARY KEY, n INTEGER NOT NULL)',
   // the boot vat, if this kernel has one
-  'CREATE TABLE IF NOT EXISTS kboot (vat TEXT NOT NULL)',
-  ...BUNDLE_SCHEMA,
-  ...INGRESS_SCHEMA,
-  ...GIT_SCHEMA,
-];
+  kboot: 'CREATE TABLE IF NOT EXISTS kboot (vat TEXT NOT NULL)',
+};
+
+/**
+ * @typedef {object} Tables
+ * @property {{ vat: string, hash: string, params: string }} kvat
+ * @property {{ kref: string, owner: string, vref: string }} kobject
+ * @property {{ vat: string, vref: string, kref: string }} clist
+ * @property {{ name: string, n: number }} kcounter
+ * @property {{ vat: string }} kboot
+ */
+
+const { keys, values } = Object;
 
 /** The owner of the kernel's own objects, in `kobject`. */
 const KERNEL = 'kernel';
@@ -127,6 +140,8 @@ const makeKrefMarshal = () => {
  */
 export class Kernel extends DurableObject {
   #krefs = makeKrefMarshal();
+  /** @type {ORM<Tables>} */
+  #db;
   /** @type {Record<string, KernelObjects>} each kind of the kernel's own objects, by key prefix */
   #objects;
   #bundles;
@@ -145,18 +160,24 @@ export class Kernel extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     const { sql } = ctx.storage;
-    for (const statement of SCHEMA) sql.exec(statement);
+    /** @param {Record<string, string>} tables */
+    const ownTables = tables => {
+      for (const ddl of values(tables)) sql.exec(ddl);
+      return makeORM(sql, keys(tables));
+    };
+    this.#db = ownTables(TABLES);
     /** @type {KernelPowers} */
     const powers = harden({
-      sql,
       next: name => this.#next(name),
       kernelObject: key => this.#kernelObject(key),
       standIn: this.#krefs.standIn,
       krefOf: this.#krefs.krefOf,
       keyOf: kref => this.#keyOf(kref),
     });
-    this.#bundles = makeBundles(powers);
-    this.#ingresses = makeIngresses(powers, {
+    /** @type {WithTables} */
+    const withTables = tables => harden({ ...powers, db: ownTables(tables) });
+    this.#bundles = makeBundles(withTables(BUNDLE_TABLES));
+    this.#ingresses = makeIngresses(withTables(INGRESS_TABLES), {
       kernel: ctx.id.toString(),
       directory: env.DIRECTORY.getByName('directory'),
     });
@@ -169,7 +190,7 @@ export class Kernel extends DurableObject {
         restart: vat => this.ctx.facets.abort(vat, Error('restarted')),
       },
     });
-    this.#git = makeGit(powers, { worktree: env.GIT_WORKTREE });
+    this.#git = makeGit(withTables(GIT_TABLES), { worktree: env.GIT_WORKTREE });
     this.#nixStores = makeNixStores(powers, {
       store: env.NIX_STORE,
       bundles: this.#bundles,
@@ -228,30 +249,16 @@ export class Kernel extends DurableObject {
    * @param {string} key
    */
   #kernelObject(key) {
-    const { sql } = this.ctx.storage;
-    const [row] = sql
-      .exec(
-        'SELECT kref FROM kobject WHERE owner = ? AND vref = ?',
-        KERNEL,
-        key,
-      )
-      .toArray();
-    if (row) return /** @type {string} TEXT */ (row.kref);
+    const row = this.#db.lookup('kobject', { owner: KERNEL, vref: key }).get();
+    if (row) return row.kref;
     const kref = `ko${this.#next('kref')}`;
-    sql.exec('INSERT INTO kobject VALUES (?, ?, ?)', kref, KERNEL, key);
+    this.#db.insert('kobject', { kref, owner: KERNEL, vref: key });
     return kref;
   }
 
   /** @param {string} kref @returns {string | undefined} */
   #keyOf(kref) {
-    const [row] = this.ctx.storage.sql
-      .exec(
-        'SELECT vref FROM kobject WHERE kref = ? AND owner = ?',
-        kref,
-        KERNEL,
-      )
-      .toArray();
-    return /** @type {string | undefined} TEXT */ (row?.vref);
+    return this.#db.lookup('kobject', { kref, owner: KERNEL }).get()?.vref;
   }
 
   /**
@@ -261,26 +268,22 @@ export class Kernel extends DurableObject {
    * @returns {Clist}
    */
   #clist(vat) {
-    const { sql } = this.ctx.storage;
+    const db = this.#db;
     return {
       toKernel: vref => {
-        const [row] = sql
-          .exec('SELECT kref FROM clist WHERE vat = ? AND vref = ?', vat, vref)
-          .toArray();
-        if (row) return /** @type {string} TEXT */ (row.kref);
+        const row = db.lookup('clist', { vat, vref }).get();
+        if (row) return row.kref;
         if (!EXPORT.test(vref)) throw Error(`${vat} holds no ${vref}`);
         const kref = `ko${this.#next('kref')}`;
-        sql.exec('INSERT INTO kobject VALUES (?, ?, ?)', kref, vat, vref);
-        sql.exec('INSERT INTO clist VALUES (?, ?, ?)', vat, vref, kref);
+        db.insert('kobject', { kref, owner: vat, vref });
+        db.insert('clist', { vat, vref, kref });
         return kref;
       },
       toVat: kref => {
-        const [row] = sql
-          .exec('SELECT vref FROM clist WHERE vat = ? AND kref = ?', vat, kref)
-          .toArray();
-        if (row) return /** @type {string} TEXT */ (row.vref);
+        const row = db.lookup('clist', { vat, kref }).get();
+        if (row) return row.vref;
         const vref = `o-${this.#next(`import:${vat}`)}`;
-        sql.exec('INSERT INTO clist VALUES (?, ?, ?)', vat, vref, kref);
+        db.insert('clist', { vat, vref, kref });
         return vref;
       },
     };
@@ -295,11 +298,7 @@ export class Kernel extends DurableObject {
   #vat(vat) {
     return /** @type {any} the facet's stub, whose methods are kvat-runtime.js's App's */ (
       this.ctx.facets.get(vat, () => {
-        const hash = /** @type {string} TEXT */ (
-          this.ctx.storage.sql
-            .exec('SELECT hash FROM kvat WHERE vat = ?', vat)
-            .one().hash
-        );
+        const { hash } = this.#db.lookup('kvat', { vat }).one();
         const worker = this.env.LOADER.get(
           `${this.ctx.id}:${vat}:${hash}`,
           () => {
@@ -332,12 +331,9 @@ export class Kernel extends DurableObject {
    * @returns {Promise<CapData>} slots are krefs
    */
   async #deliver(kref, method, kargs) {
-    const [obj] = this.ctx.storage.sql
-      .exec('SELECT owner, vref FROM kobject WHERE kref = ?', kref)
-      .toArray();
+    const obj = this.#db.lookup('kobject', { kref }).get();
     if (!obj) throw Error(`no such object ${kref}`);
-    const owner = /** @type {string} TEXT */ (obj.owner);
-    const vref = /** @type {string} TEXT */ (obj.vref);
+    const { owner, vref } = obj;
     if (owner === KERNEL) {
       const at = vref.indexOf(':');
       const kind = this.#objects[vref.slice(0, at)];
@@ -402,11 +398,7 @@ export class Kernel extends DurableObject {
 
   /** For {@link Syscall} only: the params a vat was created with, in its vrefs. @param {string} vat */
   syscallParams(vat) {
-    const params = /** @type {string} TEXT */ (
-      this.ctx.storage.sql
-        .exec('SELECT params FROM kvat WHERE vat = ?', vat)
-        .one().params
-    );
+    const { params } = this.#db.lookup('kvat', { vat }).one();
     return mapSlots(JSON.parse(params), this.#clist(vat).toVat);
   }
 
@@ -420,12 +412,7 @@ export class Kernel extends DurableObject {
    */
   async #startVat(hash, kparams, made) {
     const vat = `v${this.#next('vat')}`;
-    this.ctx.storage.sql.exec(
-      'INSERT INTO kvat VALUES (?, ?, ?)',
-      vat,
-      hash,
-      JSON.stringify(kparams),
-    );
+    this.#db.insert('kvat', { vat, hash, params: JSON.stringify(kparams) });
     made?.(vat);
     const root = this.#clist(vat).toKernel('o+0');
     await this.#vat(vat).ready();
@@ -441,17 +428,15 @@ export class Kernel extends DurableObject {
    * @param {string} hash
    */
   async #upgradeVat(vat, hash) {
-    const { sql } = this.ctx.storage;
-    const [old] = sql
-      .exec('SELECT hash FROM kvat WHERE vat = ?', vat)
-      .toArray();
+    const row = this.#db.lookup('kvat', { vat });
+    const old = row.get();
     if (!old) throw Error(`no such vat ${vat}`);
-    sql.exec('UPDATE kvat SET hash = ? WHERE vat = ?', hash, vat);
+    row.update({ hash });
     this.ctx.facets.abort(vat, Error('upgraded'));
     try {
       await this.#vat(vat).ready();
     } catch (e) {
-      sql.exec('UPDATE kvat SET hash = ? WHERE vat = ?', old.hash, vat);
+      row.update({ hash: old.hash });
       this.ctx.facets.abort(vat, Error('upgrade failed'));
       throw e;
     }
@@ -488,9 +473,7 @@ export class Kernel extends DurableObject {
     ).flat();
     if (!name) return;
     const hash = this.#bundles.hashOf(await this.#bootBundles.install(name));
-    const { sql } = this.ctx.storage;
-    const [row] = sql.exec('SELECT vat FROM kboot').toArray();
-    let vat = /** @type {string | undefined} TEXT */ (row?.vat);
+    let vat = this.#db.query('kboot')[0]?.vat;
     if (!vat) {
       const { standIn } = this.#krefs;
       const params = harden({
@@ -506,10 +489,10 @@ export class Kernel extends DurableObject {
       ({ vat } = await this.#startVat(
         hash,
         this.#krefs.toCapData(params),
-        made => sql.exec('INSERT INTO kboot VALUES (?)', made),
+        made => this.#db.insert('kboot', { vat: made }),
       ));
     } else {
-      const old = sql.exec('SELECT hash FROM kvat WHERE vat = ?', vat).one();
+      const old = this.#db.lookup('kvat', { vat }).one();
       if (old.hash !== hash) await this.#upgradeVat(vat, hash);
     }
     await this.#deliver(

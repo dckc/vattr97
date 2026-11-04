@@ -4,12 +4,15 @@ import { blobId, parseLsTree, treeId } from '../git-tree.js';
 import { hex } from './bundles.js';
 import { kernelObjects } from './objects.js';
 
-/** @import { KernelPowers } from '../types.js' */
+/** @import { TablePowers } from '../types.js' */
 
-export const SCHEMA = [
+export const TABLES = {
   // a git tree (its id, in hex) and its files: JSON { path: blob id }
-  'CREATE TABLE IF NOT EXISTS kgittree (tree TEXT PRIMARY KEY, files TEXT NOT NULL)',
-];
+  kgittree:
+    'CREATE TABLE IF NOT EXISTS kgittree (tree TEXT PRIMARY KEY, files TEXT NOT NULL)',
+};
+
+/** @typedef {{ kgittree: { tree: string, files: string } }} Tables */
 
 /** About how much text, in UTF-16 units, a reader gives out at a time. */
 const READ_CHUNK = 64 * 1024;
@@ -52,18 +55,14 @@ export const cutLines = (pending, size) => {
  * it gave out matches. A reader lives in memory: once the kernel restarts,
  * it only throws.
  *
- * @param {KernelPowers} powers
+ * @param {TablePowers<Tables>} powers
  * @param {object} io
  * @param {{ fetch: (url: string) => Promise<Response> }} io.worktree config.capnp's `git-worktree` service
  */
-export const makeGit = ({ sql, next, kernelObject, standIn }, { worktree }) => {
+export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
   /** @param {string} tree @returns {Record<string, string>} each file's blob id, by path */
   const filesOf = tree =>
-    JSON.parse(
-      /** @type {string} TEXT */ (
-        sql.exec('SELECT files FROM kgittree WHERE tree = ?', tree).one().files
-      ),
-    );
+    JSON.parse(db.lookup('kgittree', { tree }).one().files);
 
   /** The worktree's file at `path`, as `tree` lists it. @param {string} tree @param {string} path */
   const fetchListed = async (tree, path) => {
@@ -184,13 +183,12 @@ export const makeGit = ({ sql, next, kernelObject, standIn }, { worktree }) => {
         const actual = await treeId(files);
         if (tree !== null && actual !== tree)
           throw Error(`that listing is of tree ${actual}, not ${tree}`);
-        sql.exec(
-          'INSERT OR IGNORE INTO kgittree VALUES (?, ?)',
-          actual,
-          JSON.stringify(
+        db.insertOrIgnore('kgittree', {
+          tree: actual,
+          files: JSON.stringify(
             Object.fromEntries(files.map(({ path, oid }) => [path, oid])),
           ),
-        );
+        });
         return standIn(kernelObject(`gitTree:${actual}`));
       },
     },

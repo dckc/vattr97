@@ -1,16 +1,17 @@
 /** @file Bundles, kept by hash, and their bundleCaps. */
 import { M } from '@endo/patterns';
-import { makeORM } from '../orm.js';
 import { kernelObjects } from './objects.js';
 
-/** @import { KernelPowers } from '../types.js' */
+/** @import { TablePowers } from '../types.js' */
 
-export const SCHEMA = [
-  'CREATE TABLE IF NOT EXISTS kbundle (hash TEXT PRIMARY KEY, src TEXT NOT NULL)',
+export const TABLES = {
+  kbundle:
+    'CREATE TABLE IF NOT EXISTS kbundle (hash TEXT PRIMARY KEY, src TEXT NOT NULL)',
   // a bundle from the nix store, by NAR hash (SRI); manifest: JSON { mainModule, compatibilityDate, compatibilityFlags }
-  'CREATE TABLE IF NOT EXISTS knar (nar TEXT PRIMARY KEY, manifest TEXT NOT NULL)',
-  'CREATE TABLE IF NOT EXISTS knarmodule (nar TEXT NOT NULL, name TEXT NOT NULL, content BLOB NOT NULL, PRIMARY KEY (nar, name))',
-];
+  knar: 'CREATE TABLE IF NOT EXISTS knar (nar TEXT PRIMARY KEY, manifest TEXT NOT NULL)',
+  knarmodule:
+    'CREATE TABLE IF NOT EXISTS knarmodule (nar TEXT NOT NULL, name TEXT NOT NULL, content BLOB NOT NULL, PRIMARY KEY (nar, name))',
+};
 
 /**
  * @typedef {object} Tables
@@ -67,11 +68,8 @@ export const loaderModule = (name, content) => {
   return { [type]: decode(content) };
 };
 
-/** @param {KernelPowers} powers */
-export const makeBundles = ({ sql, kernelObject, keyOf }) => {
-  /** @type {ReturnType<typeof makeORM<Tables>>} */
-  const db = makeORM(sql);
-
+/** @param {TablePowers<Tables>} powers */
+export const makeBundles = ({ db, kernelObject, keyOf }) => {
   /**
    * The bundleCap for a hash: `bundle:sha256:<hex>` for source installed
    * directly, `bundle:nar:sha256-<base64>` for a nix store path.
