@@ -6,7 +6,7 @@ import { M } from '@endo/patterns';
 import { makeLiveslots } from './liveslots.js';
 
 /**
- * @import { CapData, Send, SqlDatabase, SqlValue, Vatstore, Vref } from './types.js';
+ * @import { CapData, Send, SqlDatabase, SqlValue, StorePrefix, Vatstore, VatstoreKey, Vref } from './types.js';
  * @import { Syscall } from './kernel.js';
  */
 
@@ -62,17 +62,17 @@ const makeVatstore = sql => {
     'CREATE TABLE IF NOT EXISTS vatstore (k TEXT PRIMARY KEY, v TEXT NOT NULL)',
   );
   return harden({
-    /** @param {string} k */
+    /** @param {VatstoreKey} k */
     get: k =>
       /** @type {string | undefined} TEXT */ (
         sql.exec('SELECT v FROM vatstore WHERE k = ?', k).toArray()[0]?.v
       ),
-    /** @param {string} k @param {string} v */
+    /** @param {VatstoreKey} k @param {string} v */
     put: (k, v) =>
       void sql.exec('INSERT OR REPLACE INTO vatstore VALUES (?, ?)', k, v),
-    /** @param {string} k */
+    /** @param {VatstoreKey} k */
     delete: k => void sql.exec('DELETE FROM vatstore WHERE k = ?', k),
-    /** @param {string} prefix */
+    /** @param {StorePrefix} prefix */
     keys: prefix =>
       sql
         .exec(
@@ -81,7 +81,7 @@ const makeVatstore = sql => {
           `${prefix}￿`,
         )
         .toArray()
-        .map(r => /** @type {string} TEXT */ (r.k)),
+        .map(r => /** @type {VatstoreKey} TEXT */ (r.k)),
   });
 };
 

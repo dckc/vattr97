@@ -7,7 +7,7 @@ import { Remotable, passStyleOf } from '@endo/pass-style';
 
 /**
  * @import { Passable } from '@endo/pass-style';
- * @import { CapData, ExportVref, Kind, Methods, Send, State, Vatstore, Vref, Zone } from './types.js';
+ * @import { CapData, ExportVref, Kind, Methods, Send, State, Vatstore, VatstoreKey, Vref, Zone } from './types.js';
  */
 
 const { entries, fromEntries, keys } = Object;
@@ -27,7 +27,7 @@ const unguarded = name => M.interface(name, {}, { defaultGuards: 'raw' });
 /** A durable vref: its kind, its number, and, for a kit, its facet. */
 const DURABLE = /^o\+d(\d+|s|r)\/(\d+)(?::([A-Za-z_$][\w$]*))?$/;
 
-/** @param {Vatstore} kv @param {string} name */
+/** @param {Vatstore} kv @param {VatstoreKey} name */
 const nextIn = (kv, name) => {
   const n = Number(kv.get(name) ?? 0) + 1;
   kv.put(name, String(n));
@@ -151,7 +151,7 @@ export const makeLiveslots = ({ send, kv }) => {
    * goes to the vatstore.
    *
    * @param {Vatstore} vatstore
-   * @param {string} base
+   * @param {ExportVref} base
    */
   const stateOf = (vatstore, base) => {
     /** @returns {State} */
@@ -305,7 +305,7 @@ const makeZone = ({
         ? Number(enc.slice(1))
         : slotToVal(/** @type {Vref} as encoded here */ (enc.slice(1)));
 
-  /** A store's entries are under `store.<id>.`; a named store's id is its name. @param {string} id @param {unknown} key */
+  /** A store's entries are under `store.<id>.`; a named store's id is its name. @param {string} id @param {unknown} key @returns {VatstoreKey} */
   const at = (id, key) => `store.${id}.${encodeKey(key)}`;
   /** @param {string} id @returns {[unknown, unknown][]} */
   const entriesOf = id =>

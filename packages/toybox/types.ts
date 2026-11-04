@@ -41,13 +41,35 @@ export type Send = (
   capdata: CapData,
 ) => Promise<CapData>;
 
-/** Where a vat's durable objects and stores live: strings by string key. */
+/** The prefix of a store's entries in the vatstore, its id between the dots. */
+export type StorePrefix = `store.${string}.`;
+
+/** A key in the vatstore (see liveslots.js). */
+export type VatstoreKey =
+  /** a durable object's state, by vref */
+  | `vom.${ExportVref}`
+  /** how many durable objects a kind has made */
+  | `vom.next.${string}`
+  /** a kind's id, by tag; `kind.next` counts kinds */
+  | `kind.${string}`
+  /** a kind's facets, by kind id */
+  | `kindFacets.${string}`
+  /** what `makeOnce` made */
+  | `once.${string}`
+  /** a named store's reference */
+  | `storeName.${string}`
+  /** a store's entry */
+  | `${StorePrefix}${string}`
+  /** counts detached stores */
+  | 'store.next';
+
+/** Where a vat's durable objects and stores live: strings by key. */
 export type Vatstore = {
-  get: (k: string) => string | undefined;
-  put: (k: string, v: string) => void;
-  delete: (k: string) => void;
+  get: (k: VatstoreKey) => string | undefined;
+  put: (k: VatstoreKey, v: string) => void;
+  delete: (k: VatstoreKey) => void;
   /** the keys with `prefix`, sorted */
-  keys: (prefix: string) => string[];
+  keys: (prefix: StorePrefix) => VatstoreKey[];
 };
 
 /**
