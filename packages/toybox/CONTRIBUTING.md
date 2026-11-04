@@ -15,6 +15,7 @@ The nixStore tests put files in the nix store (`nix store add-path`), and the gi
 - [devices/](devices/): each kind of the kernel's own objects, one module apiece.
 - [liveslots.js](liveslots.js) and [kvat-runtime.js](kvat-runtime.js): a vat's side: vrefs, presences, its durable zone, and its SQLite.
 - [supervisor.js](supervisor.js): workerd's entrypoints, `Public` (the ingress), `App` (the boot vat's socket), and `Admin`, and the `Directory` of ingress mounts.
+- [orm.js](orm.js): rows as records, for single-table statements on the kernel's SQLite.
 - [labels.js](labels.js): [Flower](https://github.com/NuxiNL/flower)'s label rule for mounts.
 - [config.capnp](config.capnp): workerd's config. Its sockets have no addresses; whoever starts workerd hands them in, so holding a socket is the authority it grants.
 - [types.ts](types.ts) and [worker-env.d.ts](worker-env.d.ts): the types the modules share, and workerd's bindings.

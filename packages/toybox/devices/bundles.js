@@ -1,5 +1,6 @@
 /** @file Bundles, kept by hash, and their bundleCaps. */
 import { M } from '@endo/patterns';
+import { makeORM } from '../orm.js';
 import { kernelObjects } from './objects.js';
 
 /** @import { KernelPowers } from '../types.js' */
@@ -10,6 +11,13 @@ export const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS knar (nar TEXT PRIMARY KEY, manifest TEXT NOT NULL)',
   'CREATE TABLE IF NOT EXISTS knarmodule (nar TEXT NOT NULL, name TEXT NOT NULL, content BLOB NOT NULL, PRIMARY KEY (nar, name))',
 ];
+
+/**
+ * @typedef {object} Tables
+ * @property {{ hash: string, src: string }} kbundle
+ * @property {{ nar: string, manifest: string }} knar
+ * @property {{ nar: string, name: string, content: ArrayBuffer | Uint8Array }} knarmodule
+ */
 
 /** The compatibility date of a bundle that names none. */
 export const COMPATIBILITY_DATE = '2026-10-01';
@@ -50,7 +58,7 @@ export const hex = buf =>
  * A Worker Loader module for the file `name`, typed by its extension.
  *
  * @param {string} name
- * @param {ArrayBuffer} content
+ * @param {ArrayBuffer | Uint8Array} content
  */
 export const loaderModule = (name, content) => {
   const type = MODULE_TYPES[name.slice(name.lastIndexOf('.') + 1)] ?? 'data';
@@ -61,6 +69,9 @@ export const loaderModule = (name, content) => {
 
 /** @param {KernelPowers} powers */
 export const makeBundles = ({ sql, kernelObject, keyOf }) => {
+  /** @type {ReturnType<typeof makeORM<Tables>>} */
+  const db = makeORM(sql);
+
   /**
    * The bundleCap for a hash: `bundle:sha256:<hex>` for source installed
    * directly, `bundle:nar:sha256-<base64>` for a nix store path.
@@ -82,7 +93,7 @@ export const makeBundles = ({ sql, kernelObject, keyOf }) => {
       const hash = hex(
         await crypto.subtle.digest('SHA-256', new TextEncoder().encode(src)),
       );
-      sql.exec('INSERT OR IGNORE INTO kbundle VALUES (?, ?)', hash, src);
+      db.insertOrIgnore('kbundle', { hash, src });
       return cap('sha256', hash);
     },
     /**
@@ -94,18 +105,9 @@ export const makeBundles = ({ sql, kernelObject, keyOf }) => {
      * @param {Record<string, Uint8Array>} files
      */
     installNar(nar, manifest, files) {
-      sql.exec(
-        'INSERT OR IGNORE INTO knar VALUES (?, ?)',
-        nar,
-        JSON.stringify(manifest),
-      );
-      for (const [file, contents] of Object.entries(files))
-        sql.exec(
-          'INSERT OR IGNORE INTO knarmodule VALUES (?, ?, ?)',
-          nar,
-          file,
-          contents,
-        );
+      db.insertOrIgnore('knar', { nar, manifest: JSON.stringify(manifest) });
+      for (const [name, content] of Object.entries(files))
+        db.insertOrIgnore('knarmodule', { nar, name, content });
       return cap('nar', nar);
     },
     /**
@@ -117,10 +119,7 @@ export const makeBundles = ({ sql, kernelObject, keyOf }) => {
       const [kind, alg, digest] = (kref && keyOf(kref))?.split(':') ?? [];
       if (kind !== 'bundle') throw Error('that is not a bundleCap');
       if (alg === 'sha256') return digest;
-      if (alg === 'nar')
-        return /** @type {string} */ (
-          sql.exec('SELECT nar FROM knar WHERE nar = ?', digest).one().nar
-        );
+      if (alg === 'nar') return db.lookup('knar', { nar: digest }).one().nar;
       throw Error(`no ${alg} bundles here`);
     },
     /**
@@ -132,9 +131,7 @@ export const makeBundles = ({ sql, kernelObject, keyOf }) => {
      * @returns {BundleCode}
      */
     code(hash) {
-      const [bundle] = sql
-        .exec('SELECT src FROM kbundle WHERE hash = ?', hash)
-        .toArray();
+      const bundle = db.lookup('kbundle', { hash }).get();
       if (bundle)
         return {
           compatibilityDate: COMPATIBILITY_DATE,
@@ -142,24 +139,14 @@ export const makeBundles = ({ sql, kernelObject, keyOf }) => {
         };
       /** @type {Manifest} */
       const { mainModule, compatibilityDate, compatibilityFlags } = JSON.parse(
-        /** @type {string} */ (
-          sql.exec('SELECT manifest FROM knar WHERE nar = ?', hash).one()
-            .manifest
-        ),
+        db.lookup('knar', { nar: hash }).one().manifest,
       );
       /** @type {Record<string, unknown>} */
       const modules = {
         'vat.js': `export * from ${JSON.stringify(`./bundle/${mainModule}`)};`,
       };
-      for (const { name, content } of sql.exec(
-        'SELECT name, content FROM knarmodule WHERE nar = ?',
-        hash,
-      )) {
-        modules[`bundle/${name}`] = loaderModule(
-          /** @type {string} */ (name),
-          /** @type {ArrayBuffer} */ (content),
-        );
-      }
+      for (const { name, content } of db.query('knarmodule', { nar: hash }))
+        modules[`bundle/${name}`] = loaderModule(name, content);
       return { compatibilityDate, compatibilityFlags, modules };
     },
   });
