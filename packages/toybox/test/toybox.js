@@ -19,10 +19,11 @@ export const makeToyboxes = ({ startWorkerd, freePort, mkdir }) =>
      * @param {object} [opts]
      * @param {string} [opts.config] config.capnp, or test/config-local.capnp for a fetch device that reaches localhost
      * @param {string} [opts.boot] the boot directory; by default, an empty one in `dir`
+     * @param {string[]} [opts.args] more of workerd's arguments, for what `config` adds
      */
     startToybox: async (
       dir,
-      { config = 'config.capnp', boot = join(dir, 'boot') } = {},
+      { config = 'config.capnp', boot = join(dir, 'boot'), args = [] } = {},
     ) => {
       for (const sub of ['state', 'worktree', 'boot'])
         await mkdir(join(dir, sub), { recursive: true });
@@ -38,6 +39,7 @@ export const makeToyboxes = ({ startWorkerd, freePort, mkdir }) =>
           ...['-d', `state=${join(dir, 'state')}`],
           ...['-d', `git-worktree=${join(dir, 'worktree')}`],
           ...['-d', `boot=${boot}`],
+          ...args,
         ],
         { port, host: '127.0.0.1' },
         [sock],

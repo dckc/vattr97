@@ -4,6 +4,11 @@
 # (-S name=fd from systemd, or -s name=addr), so holding a socket is the
 # authority it grants. `state`, `git-worktree`, and `boot` are likewise
 # overridden with -d state=<dir>, -d git-worktree=<dir>, and -d boot=<dir>.
+#
+# A dependent adds a device with a config of its own, as
+# test/config-device.capnp does: workerd can't add a binding to a worker it
+# inherits, so that config lists the supervisor's bindings beside its own,
+# and takes the rest from the constants here.
 using Workerd = import "/workerd/workerd.capnp";
 
 const config :Workerd.Config = (
@@ -36,17 +41,23 @@ const config :Workerd.Config = (
   ],
 );
 
+const compatibilityDate :Text = "2026-10-01";
+
+# bundled by build.js
+const modules :List(Workerd.Worker.Module) = [
+  (name = "supervisor.js", esModule = embed "dist/supervisor.js"),
+  (name = "kvat-runtime.txt", text = embed "dist/kvat-runtime.js"),
+];
+
+const durableObjectNamespaces :List(Workerd.Worker.DurableObjectNamespace) = [
+  (className = "Directory", uniqueKey = "toybox-directory", enableSql = true),
+  (className = "Kernel", uniqueKey = "toybox-kernel", enableSql = true),
+];
+
 const supervisor :Workerd.Worker = (
-  compatibilityDate = "2026-10-01",
-  # bundled by build.js
-  modules = [
-    (name = "supervisor.js", esModule = embed "dist/supervisor.js"),
-    (name = "kvat-runtime.txt", text = embed "dist/kvat-runtime.js"),
-  ],
-  durableObjectNamespaces = [
-    (className = "Directory", uniqueKey = "toybox-directory", enableSql = true),
-    (className = "Kernel", uniqueKey = "toybox-kernel", enableSql = true),
-  ],
+  compatibilityDate = .compatibilityDate,
+  modules = .modules,
+  durableObjectNamespaces = .durableObjectNamespaces,
   durableObjectStorage = (localDisk = "state"),
   bindings = [
     (name = "DIRECTORY", durableObjectNamespace = "Directory"),
@@ -57,6 +68,8 @@ const supervisor :Workerd.Worker = (
     (name = "NIX_STORE", service = "nix-store"),
     (name = "GIT_WORKTREE", service = "git-worktree"),
     (name = "BOOT", service = "boot"),
+    # the names of the service bindings the boot vat may grant to vats
+    (name = "GRANTABLE", json = "[]"),
   ],
   globalOutbound = "nowhere",
 );

@@ -7,6 +7,10 @@ import { Far } from '@endo/pass-style';
 import KVAT_RUNTIME from 'kvat-runtime.txt';
 import { makeBootBundles } from './devices/boot.js';
 import { TABLES as BUNDLE_TABLES, makeBundles } from './devices/bundles.js';
+import {
+  TABLES as ENDOWMENT_TABLES,
+  makeEndowments,
+} from './devices/endowments.js';
 import { makeEntropy } from './devices/entropy.js';
 import { makeFetchDevices } from './devices/fetch.js';
 import { TABLES as GIT_TABLES, makeGit } from './devices/git.js';
@@ -157,6 +161,7 @@ export class Kernel extends DurableObject {
   #lanDevices;
   #bootBundles;
   #entropy;
+  #endowments;
   /** @type {Promise<void> | undefined} this incarnation's {@link boot} */
   #booted;
 
@@ -185,11 +190,26 @@ export class Kernel extends DurableObject {
       kernel: ctx.id.toString(),
       directory: env.DIRECTORY.getByName('directory'),
     });
+    this.#endowments = makeEndowments(withTables(ENDOWMENT_TABLES), {
+      bindings: new Map(
+        env.GRANTABLE.map(name => [
+          name,
+          /** @type {Fetcher} a binding the operator declared, by name */ (
+            /** @type {Record<string, unknown>} */ (
+              /** @type {unknown} */ (env)
+            )[name]
+          ),
+        ]),
+      ),
+    });
     this.#vatAdmins = makeVatAdmins(powers, {
       bundles: this.#bundles,
+      endowments: this.#endowments,
       vats: {
-        start: (hash, params) =>
-          this.#startVat(hash, this.#krefs.toCapData(params)),
+        start: (hash, params, grants) =>
+          this.#startVat(hash, this.#krefs.toCapData(params), vat =>
+            this.#endowments.record(vat, grants),
+          ),
         upgrade: (vat, hash) => this.#upgradeVat(vat, hash),
         restart: vat => this.ctx.facets.abort(vat, Error('restarted')),
       },
@@ -232,6 +252,8 @@ export class Kernel extends DurableObject {
       gitReader: this.#git.readers,
       bootBundles: this.#bootBundles,
       entropy: this.#entropy,
+      endowments: this.#endowments.directories,
+      endowment: this.#endowments.endowments,
     };
   }
 
@@ -320,6 +342,7 @@ export class Kernel extends DurableObject {
                 syscall: this.ctx.exports.Syscall({
                   props: { kernel: this.ctx.id.toString(), vat },
                 }),
+                endowments: this.#endowments.of(vat),
               },
               globalOutbound: null,
             };
@@ -477,8 +500,9 @@ export class Kernel extends DurableObject {
    *
    * The boot vat is the service's root of authority: it gets the boot
    * directory's bundles, a vatAdmin, an entropy device, the ingress for
-   * the `app` socket, a nixStore, a git worktree, and a fetch and a LAN
-   * device, to hand on as it sees fit.
+   * the `app` socket, a nixStore, a git worktree, a fetch and a LAN device,
+   * and the endowments the operator made grantable, to hand on as it sees
+   * fit.
    */
   boot() {
     this.#booted ??= this.#boot().catch(e => {
@@ -510,6 +534,7 @@ export class Kernel extends DurableObject {
         gitWorktree: standIn(this.#git.make()),
         fetch: standIn(this.#fetchDevices.make()),
         lan: standIn(this.#lanDevices.make()),
+        endowments: standIn(this.#endowments.make()),
       });
       ({ vat } = await this.#startVat(
         hash,

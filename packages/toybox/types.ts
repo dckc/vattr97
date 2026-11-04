@@ -187,6 +187,12 @@ export type VatPowers = {
   M: typeof MType;
   zone: Zone;
   db: SqlDatabase;
+  /**
+   * The service binding granted to this vat as `name`. A function, not a
+   * record of bindings, since workerd's stubs can't be frozen, so can't be
+   * hardened.
+   */
+  endowment: (name: string) => Fetcher;
 };
 
 /** A kernel vat's module: it builds its root anew each incarnation. */

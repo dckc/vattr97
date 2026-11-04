@@ -73,6 +73,8 @@ A vat reaches outside only through the kernel's own objects. Whoever holds the a
 - **Ingress**: serves web requests at some labels (`?app=bookmarks`). The cache serves its page through one.
 - **Git worktree**: reads files as a git tree lists them, and only while they still match. The cache renders its page from a template in one, so the page's template is exactly the one committed.
 
+A project built on toybox can add its own: a device is an ordinary vat granted a service binding from the config, and who gets the I/O is up to the boot vat. See [adding a device](CONTRIBUTING.md#adding-a-device).
+
 ## Durable objects, upgradable code
 
 A vat's objects (`exoClass`, `exoClassKit`, map stores) live in its own SQLite, and their interface guards are checked as anywhere in Endo. References between vats live in the kernel's. `createVat` answers the vat's root and its admin node, which can upgrade it to new code that keeps its objects.

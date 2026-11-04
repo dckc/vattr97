@@ -15,7 +15,10 @@ const makeIssuers = () => {
   const { zone } = makeLiveslots({ send, kv: makeMemoryVatstore() });
   assert.ok(zone);
   const db = /** @type {SqlDatabase} the issuers vat uses none */ (harden({}));
-  return buildRootObject(harden({ E, Far, M, zone, db }), {});
+  const endowment = () => {
+    throw Error('no endowments here');
+  };
+  return buildRootObject(harden({ E, Far, M, zone, db, endowment }), {});
 };
 
 test("a deposit that would take a balance past exact integers is refused, and the payment isn't spent", () => {

@@ -18,6 +18,8 @@ interface Env {
   GIT_WORKTREE: Fetcher;
   /** the boot directory, read-only: the boot vat's code, and the bundles it makes vats from */
   BOOT: Fetcher;
+  /** the names of the service bindings the boot vat may grant to vats */
+  GRANTABLE: string[];
 }
 
 declare namespace Cloudflare {

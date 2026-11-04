@@ -6,7 +6,7 @@ import { M } from '@endo/patterns';
 import { makeLiveslots } from './liveslots.js';
 
 /**
- * @import { CapData, Send, SqlDatabase, SqlValue, StorePrefix, Vatstore, VatstoreKey, Vref } from './types.js';
+ * @import { CapData, Send, SqlDatabase, SqlValue, StorePrefix, VatPowers, Vatstore, VatstoreKey, Vref } from './types.js';
  * @import { Syscall } from './kernel.js';
  */
 
@@ -45,9 +45,10 @@ const makeAmbientInert = () => {
 makeAmbientInert();
 
 /**
- * What the kernel gives a vat's facet: its syscall, and nothing else.
+ * What the kernel gives a vat's facet: its syscall, and the service bindings
+ * granted to it, by the names it knows them by.
  *
- * @typedef {{ syscall: Service<Syscall> }} VatEnv
+ * @typedef {{ syscall: Service<Syscall>, endowments: Record<string, Fetcher> }} VatEnv
  */
 
 /**
@@ -127,6 +128,16 @@ const makeSqlDatabase = storage => {
 };
 
 /**
+ * @param {Record<string, Fetcher>} endowments
+ * @returns {VatPowers['endowment']}
+ */
+const makeEndowment = endowments => name => {
+  if (!Object.hasOwn(endowments, name))
+    throw Error(`this vat has no endowment ${name}`);
+  return endowments[name];
+};
+
+/**
  * A kernel vat: bundled by build.js and loaded as a facet of the Kernel,
  * beside the vat's own code. Its only way out is `env.syscall`, which names
  * objects by this vat's vrefs; the kernel holds the c-list that gives them
@@ -168,6 +179,7 @@ export class App extends DurableObject {
           M,
           zone,
           db: makeSqlDatabase(this.ctx.storage),
+          endowment: makeEndowment(this.env.endowments),
         }),
         params,
       ),

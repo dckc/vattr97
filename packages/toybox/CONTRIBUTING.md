@@ -36,7 +36,8 @@ A vat's `buildRootObject({ E, Far, M, zone, db }, params)` gets:
 
 - `M`, from `@endo/patterns`, for interface guards;
 - `db`, its own SQLite, in ertp-books' `SqlDatabase` shape; the vatstore is its `vatstore` table;
-- `zone`, whose kinds are `@endo/exo`'s, so their guards are checked: `exoClassKit` (two or more facets sharing one state, each a reference of its own, `o+d<kind>/<n>:<facet>`), `exoClass` (one facet, `o+d<kind>/<n>`), `exo`, `makeOnce`, `mapStore(name)`, and `detached().mapStore(label)`.
+- `zone`, whose kinds are `@endo/exo`'s, so their guards are checked: `exoClassKit` (two or more facets sharing one state, each a reference of its own, `o+d<kind>/<n>:<facet>`), `exoClass` (one facet, `o+d<kind>/<n>`), `exo`, `makeOnce`, `mapStore(name)`, and `detached().mapStore(label)`;
+- `endowment(name)`, the service binding granted to it as `name`, if any ([adding a device](#adding-a-device)).
 
 Every incarnation must define every kind, with the facets it had: a kind can't change between one facet and a kit, since references to its objects are stored by facet. Other exports are ephemeral, gone when the vat restarts.
 
@@ -44,7 +45,17 @@ Not yet: promise pipelining between vats (each message waits for its answer), me
 
 ## The boot vat
 
-The kernel named `main` has a boot vat, after SwingSet's bootstrap vat, if config.capnp's `boot` directory (`-d boot=<dir>`) has a `boot.js`, or `boot`, a directory bundle of several modules. The first request to the app socket starts it. It is the service's root of authority: its params are a vatAdmin, the boot directory's bundles, an entropy device, the app socket's ingress, a nixStore, a git worktree, and a fetch and a LAN device, for it to hand on as it sees fit. On each later start of the kernel, if its code there changed, the kernel upgrades the boot vat to it. Either way it then sends the boot vat `start()`, where it makes, or upgrades, the vats it keeps ([test/boot/boot.js](test/boot/boot.js)). So a service's boot directory says what runs, and restarting the service runs what it says.
+The kernel named `main` has a boot vat, after SwingSet's bootstrap vat, if config.capnp's `boot` directory (`-d boot=<dir>`) has a `boot.js`, or `boot`, a directory bundle of several modules. The first request to the app socket starts it. It is the service's root of authority: its params are a vatAdmin, the boot directory's bundles, an entropy device, the app socket's ingress, a nixStore, a git worktree, a fetch and a LAN device, and the grantable endowments, for it to hand on as it sees fit. On each later start of the kernel, if its code there changed, the kernel upgrades the boot vat to it. Either way it then sends the boot vat `start()`, where it makes, or upgrades, the vats it keeps ([test/boot/boot.js](test/boot/boot.js)). So a service's boot directory says what runs, and restarting the service runs what it says.
+
+## Adding a device
+
+A device is an ordinary vat whose facet env has one more binding, so a project built on toybox adds one without touching the kernel. Its code runs in its own isolate, comes hash-pinned from the boot directory or the nix store, and upgrades through its admin node like any vat's.
+
+1. **Config:** in a config.capnp of your own, declare the service and bind it, and list the binding in `GRANTABLE` ([test/config-device.capnp](test/config-device.capnp)). workerd can't add a binding to a worker it inherits, so this config restates the supervisor's bindings, and takes its modules and Durable Object namespaces from toybox's constants. Only service bindings cross into a vat; a KV namespace or R2 bucket needs a service in front of it.
+2. **Grant:** the boot vat gets `endowments`, whose `get('GNUCASH')` answers that binding's endowment, and grants it when making the device: `E(vatAdmin).createVat(bundle, params, { endowments: { gnucash } })`. The key is the vat's own name for it. The kernel records the grant with the vat, so it survives restarts and upgrades.
+3. **Device vat:** it reaches the binding with `endowment('gnucash')`, and hands out whatever attenuated objects it likes ([test/device/](test/device/)).
+
+Taking a binding out of `GRANTABLE` revokes it: a vat granted it can't start.
 
 ## The admin session
 
@@ -55,7 +66,8 @@ A client reaches a kernel with a WebSocket to `/kernel/<name>` on the admin sock
 Each kind is a module in devices/, given only the kernel powers it uses, and an `@endo/exo` class whose interface guard checks each message ([devices/objects.js](devices/objects.js)). A kernel object's key, `<prefix>:<rest>`, names its kind.
 
 - **Ingress** ([ingress.js](devices/ingress.js)): `serve(handler)` records the handler's kref, so the next request starts its vat if need be.
-- **vatAdmin and admin node** ([vat-admin.js](devices/vat-admin.js)), after SwingSet's: `createVat(bundleCap, params)` answers `{ root, adminNode }`; the admin node's `upgrade(bundleCap)` keeps the vat's durable objects and params, and `restart()` stops it as an eviction would. There are no vat ids to hold.
+- **vatAdmin and admin node** ([vat-admin.js](devices/vat-admin.js)), after SwingSet's: `createVat(bundleCap, params, { endowments })` answers `{ root, adminNode }`; the admin node's `upgrade(bundleCap)` keeps the vat's durable objects, params, and endowments, and `restart()` stops it as an eviction would. There are no vat ids to hold.
+- **Endowments and endowment** ([endowments.js](devices/endowments.js)): a binding in `GRANTABLE`, as a reference a vatAdmin's `createVat` can grant. An endowment has no methods; what it reaches is the granted vat's to attenuate.
 - **bundleCap** ([bundles.js](devices/bundles.js)): one per bundle hash, so knowing a hash grants nothing.
 - **nixStore** ([nix-store.js](devices/nix-store.js)): `getBundleCap(path)` reads a store path through config.capnp's read-only `nix-store` service and keys its bundle by NAR hash ([nar.js](nar.js)). A file is a bundle of one module; a directory's files are its modules, its `worker.json` naming the main one ([test/greeter/](test/greeter/)). Symlinks, and anything not in the store, are refused.
 - **Git worktree, tree, and reader** ([git.js](devices/git.js)): for files that must stay out of the world-readable nix store. `getTree(tree, listing)` takes what `git ls-tree -r` lists ([git-tree.js](git-tree.js)); a tree reads a file from config.capnp's `git-worktree` directory only if it lists it, and only while it hashes to the blob id listed. `open(path)` streams a big file, checked before any chunk is given out and again as they are; a reader says done only if what it gave out matches, and doesn't outlive a kernel restart. Text only: our marshal can't carry bytes yet.

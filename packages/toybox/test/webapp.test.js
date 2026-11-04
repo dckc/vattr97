@@ -53,8 +53,12 @@ const incarnate = kv => {
   const { zone } = ls;
   assert.ok(zone);
   const egress = makeFetchDevice(echoSite);
+  const endowment = () => {
+    throw Error('no endowments here');
+  };
+  const powers = harden({ E, Far, M, zone, db: noDb, endowment });
   /** @type {Remote} the maker's methods, as the vat defines them */
-  const maker = buildWebApp(harden({ E, Far, M, zone, db: noDb }), { egress });
+  const maker = buildWebApp(powers, { egress });
   /** @param {string} label @returns {MapStore<string, string>} */
   const store = label => zone.detached().mapStore(label);
   return { ls, store, maker };
