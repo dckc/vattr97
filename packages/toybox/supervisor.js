@@ -14,7 +14,7 @@ import {
 
 export { Kernel, Syscall } from './kernel.js';
 
-/** @import { HttpResponse } from './types.js' */
+/** @import { HttpResponse, IngressKey } from './types.js' */
 
 /**
  * The http socket's pages run no scripts: its mounts share one origin, so
@@ -26,7 +26,7 @@ const PUBLIC_POLICY = "script-src 'none'";
 const APP_POLICY =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'";
 
-/** A mount, as the Directory finds it: the ingress key it leads to, and its labels. @typedef {{ vat: string, labels: Record<string, string> }} Mount */
+/** A mount, as the Directory finds it: the ingress key it leads to, and its labels. @typedef {{ vat: IngressKey, labels: Record<string, string> }} Mount */
 
 /**
  * Mounts: which vat serves which label set. One instance, by name.
@@ -46,7 +46,7 @@ export class Directory extends DurableObject {
   /**
    * Mount `vat` at `labels`, replacing its mount; `null` unmounts it.
    *
-   * @param {string} vat a kernel ingress's key
+   * @param {IngressKey} vat
    * @param {Record<string, string> | null} labels
    */
   mount(vat, labels) {
@@ -78,7 +78,7 @@ export class Directory extends DurableObject {
       .toArray();
     return row
       ? {
-          vat: /** @type {string} TEXT */ (row.vat),
+          vat: /** @type {IngressKey} TEXT */ (row.vat),
           labels: JSON.parse(/** @type {string} TEXT */ (row.labels)),
         }
       : null;

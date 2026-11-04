@@ -6,7 +6,7 @@
 import { M } from '@endo/patterns';
 import { kernelObjects } from './objects.js';
 
-/** @import { TablePowers } from '../types.js' */
+/** @import { IngressKey, Kref, TablePowers } from '../types.js' */
 
 export const TABLES = {
   // an ingress (a kernel object; its key is its vref) and the kref of whoever serves it
@@ -14,13 +14,13 @@ export const TABLES = {
     'CREATE TABLE IF NOT EXISTS kingress (key TEXT PRIMARY KEY, handler TEXT)',
 };
 
-/** @typedef {{ kingress: { key: string, handler: string | null } }} Tables */
+/** @typedef {{ kingress: { key: IngressKey, handler: Kref | null } }} Tables */
 
 /**
  * @param {TablePowers<Tables>} powers
  * @param {object} io
  * @param {string} io.kernel this kernel's id, which an ingress's key names, so the Directory's mount leads back here
- * @param {{ mount: (key: string, labels: Record<string, string>) => Promise<void> }} io.directory
+ * @param {{ mount: (key: IngressKey, labels: Record<string, string>) => Promise<void> }} io.directory
  */
 export const makeIngresses = (
   { db, next, kernelObject, krefOf },
@@ -50,6 +50,7 @@ export const makeIngresses = (
      * @param {Record<string, string>} labels
      */
     async make(labels) {
+      /** @type {IngressKey} */
       const key = `kernel:${kernel}:${next('ingress')}`;
       // the row first: a crash between the two leaves a row no request can
       // reach, not a mount whose requests find no ingress
@@ -73,13 +74,13 @@ export const makeIngresses = (
       db.insertOrIgnore('kingress', { key, handler: null });
       return kernelObject(key);
     },
-    /** The key of the socket `name`'s ingress. @param {string} name */
+    /** The key of the socket `name`'s ingress. @param {string} name @returns {IngressKey} */
     socketKey: name => `kernel:${kernel}:${name}`,
     /**
      * The kref that serves the ingress `key`, if any.
      *
-     * @param {string} key
-     * @returns {string | undefined}
+     * @param {IngressKey} key
+     * @returns {Kref | undefined}
      */
     handlerOf: key =>
       db.lookup('kingress', { key }).get()?.handler ?? undefined,

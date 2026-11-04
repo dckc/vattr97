@@ -4,7 +4,7 @@ import { blobId, parseLsTree, treeId } from '../git-tree.js';
 import { hex } from './bundles.js';
 import { kernelObjects } from './objects.js';
 
-/** @import { TablePowers } from '../types.js' */
+/** @import { KernelKey, TablePowers } from '../types.js' */
 
 export const TABLES = {
   // a git tree (its id, in hex) and its files: JSON { path: blob id }
@@ -229,6 +229,7 @@ export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
         ))
           await hash.write(chunk);
         if (!(await hash.matches(oid))) throw changed(tree, path);
+        /** @type {KernelKey} */
         const key = `gitReader:${next('gitReader')}`;
         live.set(
           key,

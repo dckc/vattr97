@@ -2,7 +2,7 @@
 import { M } from '@endo/patterns';
 import { kernelObjects } from './objects.js';
 
-/** @import { TablePowers } from '../types.js' */
+/** @import { Kref, TablePowers } from '../types.js' */
 
 export const TABLES = {
   kbundle:
@@ -111,7 +111,7 @@ export const makeBundles = ({ db, kernelObject, keyOf }) => {
     /**
      * The hash the bundleCap `kref` designates.
      *
-     * @param {string | undefined} kref
+     * @param {Kref | undefined} kref
      */
     hashOf(kref) {
       const [kind, alg, digest] = (kref && keyOf(kref))?.split(':') ?? [];

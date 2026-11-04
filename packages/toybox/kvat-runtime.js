@@ -6,7 +6,7 @@ import { M } from '@endo/patterns';
 import { makeLiveslots } from './liveslots.js';
 
 /**
- * @import { CapData, Send, SqlDatabase, SqlValue, Vatstore } from './types.js';
+ * @import { CapData, Send, SqlDatabase, SqlValue, Vatstore, Vref } from './types.js';
  * @import { Syscall } from './kernel.js';
  */
 
@@ -182,7 +182,7 @@ export class App extends DurableObject {
     await this.#ready;
   }
 
-  /** @param {string} vref @param {string} method @param {CapData} capdata */
+  /** @param {Vref} vref @param {string} method @param {CapData} capdata */
   async deliver(vref, method, capdata) {
     return (await this.#ready).deliver(vref, method, capdata);
   }

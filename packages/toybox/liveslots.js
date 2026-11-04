@@ -7,7 +7,7 @@ import { Remotable, passStyleOf } from '@endo/pass-style';
 
 /**
  * @import { Passable } from '@endo/pass-style';
- * @import { CapData, Kind, Methods, Send, State, Vatstore, Zone } from './types.js';
+ * @import { CapData, ExportVref, Kind, Methods, Send, State, Vatstore, Vref, Zone } from './types.js';
  */
 
 const { entries, fromEntries, keys } = Object;
@@ -55,11 +55,11 @@ const nextIn = (kv, name) => {
  *   without one has no zone
  */
 export const makeLiveslots = ({ send, kv }) => {
-  /** @type {Map<string, object>} vref → presence, this incarnation */
+  /** @type {Map<Vref, object>} vref → presence, this incarnation */
   const presences = new Map();
-  /** @type {Map<string, object>} vref → exported object, this incarnation */
+  /** @type {Map<Vref, object>} vref → exported object, this incarnation */
   const exported = new Map();
-  /** @type {WeakMap<object, string>} object → vref, for every object above */
+  /** @type {WeakMap<object, Vref>} object → vref, for every object above */
   const vrefOf = new WeakMap();
   /**
    * kind id → its kind; a kind made by `exoClass` (or a store) has one
@@ -72,14 +72,14 @@ export const makeLiveslots = ({ send, kv }) => {
   const inflight = new Set();
   let nextEphemeral = 0;
 
-  /** @template {object} T @param {string} vref @param {T} obj */
+  /** @template {object} T @param {Vref} vref @param {T} obj */
   const register = (vref, obj) => {
     exported.set(vref, obj);
     vrefOf.set(obj, vref);
     return obj;
   };
 
-  /** @param {string} vref */
+  /** @param {Vref} vref */
   const makePresence = vref => {
     /** @param {string} method @param {Passable[]} args */
     const call = (method, args) => {
@@ -125,7 +125,7 @@ export const makeLiveslots = ({ send, kv }) => {
    * incarnation hasn't yet. A kit's facets are made again together, since
    * each method sees all of them as `this.facets`.
    *
-   * @param {string} vref
+   * @param {Vref} vref
    * @returns {object}
    */
   const revive = vref => {
@@ -133,6 +133,7 @@ export const makeLiveslots = ({ send, kv }) => {
     const kind = kinds.get(kindId);
     if (!kind)
       throw Error(`${vref}: its kind is not defined in this incarnation`);
+    /** @type {ExportVref} */
     const base = `o+d${kindId}/${n}`;
     if (kv?.get(`vom.${base}`) === undefined)
       throw Error(`${vref}: no such object`);
@@ -172,7 +173,7 @@ export const makeLiveslots = ({ send, kv }) => {
     return harden(state);
   };
 
-  /** @param {string} vref @returns {any} a presence or an export, whatever the vat made it */
+  /** @param {Vref} vref @returns {any} a presence or an export, whatever the vat made it */
   const slotToVal = vref => {
     if (vref.startsWith('o-')) return presences.get(vref) ?? makePresence(vref);
     const obj = exported.get(vref);
@@ -181,13 +182,14 @@ export const makeLiveslots = ({ send, kv }) => {
     throw Error(`${vref}: gone with an earlier incarnation`);
   };
 
-  /** @param {any} val a remotable @returns {string} */
+  /** @param {any} val a remotable @returns {Vref} */
   const valToSlot = val => {
     const known = vrefOf.get(val);
     if (known) return known;
     if (passStyleOf(val) !== 'remotable')
       throw Error('only remotables cross the kernel by reference');
     nextEphemeral += 1;
+    /** @type {Vref} */
     const vref = `o+e${nextEphemeral}`;
     register(vref, val);
     return vref;
@@ -249,7 +251,7 @@ export const makeLiveslots = ({ send, kv }) => {
     /**
      * A message from the kernel to one of this party's exports.
      *
-     * @param {string} vref
+     * @param {Vref} vref
      * @param {string} method
      * @param {CapData} capdata
      */
@@ -272,9 +274,9 @@ export const makeLiveslots = ({ send, kv }) => {
  * @param {object} p
  * @param {Vatstore} p.kv
  * @param {Map<string, Kind>} p.kinds
- * @param {(vref: string) => object} p.revive
+ * @param {(vref: Vref) => object} p.revive
  * @param {(val: any) => string} p.storeSlot
- * @param {(vref: string) => any} p.slotToVal
+ * @param {(vref: Vref) => any} p.slotToVal
  * @param {(val: any) => string} p.storeSerialize
  * @param {(json: string) => any} p.storeUnserialize
  * @returns {Zone}
@@ -301,7 +303,7 @@ const makeZone = ({
       ? enc.slice(1)
       : enc[0] === 'n'
         ? Number(enc.slice(1))
-        : slotToVal(enc.slice(1));
+        : slotToVal(/** @type {Vref} as encoded here */ (enc.slice(1)));
 
   /** A store's entries are under `store.<id>.`; a named store's id is its name. @param {string} id @param {unknown} key */
   const at = (id, key) => `store.${id}.${encodeKey(key)}`;
@@ -443,6 +445,7 @@ const makeZone = ({
 
   /** @param {string} kindId @param {State} state */
   const makeInstance = (kindId, state) => {
+    /** @type {ExportVref} */
     const base = `o+d${kindId}/${nextIn(kv, `vom.next.${kindId}`)}`;
     kv.put(`vom.${base}`, storeSerialize(harden(state)));
     return base;
@@ -554,7 +557,8 @@ const makeZone = ({
           if (name.startsWith('#'))
             throw TypeError("a store name must not start with '#'");
           const known = kv.get(`storeName.${name}`);
-          if (known !== undefined) return slotToVal(known);
+          if (known !== undefined)
+            return slotToVal(/** @type {Vref} as storeSlot answered */ (known));
           const store = makeStore(name, name);
           kv.put(`storeName.${name}`, storeSlot(store));
           return store;

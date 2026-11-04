@@ -15,7 +15,7 @@ import { makeVatAdmins } from './devices/vat-admin.js';
 import { makeORM } from './orm.js';
 
 /**
- * @import { CapData, Clist, HttpRequest, HttpResponse, KernelObjects, KernelPowers, WithTables } from './types.js';
+ * @import { CapData, Clist, HttpRequest, HttpResponse, IngressKey, KernelKey, KernelObjects, KernelPowers, Kref, VatId, Vref, WithTables } from './types.js';
  * @import { ORM } from './orm.js';
  */
 
@@ -34,11 +34,11 @@ const TABLES = {
 
 /**
  * @typedef {object} Tables
- * @property {{ vat: string, hash: string, params: string }} kvat
- * @property {{ kref: string, owner: string, vref: string }} kobject
- * @property {{ vat: string, vref: string, kref: string }} clist
+ * @property {{ vat: VatId, hash: string, params: string }} kvat
+ * @property {{ kref: Kref, owner: typeof KERNEL, vref: KernelKey } | { kref: Kref, owner: VatId, vref: Vref }} kobject an object of the kernel's goes by its key, and a vat's by its vref
+ * @property {{ vat: VatId, vref: Vref, kref: Kref }} clist
  * @property {{ name: string, n: number }} kcounter
- * @property {{ vat: string }} kboot
+ * @property {{ vat: VatId }} kboot
  */
 
 const { keys, values } = Object;
@@ -49,7 +49,13 @@ const KERNEL = 'kernel';
 /** A vref a vat may export: its root, an ephemeral, or a durable object or kit facet. */
 const EXPORT = /^o\+(0|e\d+|d(\d+|s|r)\/\d+(:[A-Za-z_$][\w$]*)?)$/;
 
-/** @param {CapData} capdata @param {(slot: string) => string} f */
+/**
+ * @template {string} From
+ * @template {string} To
+ * @param {CapData<From>} capdata
+ * @param {(slot: From) => To} f
+ * @returns {CapData<To>}
+ */
 const mapSlots = ({ body, slots }, f) => ({ body, slots: slots.map(f) });
 
 /**
@@ -59,9 +65,9 @@ const mapSlots = ({ body, slots }, f) => ({ body, slots: slots.map(f) });
  * @returns {Clist}
  */
 const makeSessionClist = () => {
-  /** @type {Map<string, string>} */
+  /** @type {Map<Vref, Kref>} */
   const byVref = new Map();
-  /** @type {Map<string, string>} */
+  /** @type {Map<Kref, Vref>} */
   const byKref = new Map();
   return {
     toKernel: vref => {
@@ -90,9 +96,9 @@ const makeSessionClist = () => {
  * data, and back, so kernel objects' methods see references as objects.
  */
 const makeKrefMarshal = () => {
-  /** @type {WeakMap<object, string>} */
+  /** @type {WeakMap<object, Kref>} */
   const krefOf = new WeakMap();
-  /** @param {string} kref */
+  /** @param {Kref} kref */
   const standIn = kref => {
     const obj = Far(`kref ${kref}`, {});
     krefOf.set(obj, kref);
@@ -109,12 +115,12 @@ const makeKrefMarshal = () => {
     errorTagging: 'off',
   });
   return harden({
-    /** @param {unknown} val @returns {CapData} */
+    /** @param {unknown} val @returns {CapData<Kref>} */
     toCapData: val =>
       marshal.toCapData(
         harden(/** @type {any} marshal checks it's passable */ (val)),
       ),
-    /** @param {CapData} capdata @returns {any} whatever the sender sent */
+    /** @param {CapData<Kref>} capdata @returns {any} whatever the sender sent */
     fromCapData: capdata => marshal.fromCapData(capdata),
     standIn,
     /** @param {unknown} obj */
@@ -246,25 +252,28 @@ export class Kernel extends DurableObject {
   /**
    * The kref of the kernel object `key`, made the first time it's asked for.
    *
-   * @param {string} key
+   * @param {KernelKey} key
+   * @returns {Kref}
    */
   #kernelObject(key) {
     const row = this.#db.lookup('kobject', { owner: KERNEL, vref: key }).get();
     if (row) return row.kref;
+    /** @type {Kref} */
     const kref = `ko${this.#next('kref')}`;
     this.#db.insert('kobject', { kref, owner: KERNEL, vref: key });
     return kref;
   }
 
-  /** @param {string} kref @returns {string | undefined} */
+  /** @param {Kref} kref @returns {KernelKey | undefined} */
   #keyOf(kref) {
-    return this.#db.lookup('kobject', { kref, owner: KERNEL }).get()?.vref;
+    const row = this.#db.lookup('kobject', { kref, owner: KERNEL }).get();
+    return row?.owner === KERNEL ? row.vref : undefined;
   }
 
   /**
    * A vat's c-list: the one table that gives its vrefs meaning.
    *
-   * @param {string} vat
+   * @param {VatId} vat
    * @returns {Clist}
    */
   #clist(vat) {
@@ -274,6 +283,7 @@ export class Kernel extends DurableObject {
         const row = db.lookup('clist', { vat, vref }).get();
         if (row) return row.kref;
         if (!EXPORT.test(vref)) throw Error(`${vat} holds no ${vref}`);
+        /** @type {Kref} */
         const kref = `ko${this.#next('kref')}`;
         db.insert('kobject', { kref, owner: vat, vref });
         db.insert('clist', { vat, vref, kref });
@@ -282,6 +292,7 @@ export class Kernel extends DurableObject {
       toVat: kref => {
         const row = db.lookup('clist', { vat, kref }).get();
         if (row) return row.vref;
+        /** @type {Vref} */
         const vref = `o-${this.#next(`import:${vat}`)}`;
         db.insert('clist', { vat, vref, kref });
         return vref;
@@ -292,8 +303,8 @@ export class Kernel extends DurableObject {
   /**
    * The facet running `vat`, started on its code if it isn't running.
    *
-   * @param {string} vat
-   * @returns {{ deliver: (vref: string, method: string, capdata: CapData) => Promise<CapData>, ready: () => Promise<void> }}
+   * @param {VatId} vat
+   * @returns {{ deliver: (vref: Vref, method: string, capdata: CapData) => Promise<CapData>, ready: () => Promise<void> }}
    */
   #vat(vat) {
     return /** @type {any} the facet's stub, whose methods are kvat-runtime.js's App's */ (
@@ -325,10 +336,10 @@ export class Kernel extends DurableObject {
    * Deliver to the object `kref`: to the vat that exports it, or to the
    * kind of kernel object its key names.
    *
-   * @param {string} kref
+   * @param {Kref} kref
    * @param {string} method
-   * @param {CapData} kargs slots are krefs
-   * @returns {Promise<CapData>} slots are krefs
+   * @param {CapData<Kref>} kargs
+   * @returns {Promise<CapData<Kref>>}
    */
   async #deliver(kref, method, kargs) {
     const obj = this.#db.lookup('kobject', { kref }).get();
@@ -356,7 +367,7 @@ export class Kernel extends DurableObject {
    * One HTTP request, as data, for whoever serves the ingress `key`; `null`
    * when nobody does.
    *
-   * @param {string} key
+   * @param {IngressKey} key
    * @param {HttpRequest} request
    * @returns {Promise<HttpResponse | null>}
    */
@@ -377,7 +388,7 @@ export class Kernel extends DurableObject {
    * both ways.
    *
    * @param {Clist} clist
-   * @param {string} vref
+   * @param {Vref} vref
    * @param {string} method
    * @param {CapData} capdata
    */
@@ -391,26 +402,29 @@ export class Kernel extends DurableObject {
     return mapSlots(result, clist.toVat);
   }
 
-  /** For {@link Syscall} only: a vat sends. @param {string} vat @param {string} vref @param {string} method @param {CapData} capdata */
+  /** For {@link Syscall} only: a vat sends. @param {VatId} vat @param {Vref} vref @param {string} method @param {CapData} capdata */
   syscallSend(vat, vref, method, capdata) {
     return this.#send(this.#clist(vat), vref, method, capdata);
   }
 
-  /** For {@link Syscall} only: the params a vat was created with, in its vrefs. @param {string} vat */
+  /** For {@link Syscall} only: the params a vat was created with, in its vrefs. @param {VatId} vat */
   syscallParams(vat) {
     const { params } = this.#db.lookup('kvat', { vat }).one();
-    return mapSlots(JSON.parse(params), this.#clist(vat).toVat);
+    /** @type {CapData<Kref>} what {@link #startVat} recorded */
+    const kparams = JSON.parse(params);
+    return mapSlots(kparams, this.#clist(vat).toVat);
   }
 
   /**
    * Start a new vat on the bundle `hash`.
    *
    * @param {string} hash
-   * @param {CapData} kparams slots are krefs
-   * @param {(vat: string) => void} [made] records the new vat along with the kernel's own record of it, both or neither
-   * @returns {Promise<{ vat: string, root: string }>} the root as a kref
+   * @param {CapData<Kref>} kparams
+   * @param {(vat: VatId) => void} [made] records the new vat along with the kernel's own record of it, both or neither
+   * @returns {Promise<{ vat: VatId, root: Kref }>}
    */
   async #startVat(hash, kparams, made) {
+    /** @type {VatId} */
     const vat = `v${this.#next('vat')}`;
     this.#db.insert('kvat', { vat, hash, params: JSON.stringify(kparams) });
     made?.(vat);
@@ -424,7 +438,7 @@ export class Kernel extends DurableObject {
    * from that code, which must define the kinds of the durable objects it
    * has made. If building the root fails, the vat goes back to its old code.
    *
-   * @param {string} vat
+   * @param {VatId} vat
    * @param {string} hash
    */
   async #upgradeVat(vat, hash) {
@@ -521,7 +535,7 @@ export class Kernel extends DurableObject {
    */
   fetch(request) {
     const clist = makeSessionClist();
-    /** @param {Promise<string> | string} kref */
+    /** @param {Promise<Kref> | Kref} kref */
     const toSession = async kref => clist.toVat(await kref);
     return newWorkersRpcResponse(
       request,
@@ -546,9 +560,9 @@ export class Kernel extends DurableObject {
             )
             .toArray()
             .map(({ vat, kref }) => ({
-              root: clist.toVat(/** @type {string} TEXT */ (kref)),
+              root: clist.toVat(/** @type {Kref} TEXT */ (kref)),
               adminNode: clist.toVat(
-                this.#vatAdmins.adminNode(/** @type {string} TEXT */ (vat)),
+                this.#vatAdmins.adminNode(/** @type {VatId} TEXT */ (vat)),
               ),
             })),
         makeIngress: labels => toSession(this.#ingresses.make(labels)),
@@ -567,16 +581,16 @@ export class Kernel extends DurableObject {
  * What the admin socket's session can do, in its own vrefs.
  *
  * @typedef {object} SessionPowers
- * @property {(src: string, params: CapData) => Promise<{ root: string, adminNode: string }>} createVat
- * @property {(vref: string, method: string, capdata: CapData) => Promise<CapData>} send
- * @property {() => { root: string, adminNode: string }[]} vats
- * @property {(labels: Record<string, string>) => Promise<string>} makeIngress
- * @property {() => Promise<string>} makeFetchDevice
- * @property {() => Promise<string>} makeLanDevice
- * @property {() => Promise<string>} makeVatAdmin
- * @property {(src: string) => Promise<string>} installBundle
- * @property {() => Promise<string>} makeNixStore
- * @property {() => Promise<string>} makeGitWorktree
+ * @property {(src: string, params: CapData) => Promise<{ root: Vref, adminNode: Vref }>} createVat
+ * @property {(vref: Vref, method: string, capdata: CapData) => Promise<CapData>} send
+ * @property {() => { root: Vref, adminNode: Vref }[]} vats
+ * @property {(labels: Record<string, string>) => Promise<Vref>} makeIngress
+ * @property {() => Promise<Vref>} makeFetchDevice
+ * @property {() => Promise<Vref>} makeLanDevice
+ * @property {() => Promise<Vref>} makeVatAdmin
+ * @property {(src: string) => Promise<Vref>} installBundle
+ * @property {() => Promise<Vref>} makeNixStore
+ * @property {() => Promise<Vref>} makeGitWorktree
  */
 
 /**
@@ -603,7 +617,7 @@ export class KernelSession extends RpcTarget {
     return this.#powers.createVat(src, params);
   }
 
-  /** @param {string} vref @param {string} method @param {CapData} capdata */
+  /** @param {Vref} vref @param {string} method @param {CapData} capdata */
   send(vref, method, capdata) {
     return this.#powers.send(vref, method, capdata);
   }
@@ -663,7 +677,7 @@ export class Syscall extends WorkerEntrypoint {
     return KERNEL.get(KERNEL.idFromString(this.ctx.props.kernel));
   }
 
-  /** @param {string} vref @param {string} method @param {CapData} capdata */
+  /** @param {Vref} vref @param {string} method @param {CapData} capdata */
   send(vref, method, capdata) {
     return this.#kernel().syscallSend(
       this.ctx.props.vat,

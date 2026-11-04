@@ -7,12 +7,36 @@ import type { E as EType, Far as FarType } from '@endo/far';
 import type { M as MType } from '@endo/patterns';
 import type { ORM, Row } from './orm.js';
 
+/** The kernel's name for an object, the same for every party. */
+export type Kref = `ko${number}`;
+
+/** A vat, as the kernel knows it. */
+export type VatId = `v${number}`;
+
+/** An object a party exports: its root, an ephemeral, or a durable object or kit facet (see liveslots.js). */
+export type ExportVref = `o+${string}`;
+
+/** An object a party holds from elsewhere, numbered by the kernel. */
+export type ImportVref = `o-${number}`;
+
+/** A party's own name for an object. Only that party's c-list gives it meaning. */
+export type Vref = ExportVref | ImportVref;
+
+/** A kernel object's key: its kind's prefix, then whatever tells it from others of its kind. */
+export type KernelKey = `${string}:${string}`;
+
+/** An ingress's key: `<kernel id>:<number or socket name>` after its prefix. */
+export type IngressKey = `kernel:${string}`;
+
 /** A message's arguments or answer: marshalled data, and the references in it, by slot. */
-export type CapData = { body: string; slots: string[] };
+export type CapData<Slot extends string = Vref> = {
+  body: string;
+  slots: Slot[];
+};
 
 /** How a party sends a message to an object it holds, by vref. */
 export type Send = (
-  vref: string,
+  vref: Vref,
   method: string,
   capdata: CapData,
 ) => Promise<CapData>;
@@ -148,8 +172,8 @@ export type BuildRootObject<P = any> = (powers: VatPowers, params: P) => object;
 
 /** One party's vrefs, translated to and from krefs. */
 export type Clist = {
-  toKernel: (vref: string) => string;
-  toVat: (kref: string) => string;
+  toKernel: (vref: Vref) => Kref;
+  toVat: (kref: Kref) => Vref;
 };
 
 /** An HTTP request to an ingress's mount, as data. */
@@ -195,13 +219,13 @@ export type KernelPowers = {
   /** the next number in the counter `name` */
   next: (name: string) => number;
   /** the kref of the kernel object `key`, made the first time it's asked for */
-  kernelObject: (key: string) => string;
+  kernelObject: (key: KernelKey) => Kref;
   /** the object that stands for `kref` in a message */
-  standIn: (kref: string) => object;
+  standIn: (kref: Kref) => object;
   /** the kref a stand-in stands for, if it is one */
-  krefOf: (obj: unknown) => string | undefined;
+  krefOf: (obj: unknown) => Kref | undefined;
   /** the key of the kernel's own object `kref`, if it is one */
-  keyOf: (kref: string) => string | undefined;
+  keyOf: (kref: Kref) => KernelKey | undefined;
 };
 
 /** What a kind of kernel object with tables of its own gets: statements on those, and no others. */

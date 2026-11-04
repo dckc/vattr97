@@ -3,7 +3,7 @@ import { M } from '@endo/patterns';
 import { kernelObjects } from './objects.js';
 
 /**
- * @import { KernelPowers } from '../types.js';
+ * @import { KernelPowers, Kref, VatId } from '../types.js';
  * @import { makeBundles } from './bundles.js';
  */
 
@@ -11,9 +11,9 @@ import { kernelObjects } from './objects.js';
  * The vat lifecycle, as the kernel runs it.
  *
  * @typedef {object} Vats
- * @property {(hash: string, params: object) => Promise<{ vat: string, root: string }>} start a new vat on the bundle `hash`; `root` is a kref
- * @property {(vat: string, hash: string) => Promise<void>} upgrade
- * @property {(vat: string) => void} restart
+ * @property {(hash: string, params: object) => Promise<{ vat: VatId, root: Kref }>} start a new vat on the bundle `hash`; `root` is a kref
+ * @property {(vat: VatId, hash: string) => Promise<void>} upgrade
+ * @property {(vat: VatId) => void} restart
  */
 
 const BundleCap = M.remotable('BundleCap');
@@ -36,8 +36,10 @@ export const makeVatAdmins = (
   { next, kernelObject, standIn, krefOf },
   { bundles, vats },
 ) => {
-  /** The admin node of `vat`. @param {string} vat */
+  /** The admin node of `vat`. @param {VatId} vat */
   const adminNode = vat => kernelObject(`adminNode:${vat}`);
+  /** The vat of the admin node whose key ends in `rest`, as {@link adminNode} made it. @param {string} rest */
+  const vatOf = rest => /** @type {VatId} */ (rest);
   /** @param {object} bundleCap */
   const hashOf = bundleCap => bundles.hashOf(krefOf(bundleCap));
 
@@ -67,10 +69,10 @@ export const makeVatAdmins = (
       {
         /** @param {object} bundleCap */
         async upgrade(bundleCap) {
-          await vats.upgrade(this.state.rest, hashOf(bundleCap));
+          await vats.upgrade(vatOf(this.state.rest), hashOf(bundleCap));
         },
         restart() {
-          vats.restart(this.state.rest);
+          vats.restart(vatOf(this.state.rest));
         },
       },
     ),
