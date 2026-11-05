@@ -19,16 +19,13 @@ const STORE_PATH =
  *
  * @param {NarNode} node
  * @param {string} [prefix]
- * @returns {Record<string, Uint8Array>}
+ * @returns {[string, Uint8Array][]}
  */
-const filesOf = (node, prefix = '') =>
+const fileEntries = (node, prefix = '') =>
   node.type === 'regular'
-    ? { [prefix || 'main.js']: node.contents }
-    : Object.assign(
-        {},
-        ...Object.entries(node.entries).map(([name, child]) =>
-          filesOf(child, prefix ? `${prefix}/${name}` : name),
-        ),
+    ? [[prefix || 'main.js', node.contents]]
+    : Object.entries(node.entries).flatMap(([name, child]) =>
+        fileEntries(child, prefix ? `${prefix}/${name}` : name),
       );
 
 /**
@@ -89,8 +86,8 @@ export const makeTreeReader = (fetchPath, describe, where) => {
         type: 'regular',
         contents: new Uint8Array(await resp.arrayBuffer()),
       };
-    /** @type {Record<string, NarNode>} */
-    const entries = {};
+    /** @type {[string, NarNode][]} */
+    const entries = [];
     /** @type {{ name: string, type: string }[]} */
     const listing = await resp.json();
     for (const { name, type } of listing) {
@@ -98,9 +95,10 @@ export const makeTreeReader = (fetchPath, describe, where) => {
         throw Error(
           `${describe([...segments, name])} is a ${type}; a bundle has only files and directories`,
         );
-      entries[name] = await read([...segments, name]);
+      entries.push([name, await read([...segments, name])]);
     }
-    return { type: 'directory', entries };
+    // fromEntries, not assignment: a file may be named __proto__
+    return { type: 'directory', entries: Object.fromEntries(entries) };
   };
   return read;
 };
@@ -110,12 +108,12 @@ export const makeTreeReader = (fetchPath, describe, where) => {
  * answers its bundleCap's kref. A file is a bundle of one module; a
  * directory's files are its modules, its `worker.json` naming the main one.
  *
- * @param {ReturnType<typeof makeBundles>} bundles
+ * @param {Pick<ReturnType<typeof makeBundles>, 'installNar'>} bundles
  * @param {string} path
  * @param {NarNode} node
  */
 export const installTree = async (bundles, path, node) => {
-  const files = filesOf(node);
+  const files = Object.fromEntries(fileEntries(node));
   const manifest = manifestOf(path, node, files);
   delete files['worker.json'];
   return bundles.installNar(await narHash(node), manifest, files);

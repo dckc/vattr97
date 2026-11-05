@@ -7,12 +7,14 @@ import { test } from 'node:test';
 import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
 import { narHash } from '../nar.js';
+import { installTree, makeTreeReader } from '../devices/nix-store.js';
 import { makeNix } from './nix.js';
 import { here } from '../workerd-process.js';
 
 const { addToStore, narHashOf } = makeNix({ run: promisify(execFile) });
 
 /** @import { NarNode } from '../nar.js' */
+/** @import { Kref } from '../types.js' */
 
 /** @param {string} path a regular file or a directory of them @returns {Promise<NarNode>} */
 const narNode = async path => {
@@ -61,4 +63,55 @@ test('a NAR hash refuses a name no store path has', async () => {
       narHash({ type: 'directory', entries: { [name]: file } }),
       /not a name nix allows/,
     );
+});
+
+test('a store directory may have a file named __proto__', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nar-proto-'));
+  await cp(join(here, 'kvats', 'counter.js'), join(dir, '__proto__'));
+  await cp(join(here, 'kvats', 'counter.js'), join(dir, 'main.js'));
+  try {
+    const storePath = await addToStore(dir);
+    const name = storePath.slice('/nix/store/'.length);
+    /** @param {string[]} segments */
+    const fetchPath = async segments => {
+      const path = join('/nix/store', ...segments);
+      const listing = await readdir(path, { withFileTypes: true }).catch(
+        () => null,
+      );
+      return listing
+        ? Response.json(
+            listing.map(e => ({
+              name: e.name,
+              type: e.isDirectory() ? 'directory' : 'file',
+            })),
+          )
+        : new Response(await readFile(path), {
+            headers: { 'content-type': 'application/octet-stream' },
+          });
+    };
+    const node = await makeTreeReader(fetchPath, String, 'the store')([name]);
+    assert.equal(await narHash(node), await narHashOf(storePath));
+    /** @type {Record<string, Uint8Array>} */
+    let installed = {};
+    const bundles = {
+      /** @param {string} _nar @param {unknown} _m @param {Record<string, Uint8Array>} files @returns {Kref} */
+      installNar: (_nar, _m, files) => {
+        installed = files;
+        return 'ko1';
+      },
+    };
+    await installTree(bundles, storePath, {
+      type: 'directory',
+      entries: {
+        ...(node.type === 'directory' ? node.entries : {}),
+        'worker.json': {
+          type: 'regular',
+          contents: new TextEncoder().encode('{}'),
+        },
+      },
+    });
+    assert.deepEqual(Object.keys(installed).sort(), ['__proto__', 'main.js']);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
