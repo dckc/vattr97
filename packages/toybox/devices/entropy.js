@@ -20,7 +20,10 @@ export const makeEntropy = ({ next, kernelObject }, { random }) =>
       M.interface('Entropy', { swiss: M.call().returns(M.string()) }),
       {
         swiss() {
-          return hex(random(16));
+          const bytes = random(16);
+          if (bytes.length !== 16)
+            throw Error('random gave other than 16 bytes');
+          return hex(bytes);
         },
       },
     ),
