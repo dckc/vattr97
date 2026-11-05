@@ -45,14 +45,17 @@ export const cutLines = (pending, size) => {
  *
  * A worktree's `getTree(tree, listing)` takes what `git ls-tree -r <tree>`
  * lists (with or without `-z`) and answers a tree only if the listing hashes
- * to `tree` (or, given null, to whatever it hashes to: the tree's `id()`).
- * The tree reads a file only if it lists it, and only while its contents
- * hash to the blob id listed, so the files can't be swapped after the fact.
+ * to `tree` (or, given null, to whatever it hashes to: the tree's `id()`,
+ * which vouches for nothing but the listing itself). The tree reads a file
+ * only if it lists it, and only while its contents hash to the blob id
+ * listed, so the files can't be swapped after the fact.
+ *
  * `open(path)` answers a reader of a file too big for one message: the file
  * is hashed once before the reader is made, and again as the reader gives
- * it out, in chunks of whole lines; the reader says it's done only if what
- * it gave out matches. A reader lives in memory: once the kernel restarts,
- * it only throws.
+ * it out, in chunks of whole lines. Those chunks are unchecked until the
+ * reader says it's done, which it does only if what it gave out matches:
+ * a consumer that acts on a chunk before then must be ready to undo it. A
+ * reader lives in memory: once the kernel restarts, it only throws.
  *
  * @param {TablePowers<Tables>} powers
  * @param {object} io
