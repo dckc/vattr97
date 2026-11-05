@@ -115,6 +115,14 @@ test('alice makes an issuer kit; once introduced, she pays into the purse bob ma
       },
     );
 
+    // an accept that fails leaves the invitation open, here to fail again
+    const nameless = await alice.invite('');
+    for (let tries = 0; tries < 2; tries += 1)
+      await assert.rejects(
+        wallet.post({ op: 'accept', invite: nameless }),
+        /a name, please/,
+      );
+
     const invite = await alice.invite('bob');
     const { hub: bobHub, inviter } = await wallet.post({
       op: 'accept',

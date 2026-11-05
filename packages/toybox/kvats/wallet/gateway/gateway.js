@@ -276,12 +276,19 @@ export const buildRootObject = (
    */
   const accept = async (invite, swiss) => {
     if (!invites.has(invite)) throw Error('no such invitation, or it was used');
-    const { inviter, peer } = invites.get(invite);
+    const invitation = invites.get(invite);
+    const { inviter, peer } = invitation;
+    // gone before the await, so it's accepted once; back if accepting fails
     invites.delete(invite);
-    const made = swiss ? undefined : await newHub(peer);
-    const kit = made ? made.kit : hubs.get(/** @type {string} */ (swiss));
-    const { bCallsA } = introduce(inviter, peer, kit);
-    return { hub: made?.swiss, inviter: bCallsA };
+    try {
+      const made = swiss ? undefined : await newHub(peer);
+      const kit = made ? made.kit : hubs.get(/** @type {string} */ (swiss));
+      const { bCallsA } = introduce(inviter, peer, kit);
+      return { hub: made?.swiss, inviter: bCallsA };
+    } catch (e) {
+      invites.init(invite, invitation);
+      throw e;
+    }
   };
 
   /** @param {string} body */
