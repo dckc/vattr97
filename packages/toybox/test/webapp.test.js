@@ -115,6 +115,12 @@ test('a WebApp refuses to leave its path or contradict a header or query, naming
     () => app.withHeaders({ cookie: 'a' }).withHeaders({ cookie: 'b' }),
     /^Error: headers: contradicts on cookie$/,
   );
+  assert.throws(
+    () => app.withHeaders({ Cookie: 'a' }).withHeaders({ cookie: 'b' }),
+    /^Error: headers: contradicts on cookie$/,
+  );
+  // a name every object inherits is a header name like any other
+  app.withHeaders({ constructor: 'x' }).withHeaders({ toString: 'y' });
 });
 
 test("a header map is read at each send: rotating the store's cookie changes what handles already out send", async () => {

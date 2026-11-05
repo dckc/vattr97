@@ -153,15 +153,23 @@ const withoutQuery = url => {
   return u.href;
 };
 
-/** @param {Record<string, string>} base @param {Record<string, string>} more */
+/**
+ * `base` and `more` as one set of headers, their names in lower case, as
+ * HTTP compares them; a name in both must have one value.
+ *
+ * @param {Record<string, string>} base
+ * @param {Record<string, string>} more
+ */
 const unionHeaders = (base, more) => {
-  const merged = { ...base };
-  for (const [key, value] of entries(more)) {
-    if (key in merged && merged[key] !== value)
-      throw Error(`headers: contradicts on ${key}`);
-    merged[key] = value;
+  /** @type {Map<string, string>} */
+  const merged = new Map();
+  for (const [key, value] of [...entries(base), ...entries(more)]) {
+    const name = key.toLowerCase();
+    if (merged.has(name) && merged.get(name) !== value)
+      throw Error(`headers: contradicts on ${name}`);
+    merged.set(name, value);
   }
-  return harden(merged);
+  return harden(fromEntries(merged));
 };
 
 /** @param {string} base @param {Record<string, string | number>} params */
