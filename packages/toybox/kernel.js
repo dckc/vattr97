@@ -347,8 +347,10 @@ export class Kernel extends DurableObject {
     const { owner, vref } = obj;
     if (owner === KERNEL) {
       const at = vref.indexOf(':');
-      const kind = this.#objects[vref.slice(0, at)];
-      if (!kind) throw Error(`no kind of kernel object for ${vref}`);
+      const prefix = vref.slice(0, at);
+      if (at < 0 || !Object.hasOwn(this.#objects, prefix))
+        throw Error(`no kind of kernel object for ${vref}`);
+      const kind = this.#objects[prefix];
       const args = this.#krefs.fromCapData(kargs);
       return this.#krefs.toCapData(
         await kind.deliver(vref.slice(at + 1), method, args),
