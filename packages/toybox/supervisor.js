@@ -96,13 +96,13 @@ export class Directory extends DurableObject {
  * @param {Request} request
  */
 const requestLabels = request => {
-  /** @type {Record<string, string>} */
-  const labels = {};
+  /** @type {Map<string, string>} */
+  const labels = new Map();
   for (const [k, v] of new URL(request.url).searchParams) {
-    if (k in labels) throw new Error(`label ${k} given twice`);
-    labels[k] = v;
+    if (labels.has(k)) throw new Error(`label ${k} given twice`);
+    labels.set(k, v);
   }
-  return Object.freeze(labels);
+  return Object.freeze(Object.fromEntries(labels));
 };
 
 /**

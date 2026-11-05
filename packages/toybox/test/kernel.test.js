@@ -571,6 +571,15 @@ test('an ingress answers a status that has no body, and a 502 when its handler t
     assert.equal(resp.status, status);
     assert.equal(await resp.text(), status === 200 ? 'body' : '');
   }
+  // a label may have any name that isn't given twice
+  assert.equal(
+    (await get('/?site=answers&status=200&constructor=x')).status,
+    200,
+  );
+  assert.equal(
+    (await get('/?site=answers&status=200&site=answers')).status,
+    400,
+  );
   const failed = await get('/throw?site=answers&status=200');
   assert.equal(failed.status, 502);
   assert.doesNotMatch(await failed.text(), /asked to throw/);

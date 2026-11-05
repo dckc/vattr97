@@ -12,13 +12,13 @@
  * @param {Record<string, string>} more
  */
 export const mergeLabels = (held, more) => {
-  const merged = { ...held };
+  const merged = new Map(Object.entries(held));
   for (const [k, v] of Object.entries(more)) {
     if (typeof v !== 'string')
       throw new TypeError(`label ${k} is not a string`);
-    if (k in merged && merged[k] !== v)
+    if (merged.has(k) && merged.get(k) !== v)
       throw new Error(`label ${k} is already set to a different value`);
-    merged[k] = v;
+    merged.set(k, v);
   }
-  return Object.freeze(merged);
+  return Object.freeze(Object.fromEntries(merged));
 };
