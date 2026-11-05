@@ -34,26 +34,16 @@ const objectId = async (type, body) =>
 export const blobId = async bytes => hex(await objectId('blob', bytes));
 
 /** @typedef {{ mode: "100644" | "100755", path: string, oid: string }} TreeFile */
-/** @typedef {{ [name: string]: TreeFile | Dir }} Dir */
+/** @typedef {Map<string, TreeFile | Dir>} Dir */
 
 /** @param {Dir} dir @returns {Promise<Uint8Array>} */
 const dirId = async dir => {
   /** @type {Entry[]} */
   const entries = await Promise.all(
-    Object.entries(dir).map(async ([name, node]) =>
-      typeof node.oid === 'string'
-        ? {
-            name,
-            key: name,
-            mode: /** @type {TreeFile} */ (node).mode,
-            id: unhex(node.oid),
-          }
-        : {
-            name,
-            key: `${name}/`,
-            mode: '40000',
-            id: await dirId(/** @type {Dir} */ (node)),
-          },
+    [...dir].map(async ([name, node]) =>
+      node instanceof Map
+        ? { name, key: `${name}/`, mode: '40000', id: await dirId(node) }
+        : { name, key: name, mode: node.mode, id: unhex(node.oid) },
     ),
   );
   // git orders a tree's entries by name, a subtree's name as if it ended in "/"
@@ -71,19 +61,30 @@ const dirId = async dir => {
 
 /**
  * The id of the tree of `files`, in hex, as `git write-tree` reports it.
+ * Throws if two files have one path, or a file's path is another's
+ * directory: no tree lists those, and its id would leave one of them out.
  *
  * @param {TreeFile[]} files
  * @see https://git-scm.com/book/en/v2/Git-Internals-Git-Objects
  */
 export const treeId = async files => {
   /** @type {Dir} */
-  const root = {};
+  const root = new Map();
   for (const file of files) {
     const names = file.path.split('/');
-    const dir = names
-      .slice(0, -1)
-      .reduce((d, name) => /** @type {Dir} */ (d[name] ??= {}), root);
-    dir[names[names.length - 1]] = file;
+    const leaf = /** @type {string} */ (names.pop());
+    const dir = names.reduce((d, name) => {
+      const sub = d.get(name) ?? new Map();
+      if (!(sub instanceof Map))
+        throw Error(`${JSON.stringify(file.path)} is under a file`);
+      d.set(name, sub);
+      return sub;
+    }, root);
+    if (dir.has(leaf))
+      throw Error(
+        `${JSON.stringify(file.path)} is listed twice, or is a directory`,
+      );
+    dir.set(leaf, file);
   }
   return hex(await dirId(root));
 };

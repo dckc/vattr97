@@ -1,6 +1,14 @@
 /** @file Git object ids agree with git's. */
 import { execFile } from 'node:child_process';
-import { chmod, cp, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
+import {
+  chmod,
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -49,4 +57,36 @@ test('tree ids from git ls-tree listings, and blob ids, are the ones git reports
   } finally {
     await rm(odd, { recursive: true, force: true });
   }
+});
+
+test('a tree id covers every file listed: names like __proto__ are files, and a listing no tree has is refused', async () => {
+  const odd = await mkdtemp(join(tmpdir(), 'git-tree-proto-'));
+  const main = join(here, 'test', 'greeter', 'main.js');
+  await mkdir(join(odd, '__proto__'));
+  await mkdir(join(odd, 'constructor'));
+  await Promise.all(
+    ['__proto__/x', 'constructor/toString', 'hasOwnProperty'].map(f =>
+      cp(main, join(odd, f)),
+    ),
+  );
+  try {
+    const { repo, tree, listing } = await makeRepo(odd);
+    await rm(repo, { recursive: true, force: true });
+    assert.equal(await treeId(parseLsTree(listing)), tree);
+    assert.equal(Object.getPrototypeOf({}), Object.prototype);
+  } finally {
+    await rm(odd, { recursive: true, force: true });
+  }
+
+  const oid = '0'.repeat(40);
+  /** @param {string[]} paths */
+  const listed = paths =>
+    paths.map(path => ({ mode: /** @type {const} */ ('100644'), oid, path }));
+  for (const paths of [
+    ['a', 'a/b'],
+    ['a/b', 'a'],
+    ['a', 'a'],
+    ['a/b', 'a/b'],
+  ])
+    await assert.rejects(treeId(listed(paths)), /under a file|listed twice/);
 });
