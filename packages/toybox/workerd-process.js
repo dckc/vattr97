@@ -1,8 +1,9 @@
 /** @file Run workerd on this package's config, for tests and scripts, with the I/O they hand in. */
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** The package's directory. */
-export const here = new URL('.', import.meta.url).pathname;
+export const here = fileURLToPath(new URL('.', import.meta.url));
 
 /**
  * What running workerd takes, all supplied by the caller.

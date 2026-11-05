@@ -7,6 +7,7 @@
  * Writes dist/supervisor.js and dist/kvat-runtime.js, which config.capnp
  * embeds.
  */
+import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
 
 const external = ['cloudflare:workers', 'node:*'];
@@ -21,7 +22,7 @@ const common = {
   external,
   logLevel: 'warning',
   // this package's directory, wherever the script is run from
-  absWorkingDir: new URL('.', import.meta.url).pathname,
+  absWorkingDir: fileURLToPath(new URL('.', import.meta.url)),
 };
 
 /**
