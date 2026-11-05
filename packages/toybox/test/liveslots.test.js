@@ -90,3 +90,41 @@ test('a delivery reaches only the methods an object defines, not what every obje
   for (const method of ['toString', 'constructor', 'hasOwnProperty'])
     await assert.rejects(deliver('o+0', method, none), /no method/);
 });
+
+test(
+  'a kind tagged `next` keeps its objects across incarnations',
+  {
+    todo: 'FIXME in liveslots.js: `kind.next` is also the kind counter',
+  },
+  () => {
+    const kv = makeKv();
+    /** @param {Zone} zone */
+    const define = zone => {
+      const make = zone.exoClass(
+        'next',
+        undefined,
+        () => ({ count: 0 }),
+        counterMethods,
+      );
+      // a kind defined after it moves the counter its id is read from
+      zone.exoClass('Other', undefined, () => ({ count: 0 }), counterMethods);
+      return zone.makeOnce('kept', () => make());
+    };
+    assert.equal(define(zoneOn(kv).zone).incr(), 1);
+    assert.equal(define(zoneOn(kv).zone).incr(), 2);
+  },
+);
+
+test(
+  'a store named `a` holds only its own entries, not those of one named `a.b`',
+  {
+    todo: 'FIXME in liveslots.js: store ids are prefixes of each other',
+  },
+  () => {
+    const { zone } = zoneOn(makeKv());
+    const a = zone.mapStore('a');
+    zone.mapStore('a.b').init('x', 1);
+    assert.equal(a.getSize(), 0);
+    assert.deepEqual(a.keys(), []);
+  },
+);
