@@ -1,6 +1,7 @@
 /** @file NAR hashes of store paths agree with nix's. */
 import { execFile } from 'node:child_process';
-import { readdir, readFile } from 'node:fs/promises';
+import { cp, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
@@ -27,13 +28,25 @@ const narNode = async path => {
 };
 
 test('NAR hashes of a file and a directory are the ones nix path-info reports', async () => {
-  for (const path of [
-    join(here, 'kvats', 'counter.js'),
-    join(here, 'test', 'greeter'),
-  ]) {
-    assert.equal(
-      await narHash(await narNode(path)),
-      await narHashOf(await addToStore(path)),
-    );
+  // nix sorts by bytes: U+FF5E before U+1F600, though not in UTF-16 order
+  const odd = await mkdtemp(join(tmpdir(), 'nar-odd-'));
+  await Promise.all(
+    ['\uFF5E', '\u{1F600}'].map(f =>
+      cp(join(here, 'kvats', 'counter.js'), join(odd, f)),
+    ),
+  );
+  try {
+    for (const path of [
+      join(here, 'kvats', 'counter.js'),
+      join(here, 'test', 'greeter'),
+      odd,
+    ]) {
+      assert.equal(
+        await narHash(await narNode(path)),
+        await narHashOf(await addToStore(path)),
+      );
+    }
+  } finally {
+    await rm(odd, { recursive: true, force: true });
   }
 });

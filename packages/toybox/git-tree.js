@@ -4,6 +4,8 @@
  * `git ls-tree -r` lists them. @see {@link treeId}
  */
 
+import { compareUtf8 } from './byte-order.js';
+
 const encoder = new TextEncoder();
 
 /** @param {Uint8Array} bytes */
@@ -47,7 +49,7 @@ const dirId = async dir => {
     ),
   );
   // git orders a tree's entries by name, a subtree's name as if it ended in "/"
-  entries.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  entries.sort((a, b) => compareUtf8(a.key, b.key));
   return objectId(
     'tree',
     concat(

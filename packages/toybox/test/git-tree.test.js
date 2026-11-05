@@ -27,9 +27,12 @@ const { makeRepo } = makeGit({
 test('tree ids from git ls-tree listings, and blob ids, are the ones git reports', async () => {
   const odd = await mkdtemp(join(tmpdir(), 'git-tree-odd-'));
   const main = join(here, 'test', 'greeter', 'main.js');
-  // "a.js" < "a/" < "a0": a subtree sorts as if its name ended in "/"
+  // "a.js" < "a/" < "a0": a subtree sorts as if its name ended in "/";
+  // git sorts by bytes: U+FF5E before U+1F600, though not in UTF-16 order
   await Promise.all(
-    ['a.js', 'a/b.js', 'a0', 'run.sh'].map(f => cp(main, join(odd, f))),
+    ['a.js', 'a/b.js', 'a0', 'run.sh', '\uFF5E', '\u{1F600}'].map(f =>
+      cp(main, join(odd, f)),
+    ),
   );
   await chmod(join(odd, 'run.sh'), 0o755);
   try {

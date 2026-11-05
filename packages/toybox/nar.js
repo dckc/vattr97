@@ -1,5 +1,7 @@
 /** @file NAR hashes, as nix computes them, for store paths of regular files and directories. @see {@link narHash} */
 
+import { compareUtf8 } from './byte-order.js';
+
 const encoder = new TextEncoder();
 
 /**
@@ -24,7 +26,7 @@ const serialize = node => {
       narString,
     );
   const entries = Object.keys(node.entries)
-    .sort()
+    .sort(compareUtf8)
     .flatMap(name => [
       ...'entry,(,name'.split(',').map(narString),
       narString(name),
