@@ -55,7 +55,9 @@ export const main = async ({
   }
   const { positionals, values } = parsed;
   const port = Number(values.port ?? '8788');
-  if (positionals.length !== 2 || !Number.isInteger(port)) return print(HELP);
+  // PORT+1 is the http socket's, so it must be a port too
+  const portOk = Number.isInteger(port) && port > 0 && port < 65535;
+  if (positionals.length !== 2 || !portOk) return print(HELP);
   const [dir, boot] = positionals.map(p => resolve(p));
   const worktree = resolve(values.worktree ?? join(dir, 'worktree'));
   const { startWorkerd } = makeWorkerd({
