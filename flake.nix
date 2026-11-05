@@ -123,8 +123,8 @@
                 {
                   services.toybox = {
                     enable = true;
-                    user = "dckc";
-                    gitWorktree = "/home/dckc/qtrx";
+                    user = "alice";
+                    gitWorktree = "/home/alice/worktree";
                   };
                   boot.isContainer = true;
                   system.stateVersion = "26.05";
@@ -133,9 +133,9 @@
             };
             service = nixos.config.systemd.services.toybox.serviceConfig;
           in
-          assert service.User == "dckc";
+          assert service.User == "alice";
           assert service.ProtectHome == "read-only";
-          assert lib.hasInfix "-d git-worktree=/home/dckc/qtrx" service.ExecStart;
+          assert lib.hasInfix "-d git-worktree=/home/alice/worktree" service.ExecStart;
           assert lib.hasInfix "-S app=5 " service.ExecStart;
           assert lib.hasInfix "/share/toybox/boot" service.ExecStart;
           assert service.PrivateNetwork;
@@ -150,7 +150,7 @@
                 {
                   services.toybox = {
                     enable = true;
-                    gitWorktree = "/home/dckc/qtrx";
+                    gitWorktree = "/home/alice/worktree";
                   };
                   boot.isContainer = true;
                   system.stateVersion = "26.05";
