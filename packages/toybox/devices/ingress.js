@@ -77,8 +77,17 @@ export const makeIngresses = (
       db.insertOrIgnore('kingress', { key, handler: null });
       return kernelObject(key);
     },
-    /** The key of the socket `name`'s ingress. @param {string} name @returns {IngressKey} */
-    socketKey: name => `kernel:${kernel}:${name}`,
+    /**
+     * The key of the socket `name`'s ingress. A socket's name is letters,
+     * so its key can't be a numbered ingress's.
+     *
+     * @param {string} name
+     * @returns {IngressKey}
+     */
+    socketKey: name => {
+      if (!/^[a-z]+$/.test(name)) throw Error(`not a socket name: ${name}`);
+      return `kernel:${kernel}:${name}`;
+    },
     /**
      * The kref that serves the ingress `key`, if any.
      *
