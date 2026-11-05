@@ -40,7 +40,14 @@ export const buildRootObject = (
   const makePage = zone.exoClass(
     'BookmarksPage',
     M.interface('BookmarksPage', {
-      handle: M.call(M.record()).returns(M.promise()),
+      handle: M.call(
+        M.splitRecord({
+          method: M.string(),
+          path: M.string(),
+          labels: M.recordOf(M.string(), M.string()),
+          body: M.string(),
+        }),
+      ).returns(M.promise()),
     }),
     () => ({}),
     {
