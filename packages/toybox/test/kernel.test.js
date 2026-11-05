@@ -562,6 +562,11 @@ test('a kernel vat serves the web through its ingress, after a restart and after
 });
 
 test('an ingress answers a status that has no body, and a 502 when its handler throws', async () => {
+  await assert.rejects(
+    // @ts-expect-error a label's value is a string
+    k.makeIngress({ site: 'answers', n: 1 }),
+    /label n is not a string/,
+  );
   const ingress = await k.makeIngress({ site: 'answers' });
   await k.createVat(await kvat('answers.js'), { ingress });
   /** @param {string} path */

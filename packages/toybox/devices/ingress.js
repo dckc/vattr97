@@ -50,6 +50,9 @@ export const makeIngresses = (
      * @param {Record<string, string>} labels
      */
     async make(labels) {
+      for (const [k, v] of Object.entries(labels))
+        if (typeof v !== 'string')
+          throw TypeError(`label ${k} is not a string`);
       /** @type {IngressKey} */
       const key = `kernel:${kernel}:${next('ingress')}`;
       // the row first: a crash between the two leaves a row no request can
