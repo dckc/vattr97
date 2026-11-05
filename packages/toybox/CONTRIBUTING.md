@@ -79,7 +79,7 @@ The code is JavaScript, run as it is by workerd; the Worker Loader takes no Type
 
 ## Under nix and systemd
 
-`toybox-serve` runs the workerd that nixpkgs' wrangler carries (nixpkgs has no workerd of its own), on this package's config and bundles. Its sockets come from systemd, as `-S http=3 -S admin=4 -S app=5`, and its boot directory is the package's wallet unless the `boot` option names another.
+`toybox-serve` runs the workerd that nixpkgs' wrangler carries (nixpkgs has no workerd of its own), on this package's config and bundles. That workerd is wrangler's `workerd-linux-64` build, so the flake is for `x86_64-linux` only. Its sockets come from systemd, as `-S http=3 -S admin=4 -S app=5`, and its boot directory is the package's wallet unless the `boot` option names another.
 
 - On NixOS, `nixosModules.toybox` adds `services.toybox`: `listen` (the public port), `appListen` (the app port), `boot`, `stateDir`, `gitWorktree`, `user`, and `network`. By default it runs as a DynamicUser, with state and an empty worktree in StateDirectories; a `gitWorktree` or `stateDir` of your own needs a `user` who can reach it. Given a worktree under `/home`, home is read-only to it rather than hidden.
 - Elsewhere, the package ships units for the defaults, expecting the package in the nix profile `/nix/var/nix/profiles/toybox`; `lib.x86_64-linux.toyboxUnits { ... }` renders them with other options ([nix/units.nix](../../nix/units.nix)).
