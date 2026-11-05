@@ -11,6 +11,7 @@ import { Remotable, passStyleOf } from '@endo/pass-style';
  */
 
 const { entries, fromEntries, keys } = Object;
+const { apply } = Reflect;
 
 /** What every object inherits, by name. */
 const inherited = /** @type {Record<string, unknown>} */ (Object.prototype);
@@ -263,7 +264,8 @@ export const makeLiveslots = ({ send, kv }) => {
       // what every object inherits (toString, constructor, …) is no method of the vat's
       if (typeof fn !== 'function' || fn === inherited[method])
         throw Error(`no method ${method}`);
-      return serialize(await fn.apply(target, args));
+      if (!Array.isArray(args)) throw Error('arguments are an array');
+      return serialize(await apply(fn, target, args));
     },
   });
 };
