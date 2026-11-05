@@ -561,6 +561,18 @@ test('a kernel vat serves the web through its ingress, after a restart and after
   }
 });
 
+test('an ingress answers a status that has no body', async () => {
+  const ingress = await k.makeIngress({ site: 'answers' });
+  await k.createVat(await kvat('answers.js'), { ingress });
+  /** @param {string} path */
+  const get = path => fetch(`http://127.0.0.1:${toybox.port}${path}`);
+  for (const status of [200, 204, 304]) {
+    const resp = await get(`/?site=answers&status=${status}`);
+    assert.equal(resp.status, status);
+    assert.equal(await resp.text(), status === 200 ? 'body' : '');
+  }
+});
+
 test("a LAN device reaches only what config.capnp's lan service allows: private addresses, not loopback", async () => {
   const site = createServer((req, res) => res.end('hi'));
   const port = await listenLocal(site);

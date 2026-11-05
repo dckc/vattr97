@@ -190,6 +190,9 @@ const requestData = async (labels, request) => {
   return { method: request.method, path: pathname, labels, body };
 };
 
+/** Statuses whose response has no body; a Response with one, even empty, throws. */
+const NULL_BODY = [101, 103, 204, 205, 304];
+
 /**
  * A handler's answer, as data, or `null`, as an HTTP response, under the
  * socket's content security policy.
@@ -202,10 +205,14 @@ const responseFrom = (res, policy) => {
     return new Response('mounted, but nothing serves it now\n', {
       status: 503,
     });
-  const resp = new Response(res.body ?? '', {
-    status: res.status ?? 200,
-    headers: res.headers ?? {},
-  });
+  const status = res.status ?? 200;
+  const resp = new Response(
+    NULL_BODY.includes(status) ? null : (res.body ?? ''),
+    {
+      status,
+      headers: res.headers ?? {},
+    },
+  );
   resp.headers.set('Referrer-Policy', 'no-referrer');
   resp.headers.set('Content-Security-Policy', policy);
   return resp;
