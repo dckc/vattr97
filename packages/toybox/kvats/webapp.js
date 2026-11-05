@@ -47,7 +47,7 @@ export const buildRootObject = ({ E, Far, zone }, { egress }) => {
         const { url, headers, maps } = this.state;
         const here = new URL(url);
         const there = new URL(ref, here);
-        if (!withoutQuery(there.href).startsWith(withoutQuery(here.href))) {
+        if (!within(there, here)) {
           throw Error(
             `pathjoin: ${there.pathname} not within ${here.pathname}`,
           );
@@ -125,6 +125,25 @@ const EXCERPT = 200;
 const excerpt = body => {
   const line = body.replace(/\s+/g, ' ').trim();
   return line.length > EXCERPT ? `${line.slice(0, EXCERPT)}…` : line;
+};
+
+/**
+ * Is `there` at or under `here`: the same origin and credentials, and a
+ * path that is `here`'s or goes on from it by whole segments? (`/api/v1`
+ * holds `/api/v1/x`, not `/api/v1-admin`.)
+ *
+ * @param {URL} there
+ * @param {URL} here
+ */
+const within = (there, here) => {
+  if (
+    there.origin !== here.origin ||
+    there.username !== here.username ||
+    there.password !== here.password
+  )
+    return false;
+  const dir = here.pathname.endsWith('/') ? here.pathname : `${here.pathname}/`;
+  return there.pathname === here.pathname || there.pathname.startsWith(dir);
 };
 
 /** @param {string} url */

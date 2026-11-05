@@ -93,6 +93,10 @@ test('a WebApp refuses to leave its path or contradict a header or query, naming
     () => app.pathjoin('../admin'),
     /^Error: pathjoin: \/admin not within \/api\/$/,
   );
+  const v1 = maker.makeWebApp('http://site.example/api/v1');
+  assert.equal(await E(v1.pathjoin('v1/x')).get(), 'GET /api/v1/x cookie=none');
+  for (const ref of ['v1-admin', '/api/v1x', '//other@site.example/api/v1/x'])
+    assert.throws(() => v1.pathjoin(ref), /^Error: pathjoin: .* not within/);
   assert.throws(() => app.query({ q: 2 }), /^Error: query: contradicts on q$/);
   assert.equal(
     await E(app.query({ q: 'secret' })).get(),
