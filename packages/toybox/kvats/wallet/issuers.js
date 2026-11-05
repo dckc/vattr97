@@ -18,8 +18,15 @@ export const buildRootObject = ({ Far, zone }) => {
   /** @type {MapStore<object, { brand: object, value: number }>} each live payment: its brand and value */
   const ledger = zone.mapStore('payments');
 
-  /** The live payment `payment` of `brand`: its value, now spent. @param {object} brand @param {any} payment */
-  const spend = (brand, payment) => {
+  /**
+   * The live payment `payment` of `brand`: its value, now spent, unless
+   * `check` refuses it first.
+   *
+   * @param {object} brand
+   * @param {any} payment
+   * @param {(value: number) => void} check
+   */
+  const spend = (brand, payment, check) => {
     let entry;
     try {
       entry = ledger.get(payment);
@@ -27,6 +34,7 @@ export const buildRootObject = ({ Far, zone }) => {
       throw Error('not a live payment');
     }
     if (entry.brand !== brand) throw Error('a payment of another brand');
+    check(entry.value);
     ledger.delete(payment);
     return entry.value;
   };
@@ -68,7 +76,10 @@ export const buildRootObject = ({ Far, zone }) => {
         },
         /** @param {object} payment */
         deposit(payment) {
-          const value = spend(this.state.brand, payment);
+          const { balance } = this.state;
+          const value = spend(this.state.brand, payment, v =>
+            mustBeAmount(balance + v),
+          );
           this.state.balance += value;
           return value;
         },
