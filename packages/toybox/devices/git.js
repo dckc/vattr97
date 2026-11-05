@@ -92,8 +92,14 @@ export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
    * @param {Response} resp
    */
   const startHash = async resp => {
-    const length = Number(resp.headers.get('content-length'));
-    if (!Number.isSafeInteger(length))
+    const header = resp.headers.get('content-length');
+    const length = Number(header);
+    // Number(null) is 0, so a missing header must be caught by name
+    if (
+      header === null ||
+      !/^\d+$/.test(header) ||
+      !Number.isSafeInteger(length)
+    )
       throw Error('the worktree gave no length for that file');
     const digest = new crypto.DigestStream('SHA-1');
     const hashing = digest.getWriter();
