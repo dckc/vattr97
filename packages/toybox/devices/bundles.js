@@ -24,6 +24,10 @@ export const TABLES = {
 /** The compatibility date of a bundle that names none. */
 export const COMPATIBILITY_DATE = '2026-10-01';
 
+/** The two forms of a bundle's hash: SHA-256 of its source, in hex, or a NAR hash in SRI form. */
+const SOURCE_HASH = /^[0-9a-f]{64}$/;
+const NAR_HASH = /^sha256-[A-Za-z0-9+/]{43}=$/;
+
 /** Worker Loader module types, by file extension; any other file is `data`. */
 const MODULE_TYPES = /** @type {Record<string, string>} */ ({
   js: 'js',
@@ -127,12 +131,14 @@ export const makeBundles = ({ db, kernelObject, keyOf }) => {
      * @returns {BundleCode}
      */
     code(hash) {
-      const bundle = db.lookup('kbundle', { hash }).get();
-      if (bundle)
+      if (SOURCE_HASH.test(hash)) {
+        const bundle = db.lookup('kbundle', { hash }).one();
         return {
           compatibilityDate: COMPATIBILITY_DATE,
           modules: { 'vat.js': bundle.src },
         };
+      }
+      if (!NAR_HASH.test(hash)) throw Error(`not a bundle hash: ${hash}`);
       /** @type {Manifest} */
       const { mainModule, compatibilityDate, compatibilityFlags } = JSON.parse(
         db.lookup('knar', { nar: hash }).one().manifest,
