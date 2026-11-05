@@ -31,7 +31,7 @@ export const buildRootObject = ({ E, Far, zone }, { egress }) => {
       body,
     });
     if (status >= 400)
-      throw Error(`${status} on ${withoutQuery(url)}: ${excerpt(text)}`);
+      throw Error(`${status} on ${shown(url)}: ${excerpt(text)}`);
     return text;
   };
 
@@ -108,8 +108,15 @@ export const buildRootObject = ({ E, Far, zone }, { egress }) => {
      * @param {string} url
      * @param {Record<string, string>} [headers]
      */
-    makeWebApp: (url, headers = {}) =>
-      makeWebApp(new URL(url).href, harden({ ...headers }), harden([])),
+    makeWebApp: (url, headers = {}) => {
+      const u = new URL(url);
+      // fetch refuses such a URL, and its error would quote them
+      if (u.username || u.password)
+        throw Error(
+          'makeWebApp: a URL has no credentials; send them as a header',
+        );
+      return makeWebApp(u.href, harden({ ...headers }), harden([]));
+    },
   });
 };
 
@@ -146,10 +153,11 @@ const within = (there, here) => {
   return there.pathname === here.pathname || there.pathname.startsWith(dir);
 };
 
-/** @param {string} url */
-const withoutQuery = url => {
+/** `url` as an error may show it: no query or fragment. @param {string} url */
+const shown = url => {
   const u = new URL(url);
   u.search = '';
+  u.hash = '';
   return u.href;
 };
 
