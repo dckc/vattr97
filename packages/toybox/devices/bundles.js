@@ -35,7 +35,12 @@ const MODULE_TYPES = /** @type {Record<string, string>} */ ({
   wasm: 'wasm',
 });
 
-/** @param {ArrayBuffer | Uint8Array} buf */
+/**
+ * A bundle file's text, a leading BOM dropped, as a module's source wants
+ * it. (A git reader keeps the BOM, since git hashes it.)
+ *
+ * @param {ArrayBuffer | Uint8Array} buf
+ */
 export const decode = buf =>
   new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(buf);
 

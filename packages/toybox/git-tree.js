@@ -44,7 +44,8 @@ const dirId = async dir => {
         : { name, key: name, mode: node.mode, id: decodeHex(node.oid) },
     ),
   );
-  // git orders a tree's entries by name, a subtree's name as if it ended in "/"
+  // git orders a tree's entries by name, a subtree's name as if it ended in
+  // "/", comparing bytes (base_name_compare in git's source)
   entries.sort((a, b) => compareUtf8(a.key, b.key));
   return objectId(
     'tree',

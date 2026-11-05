@@ -78,8 +78,9 @@ const manifestOf = (path, node, files) => {
 /**
  * A reader of a directory tree served as config.capnp's disk services
  * serve one: a file's contents, or a directory's listing (`[{ name, type }]`,
- * symlinks followed). It answers the tree as {@link narHash} takes it,
- * refusing anything but files and directories.
+ * where a symlink's type is `symlink`). It answers the tree as
+ * {@link narHash} takes it, refusing anything but files and directories,
+ * so a symlink can't lead it in a cycle.
  *
  * @param {(segments: string[]) => Promise<Response>} fetchPath
  * @param {(segments: string[]) => string} describe a path, for messages
