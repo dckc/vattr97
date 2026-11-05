@@ -561,7 +561,7 @@ test('a kernel vat serves the web through its ingress, after a restart and after
   }
 });
 
-test('an ingress answers a status that has no body', async () => {
+test('an ingress answers a status that has no body, and a 502 when its handler throws', async () => {
   const ingress = await k.makeIngress({ site: 'answers' });
   await k.createVat(await kvat('answers.js'), { ingress });
   /** @param {string} path */
@@ -571,6 +571,9 @@ test('an ingress answers a status that has no body', async () => {
     assert.equal(resp.status, status);
     assert.equal(await resp.text(), status === 200 ? 'body' : '');
   }
+  const failed = await get('/throw?site=answers&status=200');
+  assert.equal(failed.status, 502);
+  assert.doesNotMatch(await failed.text(), /asked to throw/);
 });
 
 test("a LAN device reaches only what config.capnp's lan service allows: private addresses, not loopback", async () => {

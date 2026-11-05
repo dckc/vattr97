@@ -139,13 +139,8 @@ export class Public extends WorkerEntrypoint {
   async #serveKernel(mount, labels, request) {
     const req = await requestData(mergeLabels(mount.labels, labels), request);
     const [, id] = mount.vat.split(':');
-    return responseFrom(
-      await this.env.KERNEL.get(this.env.KERNEL.idFromString(id)).serveHttp(
-        mount.vat,
-        req,
-      ),
-      PUBLIC_POLICY,
-    );
+    const kernel = this.env.KERNEL.get(this.env.KERNEL.idFromString(id));
+    return served(kernel.serveHttp(mount.vat, req), PUBLIC_POLICY);
   }
 }
 
@@ -167,8 +162,8 @@ export class App extends WorkerEntrypoint {
         status: 400,
       });
     }
-    return responseFrom(
-      await this.env.KERNEL.getByName('main').serveApp(
+    return served(
+      this.env.KERNEL.getByName('main').serveApp(
         await requestData(labels, request),
       ),
       APP_POLICY,
@@ -216,6 +211,24 @@ const responseFrom = (res, policy) => {
   resp.headers.set('Referrer-Policy', 'no-referrer');
   resp.headers.set('Content-Security-Policy', policy);
   return resp;
+};
+
+/**
+ * The HTTP response for a handler's answer; a 502 if it fails, which says
+ * nothing of why: the reason is the handler's, so it goes to the log.
+ *
+ * @param {Promise<HttpResponse | null>} answer
+ * @param {string} policy
+ */
+const served = async (answer, policy) => {
+  let res;
+  try {
+    res = await answer;
+  } catch (e) {
+    console.error('a handler failed:', e);
+    return new Response('the handler failed\n', { status: 502 });
+  }
+  return responseFrom(res, policy);
 };
 
 /**
