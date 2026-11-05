@@ -13,9 +13,8 @@ const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /**
  * The boot directory's bundles. Each name in it is a bundle, as a nix store
- * path is: a file is a bundle of one module; a directory's files are its
- * modules, its `worker.json` naming the main one. Bundles are keyed by NAR
- * hash, so a name whose contents changed answers a different bundleCap.
+ * path is ({@link installTree}), so a name whose contents changed answers a
+ * different bundleCap.
  *
  * The kernel starts its boot vat from `boot.js` there, and hands the boot
  * vat the directory's bundles object, whose `getBundleCap(name)` it makes
@@ -56,7 +55,7 @@ export const makeBootBundles = (
         getBundleCap: M.call(M.string()).returns(M.promise()),
       }),
       {
-        /** The bundleCap for `name` in the boot directory. @param {string} name */
+        /** @param {string} name */
         async getBundleCap(name) {
           return standIn(await install(name));
         },

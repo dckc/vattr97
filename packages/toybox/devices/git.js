@@ -17,7 +17,6 @@ export const TABLES = {
 /** About how much text, in UTF-16 units, a reader gives out at a time. */
 const READ_CHUNK = 64 * 1024;
 
-/** A git tree id, in hex. */
 const TreeId = M.string();
 
 /**

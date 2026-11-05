@@ -27,6 +27,6 @@ export const makeEntropy = ({ next, kernelObject }, { random }) =>
         },
       },
     ),
-    /** An entropy device. */
+    /** An entropy device: whoever holds it can draw swiss numbers. */
     make: () => kernelObject(`entropy:${next('entropy')}`),
   });

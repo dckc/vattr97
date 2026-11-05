@@ -132,13 +132,11 @@ export const installTree = async (bundles, path, node) => {
 };
 
 /**
- * nixStores: `getBundleCap(path)` answers the bundleCap for a store
- * path, read through config.capnp's read-only `nix-store` service and keyed
- * by its NAR hash (nar.js), so the same contents give the same bundleCap. A
- * file is a bundle of one module. A directory's files are its modules,
- * named by their paths in it; its `worker.json` names the main module, and
- * may give a compatibility date and flags. Symlinks, and anything not in
- * the store, are refused.
+ * nixStores: `getBundleCap(path)` reads a store path through config.capnp's
+ * read-only `nix-store` service, so the same contents give the same
+ * bundleCap ({@link installTree}). A `worker.json` may also give a
+ * compatibility date and flags. Symlinks, and anything not in the store,
+ * are refused.
  *
  * @param {KernelPowers} powers
  * @param {object} io
