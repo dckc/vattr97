@@ -66,7 +66,7 @@
         missingHashes = ./missing-hashes.json;
         offlineCache = yarn-berry.fetchYarnBerryDeps {
           inherit (finalAttrs) src missingHashes;
-          hash = "sha256-96kvpPYmyi7+wH32XRTjig7hOs2LE/VumiNGpQ+yPGw=";
+          hash = "sha256-JE/9BD7vfwv9fjy7u70q29Uvbbg946EnzB/5tIFPsxM=";
         };
 
         buildPhase = ''
