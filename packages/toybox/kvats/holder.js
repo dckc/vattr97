@@ -1,9 +1,9 @@
 /** Keeps what it's given, by name, durably; bumps a kept counter. */
-/** @import { BuildRootObject, Remote } from '../types.js' */
+/** @import { BuildRootObject, MapStore, Remote } from '../types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ E, Far, zone }) => {
-  /** @type {import('../types.js').MapStore<string, Remote>} */
+  /** @type {MapStore<string, Remote>} */
   const kept = zone.mapStore('kept');
   return Far('holderRoot', {
     /** @param {string} name @param {Remote} x */

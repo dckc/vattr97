@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeORM } from '../orm.js';
 
+/** @import { ORM } from '../orm.js' */
+
 /**
  * What the ORM uses of a Durable Object's SqlStorage, over `db`.
  *
@@ -33,7 +35,7 @@ const makeDb = () => {
   db.exec('CREATE TABLE pet (name TEXT PRIMARY KEY, legs INTEGER)');
   db.exec('CREATE TABLE secret (name TEXT PRIMARY KEY)');
   const sql = /** @type {any} stands in for SqlStorage */ (makeSql(db));
-  /** @type {import('../orm.js').ORM<Tables>} */
+  /** @type {ORM<Tables>} */
   const orm = makeORM(sql, ['pet']);
   return orm;
 };

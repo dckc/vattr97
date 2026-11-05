@@ -10,9 +10,11 @@
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
 
+/** @import { BuildOptions } from 'esbuild' */
+
 const external = ['cloudflare:workers', 'node:*'];
 
-/** @type {import('esbuild').BuildOptions} */
+/** @type {BuildOptions} */
 const common = {
   bundle: true,
   format: 'esm',

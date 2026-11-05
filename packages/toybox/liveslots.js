@@ -6,6 +6,7 @@ import { M } from '@endo/patterns';
 import { Remotable, passStyleOf } from '@endo/pass-style';
 
 /**
+ * @import { MakeMarshalOptions } from '@endo/marshal';
  * @import { Passable } from '@endo/pass-style';
  * @import { CapData, ExportVref, Kind, Methods, Send, State, Vatstore, VatstoreKey, Vref, Zone } from './types.js';
  */
@@ -196,7 +197,7 @@ export const makeLiveslots = ({ send, kv }) => {
     return vref;
   };
 
-  /** @type {import('@endo/marshal').MakeMarshalOptions} */
+  /** @type {MakeMarshalOptions} */
   const marshalOpts = { serializeBodyFormat: 'smallcaps', errorTagging: 'off' };
   const { toCapData, fromCapData } = makeMarshal(
     valToSlot,

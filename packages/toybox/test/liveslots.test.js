@@ -4,11 +4,11 @@ import assert from 'node:assert/strict';
 import { makeLiveslots } from '../liveslots.js';
 import { makeMemoryVatstore as makeKv } from './memory-vatstore.js';
 
-/** @import { Zone } from '../types.js' */
+/** @import { Vatstore, Zone } from '../types.js' */
 
 const send = () => Promise.reject(Error('no kernel here'));
 
-/** The zone of liveslots made on `kv`. @param {import('../types.js').Vatstore} kv */
+/** The zone of liveslots made on `kv`. @param {Vatstore} kv */
 const zoneOn = kv => {
   const ls = makeLiveslots({ send, kv });
   assert.ok(ls.zone);

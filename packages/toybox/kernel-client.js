@@ -6,19 +6,23 @@
 import { newWebSocketRpcSession } from 'capnweb';
 import { makeLiveslots } from './liveslots.js';
 
-/** @import { KernelSession } from './kernel.js' */
+/**
+ * @import { RpcStub } from 'capnweb';
+ * @import { WebSocket } from 'ws';
+ * @import { KernelSession } from './kernel.js';
+ */
 
 /**
  * A client of the kernel at the other end of `ws`: a WebSocket to the admin
  * socket's `/kernel/<name>`, which whoever holds the socket opens.
  *
- * @param {import('ws').WebSocket} ws
+ * @param {WebSocket} ws
  */
 export const connectKernel = async ws => {
   await new Promise(
     (resolve, reject) => (ws.once('open', resolve), ws.once('error', reject)),
   );
-  const session = /** @type {import('capnweb').RpcStub<KernelSession>} */ (
+  const session = /** @type {RpcStub<KernelSession>} */ (
     newWebSocketRpcSession(
       /** @type {any} ws implements the WHATWG WebSocket that capnweb types as the DOM's */ (
         ws

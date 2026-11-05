@@ -2,6 +2,11 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/**
+ * @import { spawn } from 'node:child_process';
+ * @import { AddressInfo, NetConnectOpts, Server, connect, createServer } from 'node:net';
+ */
+
 /** The package's directory. */
 export const here = fileURLToPath(new URL('.', import.meta.url));
 
@@ -10,10 +15,10 @@ export const here = fileURLToPath(new URL('.', import.meta.url));
  *
  * @typedef {object} WorkerdIO
  * @property {string} workerd the platform binary, not the package's bin script: the script forks it, so a kill would orphan workerd
- * @property {typeof import('node:child_process').spawn} spawn
+ * @property {typeof spawn} spawn
  * @property {(path: string, opts: { force: boolean }) => Promise<void>} rm
- * @property {typeof import('node:net').connect} connect
- * @property {typeof import('node:net').createServer} createServer
+ * @property {typeof connect} connect
+ * @property {typeof createServer} createServer
  * @property {(ms: number) => Promise<void>} sleep
  * @property {(chunk: Buffer) => void} [log] where workerd's stderr goes; kept for the error, if absent
  */
@@ -32,9 +37,7 @@ export const makeWorkerd = ({
   const freePort = () =>
     new Promise(resolve => {
       const s = createServer().listen(0, '127.0.0.1', () => {
-        const { port } = /** @type {import('node:net').AddressInfo} */ (
-          s.address()
-        );
+        const { port } = /** @type {AddressInfo} */ (s.address());
         s.close(() => resolve(port));
       });
     });
@@ -42,7 +45,7 @@ export const makeWorkerd = ({
   /**
    * Resolves once something accepts connections at `opts` (a port or a socket path).
    *
-   * @param {import('node:net').NetConnectOpts} opts
+   * @param {NetConnectOpts} opts
    * @returns {Promise<boolean>}
    */
   const accepting = opts =>
@@ -56,7 +59,7 @@ export const makeWorkerd = ({
    *
    * @param {string} config
    * @param {string[]} args socket, directory, and external overrides
-   * @param {import('node:net').NetConnectOpts} listening
+   * @param {NetConnectOpts} listening
    * @param {string[]} stale socket files a crash leaves behind; bind() would fail on them
    */
   const startWorkerd = async (config, args, listening, stale = []) => {
@@ -82,15 +85,13 @@ export const makeWorkerd = ({
   /**
    * Listen on a free port on 127.0.0.1; answers the port.
    *
-   * @param {import('node:net').Server} server
+   * @param {Server} server
    * @returns {Promise<number>}
    */
   const listenLocal = server =>
     new Promise(resolve =>
       server.listen(0, '127.0.0.1', () =>
-        resolve(
-          /** @type {import('node:net').AddressInfo} */ (server.address()).port,
-        ),
+        resolve(/** @type {AddressInfo} */ (server.address()).port),
       ),
     );
 

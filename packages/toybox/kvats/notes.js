@@ -1,5 +1,5 @@
 /** Notes, kept in the vat's own SQLite (`db`), not its zone. */
-/** @import { BuildRootObject } from '../types.js' */
+/** @import { BuildRootObject, SqlStatement } from '../types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ Far, db }) => {
@@ -8,7 +8,7 @@ export const buildRootObject = ({ Far, db }) => {
   );
   db.exec('CREATE INDEX IF NOT EXISTS note_text ON note (text)');
   const add = db.prepare('INSERT INTO note (text) VALUES (?)');
-  /** @type {import('../types.js').SqlStatement<[], { text: string }>} */
+  /** @type {SqlStatement<[], { text: string }>} */
   const all = db.prepare('SELECT text FROM note ORDER BY n');
   return Far('notes', {
     /** Add a note; answers how many rows that changed. @param {string} text */
