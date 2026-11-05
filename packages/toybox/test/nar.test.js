@@ -1,6 +1,14 @@
 /** @file NAR hashes of store paths agree with nix's. */
 import { execFile } from 'node:child_process';
-import { cp, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -36,6 +44,17 @@ test('NAR hashes of a file and a directory are the ones nix path-info reports', 
     ['\uFF5E', '\u{1F600}'].map(f =>
       cp(join(here, 'kvats', 'counter.js'), join(odd, f)),
     ),
+  );
+  // padding: contents of 0, 8, and 9 bytes; an empty directory; nesting
+  await mkdir(join(odd, 'empty'));
+  await mkdir(join(odd, 'a', 'b'), { recursive: true });
+  await Promise.all(
+    [
+      ['zero', ''],
+      ['eight', '12345678'],
+      ['nine', '123456789'],
+      ['a/b/deep', 'deep'],
+    ].map(([f, text]) => writeFile(join(odd, f), text)),
   );
   try {
     for (const path of [

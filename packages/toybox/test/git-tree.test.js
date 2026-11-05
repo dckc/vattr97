@@ -93,3 +93,24 @@ test('a tree id covers every file listed: names like __proto__ are files, and a 
   ])
     await assert.rejects(treeId(listed(paths)), /under a file|listed twice/);
 });
+
+test('the empty tree, an empty blob, and the corners of ls-tree listings', async () => {
+  assert.equal(await treeId([]), '4b825dc642cb6eb9a060e54bf8d69288fbee4904');
+  assert.equal(
+    await blobId(new Uint8Array()),
+    'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391',
+  );
+  const oid = 'a'.repeat(40);
+  assert.deepEqual(parseLsTree(''), []);
+  assert.deepEqual(parseLsTree(`100644 blob ${oid}\tline\nbreak\0`), [
+    { mode: '100644', oid, path: 'line\nbreak' },
+  ]);
+  assert.throws(
+    () => parseLsTree(`160000 commit ${oid}\tsub\0`),
+    /not a regular file/,
+  );
+  assert.throws(
+    () => parseLsTree(`100644 blob ${oid.toUpperCase()}\tf\0`),
+    /not a regular file/,
+  );
+});
