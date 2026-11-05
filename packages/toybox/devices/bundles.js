@@ -122,7 +122,8 @@ export const makeBundles = ({ db, kernelObject, keyOf }) => {
     hashOf(kref) {
       const [kind, alg, digest] = (kref && keyOf(kref))?.split(':') ?? [];
       if (kind !== 'bundle') throw Error('that is not a bundleCap');
-      if (alg === 'sha256') return digest;
+      if (alg === 'sha256')
+        return db.lookup('kbundle', { hash: digest }).one().hash;
       if (alg === 'nar') return db.lookup('knar', { nar: digest }).one().nar;
       throw Error(`no ${alg} bundles here`);
     },
