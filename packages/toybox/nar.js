@@ -19,6 +19,14 @@ const narString = s => {
   return out;
 };
 
+/** @param {string} name */
+const checkName = name => {
+  if (name === '' || name === '.' || name === '..' || /[/\0]/.test(name))
+    throw Error(
+      `not a name nix allows in a store path: ${JSON.stringify(name)}`,
+    );
+};
+
 /** @param {NarNode} node @returns {Uint8Array[]} */
 const serialize = node => {
   if (node.type === 'regular')
@@ -27,13 +35,16 @@ const serialize = node => {
     );
   const entries = Object.keys(node.entries)
     .sort(compareUtf8)
-    .flatMap(name => [
-      ...'entry,(,name'.split(',').map(narString),
-      narString(name),
-      narString('node'),
-      ...serialize(node.entries[name]),
-      narString(')'),
-    ]);
+    .flatMap(name => {
+      checkName(name);
+      return [
+        ...'entry,(,name'.split(',').map(narString),
+        narString(name),
+        narString('node'),
+        ...serialize(node.entries[name]),
+        narString(')'),
+      ];
+    });
   return [
     ...['(', 'type', 'directory'].map(narString),
     ...entries,

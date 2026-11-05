@@ -50,3 +50,15 @@ test('NAR hashes of a file and a directory are the ones nix path-info reports', 
     await rm(odd, { recursive: true, force: true });
   }
 });
+
+test('a NAR hash refuses a name no store path has', async () => {
+  const file = {
+    type: /** @type {const} */ ('regular'),
+    contents: new Uint8Array(),
+  };
+  for (const name of ['', '.', '..', 'a/b', 'a\0b'])
+    await assert.rejects(
+      narHash({ type: 'directory', entries: { [name]: file } }),
+      /not a name nix allows/,
+    );
+});
