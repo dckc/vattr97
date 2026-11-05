@@ -41,11 +41,24 @@ const manifestOf = (path, node, files) => {
   const json = files['worker.json'];
   if (node.type !== 'regular' && !json)
     throw Error(`${path} has no worker.json`);
+  /** @type {Record<string, unknown>} what worker.json says, checked below */
+  let declared = {};
+  if (json) {
+    try {
+      declared = JSON.parse(decode(json));
+    } catch (e) {
+      throw Error(`${path}/worker.json: ${/** @type {Error} */ (e).message}`, {
+        cause: e,
+      });
+    }
+    if (typeof declared !== 'object' || declared === null)
+      throw Error(`${path}/worker.json is not a JSON object`);
+  }
   const {
     mainModule = 'main.js',
     compatibilityDate = COMPATIBILITY_DATE,
     compatibilityFlags = [],
-  } = json ? JSON.parse(decode(json)) : {};
+  } = declared;
   if (
     typeof mainModule !== 'string' ||
     !files[mainModule] ||

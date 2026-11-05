@@ -115,3 +115,30 @@ test('a store directory may have a file named __proto__', async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("a store bundle's bad worker.json is named in the error", async () => {
+  const bundles = {
+    /** @returns {Kref} */
+    installNar: () => 'ko1',
+  };
+  /** @param {string} text @returns {NarNode} */
+  const withManifest = text => ({
+    type: 'directory',
+    entries: {
+      'main.js': { type: 'regular', contents: new Uint8Array() },
+      'worker.json': {
+        type: 'regular',
+        contents: new TextEncoder().encode(text),
+      },
+    },
+  });
+  const path = '/nix/store/x-bundle';
+  await assert.rejects(
+    installTree(bundles, path, withManifest('{ not json')),
+    /^Error: \/nix\/store\/x-bundle\/worker.json: /,
+  );
+  await assert.rejects(
+    installTree(bundles, path, withManifest('null')),
+    /worker.json is not a JSON object/,
+  );
+});

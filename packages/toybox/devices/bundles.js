@@ -64,7 +64,13 @@ export const hex = buf =>
 export const loaderModule = (name, content) => {
   const type = MODULE_TYPES[name.slice(name.lastIndexOf('.') + 1)] ?? 'data';
   if (type === 'data' || type === 'wasm') return { [type]: content };
-  if (type === 'json') return { json: JSON.parse(decode(content)) };
+  if (type === 'json') {
+    try {
+      return { json: JSON.parse(decode(content)) };
+    } catch (e) {
+      throw Error(`${name}: ${/** @type {Error} */ (e).message}`, { cause: e });
+    }
+  }
   return { [type]: decode(content) };
 };
 
