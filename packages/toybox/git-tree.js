@@ -4,15 +4,10 @@
  * `git ls-tree -r` lists them. @see {@link treeId}
  */
 
+import { decodeHex, encodeHex } from '@endo/hex';
 import { compareUtf8 } from './byte-order.js';
 
 const encoder = new TextEncoder();
-
-/** @param {Uint8Array} bytes */
-const hex = bytes =>
-  [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
-/** @param {string} s */
-const unhex = s => Uint8Array.from(s.match(/../g) ?? [], h => parseInt(h, 16));
 
 /** A tree entry, as git hashes it; `key` is what git sorts by. @typedef {{ name: string, key: string, mode: string, id: Uint8Array }} Entry */
 
@@ -33,7 +28,7 @@ const objectId = async (type, body) =>
   );
 
 /** The id of the blob whose contents are `bytes`, in hex. @param {Uint8Array} bytes */
-export const blobId = async bytes => hex(await objectId('blob', bytes));
+export const blobId = async bytes => encodeHex(await objectId('blob', bytes));
 
 /** @typedef {{ mode: "100644" | "100755", path: string, oid: string }} TreeFile */
 /** @typedef {Map<string, TreeFile | Dir>} Dir */
@@ -45,7 +40,7 @@ const dirId = async dir => {
     [...dir].map(async ([name, node]) =>
       node instanceof Map
         ? { name, key: `${name}/`, mode: '40000', id: await dirId(node) }
-        : { name, key: name, mode: node.mode, id: unhex(node.oid) },
+        : { name, key: name, mode: node.mode, id: decodeHex(node.oid) },
     ),
   );
   // git orders a tree's entries by name, a subtree's name as if it ended in "/"
@@ -88,7 +83,7 @@ export const treeId = async files => {
       );
     dir.set(leaf, file);
   }
-  return hex(await dirId(root));
+  return encodeHex(await dirId(root));
 };
 
 const LS_TREE_ENTRY = /^(100644|100755) blob ([0-9a-f]{40})\t(.+)$/s;

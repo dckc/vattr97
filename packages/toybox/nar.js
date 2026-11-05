@@ -1,5 +1,6 @@
 /** @file NAR hashes, as nix computes them, for store paths of regular files and directories. @see {@link narHash} */
 
+import { encodeBase64 } from '@endo/base64';
 import { compareUtf8 } from './byte-order.js';
 
 const encoder = new TextEncoder();
@@ -65,5 +66,5 @@ export const narHash = async node => {
   const nar = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   parts.reduce((at, p) => (nar.set(p, at), at + p.length), 0);
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', nar));
-  return `sha256-${btoa(String.fromCharCode(...digest))}`;
+  return `sha256-${encodeBase64(digest)}`;
 };

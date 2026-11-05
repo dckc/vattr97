@@ -1,6 +1,6 @@
 /** @file Entropy: unguessable numbers, for vats, which have no randomness of their own. */
+import { encodeHex } from '@endo/hex';
 import { M } from '@endo/patterns';
-import { hex } from './bundles.js';
 import { kzone } from './objects.js';
 
 /** @import { KernelPowers } from '../types.js' */
@@ -23,7 +23,7 @@ export const makeEntropy = ({ next, kernelObject }, { random }) =>
           const bytes = random(16);
           if (bytes.length !== 16)
             throw Error('random gave other than 16 bytes');
-          return hex(bytes);
+          return encodeHex(bytes);
         },
       },
     ),

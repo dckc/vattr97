@@ -1,7 +1,7 @@
 /** @file Git worktrees, trees, and readers: files read only as a git tree lists them, and only while they hash to what it lists. */
+import { encodeHex } from '@endo/hex';
 import { M } from '@endo/patterns';
 import { blobId, parseLsTree, treeId } from '../git-tree.js';
-import { hex } from './bundles.js';
 import { kzone } from './objects.js';
 
 /** @import { KernelKey, TablePowers } from '../types.js' */
@@ -114,7 +114,10 @@ export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
       /** @param {string} oid */
       matches: async oid => {
         await hashing.close();
-        return size === length && hex(await digest.digest) === oid;
+        return (
+          size === length &&
+          encodeHex(new Uint8Array(await digest.digest)) === oid
+        );
       },
     };
   };

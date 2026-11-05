@@ -1,4 +1,5 @@
 /** @file Bundles, kept by hash, and their bundleCaps. */
+import { encodeHex } from '@endo/hex';
 import { M } from '@endo/patterns';
 import { kzone } from './objects.js';
 
@@ -51,10 +52,6 @@ const MODULE_TYPES = /** @type {Record<string, string>} */ ({
 export const decode = buf =>
   new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(buf);
 
-/** @param {ArrayBuffer | Uint8Array} buf */
-export const hex = buf =>
-  [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-
 /**
  * A Worker Loader module for the file `name`, typed by its extension.
  *
@@ -94,8 +91,10 @@ export const makeBundles = ({ db, kernelObject, keyOf }) => {
      * @param {string} src an ES module exporting `buildRootObject(vatPowers, params)`
      */
     async install(src) {
-      const hash = hex(
-        await crypto.subtle.digest('SHA-256', new TextEncoder().encode(src)),
+      const hash = encodeHex(
+        new Uint8Array(
+          await crypto.subtle.digest('SHA-256', new TextEncoder().encode(src)),
+        ),
       );
       db.insertOrIgnore('kbundle', { hash, src });
       return cap('sha256', hash);
