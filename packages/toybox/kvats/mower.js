@@ -1,4 +1,4 @@
-/** Mowers on an 8×8 yard: each starts at (4, 4) facing north and cuts the cells it enters. */
+/** Mowers on an 8x8 yard: each starts at (4, 4) facing north and cuts the cells it enters. */
 /** @import { BuildRootObject } from '../types.js' */
 
 /** @type {BuildRootObject} */

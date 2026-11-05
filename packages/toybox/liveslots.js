@@ -57,14 +57,14 @@ const nextIn = (kv, name) => {
  *   without one has no zone
  */
 export const makeLiveslots = ({ send, kv }) => {
-  /** @type {Map<Vref, object>} vref → presence, this incarnation */
+  /** @type {Map<Vref, object>} vref -> presence, this incarnation */
   const presences = new Map();
-  /** @type {Map<Vref, object>} vref → exported object, this incarnation */
+  /** @type {Map<Vref, object>} vref -> exported object, this incarnation */
   const exported = new Map();
-  /** @type {WeakMap<object, Vref>} object → vref, for every object above */
+  /** @type {WeakMap<object, Vref>} object -> vref, for every object above */
   const vrefOf = new WeakMap();
   /**
-   * kind id → its kind; a kind made by `exoClass` (or a store) has one
+   * kind id -> its kind; a kind made by `exoClass` (or a store) has one
    * facet, `self`, whose vref has no facet suffix
    *
    * @type {Map<string, Kind>}
@@ -262,7 +262,7 @@ export const makeLiveslots = ({ send, kv }) => {
       const target = slotToVal(vref);
       const args = unserialize(capdata);
       const fn = target[method];
-      // what every object inherits (toString, constructor, …) is no method of the vat's
+      // what every object inherits (toString, constructor, ...) is no method of the vat's
       if (typeof fn !== 'function' || fn === inherited[method])
         throw Error(`no method ${method}`);
       if (!Array.isArray(args)) throw Error('arguments are an array');

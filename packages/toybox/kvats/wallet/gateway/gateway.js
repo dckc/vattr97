@@ -101,7 +101,7 @@ export const buildRootObject = (
           if (names.has(name)) names.set(name, ref);
           else names.init(name, ref);
         },
-        /** A name not yet taken: `base`, or `base-2`, `base-3`, … @param {string} base */
+        /** A name not yet taken: `base`, or `base-2`, `base-3`, ... @param {string} base */
         fresh(base) {
           const { names } = this.state;
           let name = base;
@@ -202,7 +202,7 @@ export const buildRootObject = (
   /**
    * An answer, for the page: each reference in it saved in the hub, as
    * `saveAs`, or `saveAs.<key>` within records and arrays, and shown as
-   * `{ "@name": … }`.
+   * `{ "@name": ... }`.
    *
    * @param {any} hub @param {unknown} value @param {string} [saveAs]
    * @returns {unknown}

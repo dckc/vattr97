@@ -26,7 +26,7 @@ const kernelObjects = (tag, interfaceGuard, methods) => {
   );
   return harden({
     deliver: (rest, method, args) => {
-      // only the kind's own methods: not what every object inherits (toString, constructor, …), which no guard covers
+      // only the kind's own methods: not what every object inherits (toString, constructor, ...), which no guard covers
       if (!Object.hasOwn(methods, method))
         throw Error(`a ${tag} has no ${method}`);
       /** @type {Record<string, (...args: unknown[]) => unknown>} */

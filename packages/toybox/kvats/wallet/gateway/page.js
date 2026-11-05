@@ -1,6 +1,6 @@
 /**
  * The wallet page, and its script. The page keeps its hub's swiss number
- * in localStorage: a link's fragment (`#hub=…`, or `#invite=…`) is read
+ * in localStorage: a link's fragment (`#hub=...`, or `#invite=...`) is read
  * once and taken out of the address bar.
  */
 
