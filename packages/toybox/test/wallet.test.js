@@ -131,6 +131,12 @@ test('alice makes an issuer kit; once introduced, she pays into the purse bob ma
     assert.deepEqual((await bob.view()).messages, [
       { id: 1, from: 'owner', label: 'my issuer', count: 1 },
     ]);
+    for (const index of ['length', 1, -1])
+      await assert.rejects(
+        // @ts-expect-error an index is a number
+        bob.adopt(1, index, 'x'),
+        /message 1 has no/,
+      );
     await bob.adopt(1, 0, 'bucks');
     await bob.call('bucks', 'makeEmptyPurse', [], 'purse');
     await bob.call('purse', 'getDepositFacet', [], 'purse.deposit');

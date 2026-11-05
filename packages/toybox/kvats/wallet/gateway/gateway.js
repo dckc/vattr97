@@ -134,7 +134,8 @@ export const buildRootObject = (
         /** Name the `index`th reference of message `id` as `name`. @param {number} id @param {number} index @param {string} name */
         adopt(id, index, name) {
           const { refs } = /** @type {Message} */ (this.state.inbox.get(id));
-          if (!(index in refs)) throw Error(`message ${id} has no ${index}`);
+          if (!Number.isInteger(index) || index < 0 || index >= refs.length)
+            throw Error(`message ${id} has no ${index}`);
           this.facets.hub.save(name, refs[index]);
         },
         /** @param {number} id */
