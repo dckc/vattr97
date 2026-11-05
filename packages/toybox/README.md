@@ -65,7 +65,7 @@ The cache, the part that runs most often, holds the least: one WebApp, narrowed 
 
 ## Devices: how a vat reaches the world
 
-A vat reaches outside only through the kernel's own objects. Whoever holds the admin socket makes them, and hands each to the vat that needs it. The bookmark cache uses each of these:
+A vat reaches outside only through the kernel's own objects. Whoever holds the admin socket makes them, and hands each to the vat that needs it. So the admin socket is for the operator alone: it checks nothing, and anyone who can open it can make any device and install any code. The bookmark cache uses each of these:
 
 - **vatAdmin**: makes vats. Boot holds it to make the other three.
 - **nixStore**: runs code from a nix store path, keyed by its hash. Boot gets each vat's code from one, so what runs is exactly what was built into the store.
