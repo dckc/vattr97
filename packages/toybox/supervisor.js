@@ -13,6 +13,7 @@ import {
   UNMOUNT_LABELS,
 } from './mounts-sql.js';
 
+// config.capnp names these as classes of workerd's main module, this one
 export { Kernel, Syscall } from './kernel.js';
 
 /** @import { HttpResponse, IngressKey } from './types.js' */
