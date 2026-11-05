@@ -21,7 +21,19 @@ const { entries, fromEntries } = Object;
 /** A WebApp's state: its URL, its fixed headers, and the maps it reads more from at each send. @typedef {{ url: string, headers: Record<string, string>, maps: Remote[] }} WebAppState */
 
 /** @type {BuildRootObject<{ egress: Remote }>} */
-export const buildRootObject = ({ E, Far, zone }, { egress }) => {
+export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
+  const Headers = M.recordOf(M.string(), M.string());
+  const WebAppI = M.interface('WebApp', {
+    pathjoin: M.call(M.string()).returns(M.remotable('WebApp')),
+    query: M.call(M.recordOf(M.string(), M.or(M.string(), M.number()))).returns(
+      M.remotable('WebApp'),
+    ),
+    withHeaders: M.call(Headers).returns(M.remotable('WebApp')),
+    withHeaderMap: M.call(M.remotable()).returns(M.remotable('WebApp')),
+    get: M.callWhen().returns(M.string()),
+    post: M.callWhen(M.string()).returns(M.string()),
+  });
+
   /** @param {string} url @param {string} method @param {Record<string, string>} headers @param {string} [body] */
   const send = async (url, method, headers, body) => {
     /** @type {FetchAnswer} */
@@ -38,7 +50,7 @@ export const buildRootObject = ({ E, Far, zone }, { egress }) => {
   /** @type {(url: string, headers: Record<string, string>, maps: Remote[]) => object} */
   const makeWebApp = zone.exoClass(
     'WebApp',
-    undefined,
+    WebAppI,
     /** @param {string} url @param {Record<string, string>} headers @param {Remote[]} maps @returns {WebAppState} */
     (url, headers, maps) => ({ url, headers, maps }),
     {
@@ -109,6 +121,12 @@ export const buildRootObject = ({ E, Far, zone }, { egress }) => {
      * @param {Record<string, string>} [headers]
      */
     makeWebApp: (url, headers = {}) => {
+      if (
+        typeof url !== 'string' ||
+        typeof headers !== 'object' ||
+        !Object.values(headers).every(v => typeof v === 'string')
+      )
+        throw Error('makeWebApp: takes a URL and a record of header strings');
       const u = new URL(url);
       // fetch refuses such a URL, and its error would quote them
       if (u.username || u.password)

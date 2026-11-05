@@ -119,6 +119,10 @@ test('a WebApp refuses to leave its path or contradict a header or query, naming
     () => app.withHeaders({ Cookie: 'a' }).withHeaders({ cookie: 'b' }),
     /^Error: headers: contradicts on cookie$/,
   );
+  // a header's value is a string
+  assert.throws(() => app.withHeaders({ cookie: 1 }), /cookie/);
+  // pathjoin takes a string
+  assert.throws(() => app.pathjoin({ toString: () => '../admin' }));
   // a name every object inherits is a header name like any other
   app.withHeaders({ constructor: 'x' }).withHeaders({ toString: 'y' });
 });
