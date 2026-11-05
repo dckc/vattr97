@@ -334,6 +334,20 @@ test('upgrading may not change a kind between one facet and a kit: references to
   await assert.rejects(upgrade(kitAdmin, fewer), /kind CounterKit had facets/);
 });
 
+test('a vat whose root fails to build is forgotten', async () => {
+  const before = (await k.vats()).length;
+  await assert.rejects(
+    k.createVat(
+      "export const buildRootObject = () => { throw Error('no root'); };",
+    ),
+    /no root/,
+  );
+  assert.equal((await k.vats()).length, before);
+  const { root } = await k.createVat(await kvat('counter.js'));
+  assert.equal(await E(E(root).getCounter()).incr(), 1);
+  assert.equal((await k.vats()).length, before + 1);
+});
+
 test('a vatAdmin creates vats only from bundleCaps; a bundle has one bundleCap', async () => {
   const vatAdmin = await k.makeVatAdmin();
   const src = await kvat('counter.js');

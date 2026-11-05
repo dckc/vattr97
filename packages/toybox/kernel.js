@@ -416,20 +416,31 @@ export class Kernel extends DurableObject {
   }
 
   /**
-   * Start a new vat on the bundle `hash`.
+   * Start a new vat on the bundle `hash`. If building its root fails, the
+   * kernel forgets the vat, `made`'s record of it included.
    *
    * @param {string} hash
    * @param {CapData<Kref>} kparams
    * @param {(vat: VatId) => void} [made] records the new vat along with the kernel's own record of it, both or neither
+   * @param {(vat: VatId) => void} [unmade] forgets what `made` recorded
    * @returns {Promise<{ vat: VatId, root: Kref }>}
    */
-  async #startVat(hash, kparams, made) {
+  async #startVat(hash, kparams, made, unmade) {
     /** @type {VatId} */
     const vat = `v${this.#next('vat')}`;
     this.#db.insert('kvat', { vat, hash, params: JSON.stringify(kparams) });
     made?.(vat);
     const root = this.#clist(vat).toKernel('o+0');
-    await this.#vat(vat).ready();
+    try {
+      await this.#vat(vat).ready();
+    } catch (e) {
+      this.ctx.facets.abort(vat, Error('failed to start'));
+      unmade?.(vat);
+      this.#db.lookup('kobject', { owner: vat }).delete();
+      this.#db.lookup('clist', { vat }).delete();
+      this.#db.lookup('kvat', { vat }).delete();
+      throw e;
+    }
     return { vat, root };
   }
 
@@ -504,6 +515,7 @@ export class Kernel extends DurableObject {
         hash,
         this.#krefs.toCapData(params),
         made => this.#db.insert('kboot', { vat: made }),
+        unmade => this.#db.lookup('kboot', { vat: unmade }).delete(),
       ));
     } else {
       const old = this.#db.lookup('kvat', { vat }).one();
