@@ -7,6 +7,8 @@
 import { decodeHex, encodeHex } from '@endo/hex';
 import { compareUtf8 } from './byte-order.js';
 
+/** @import { TreeFile } from './types.js' */
+
 const encoder = new TextEncoder();
 
 /** A tree entry, as git hashes it; `key` is what git sorts by. @typedef {{ name: string, key: string, mode: string, id: Uint8Array }} Entry */
@@ -30,7 +32,6 @@ const objectId = async (type, body) =>
 /** The id of the blob whose contents are `bytes`, in hex. @param {Uint8Array} bytes */
 export const blobId = async bytes => encodeHex(await objectId('blob', bytes));
 
-/** @typedef {{ mode: "100644" | "100755", path: string, oid: string }} TreeFile */
 /** @typedef {Map<string, TreeFile | Dir>} Dir */
 
 /** @param {Dir} dir @returns {Promise<Uint8Array>} */

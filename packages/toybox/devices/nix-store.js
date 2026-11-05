@@ -5,9 +5,8 @@ import { COMPATIBILITY_DATE, decode } from './bundles.js';
 import { kzone } from './objects.js';
 
 /**
- * @import { KernelPowers } from '../types.js';
- * @import { NarNode } from '../nar.js';
- * @import { Manifest, makeBundles } from './bundles.js';
+ * @import { KernelPowers, Manifest, NarNode } from '../types.js';
+ * @import { makeBundles } from './bundles.js';
  */
 
 /** A store path: a nix base-32 hash, then a name. */

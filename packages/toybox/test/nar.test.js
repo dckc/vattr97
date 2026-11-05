@@ -21,7 +21,7 @@ import { here } from '../workerd-process.js';
 
 const { addToStore, narHashOf } = makeNix({ run: promisify(execFile) });
 
-/** @import { NarNode } from '../nar.js' */
+/** @import { NarNode } from '../types.js' */
 /** @import { Kref } from '../types.js' */
 
 /** @param {string} path a regular file or a directory of them @returns {Promise<NarNode>} */

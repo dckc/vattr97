@@ -267,3 +267,32 @@ export type WithTables = (tables: Record<string, string>) => TablePowers<any>;
  * it lives, is what checks the calls.)
  */
 export type Remote = any;
+
+/** A store path's contents, without executable bits or symlinks (nar.js). */
+export type NarNode =
+  | { type: 'regular'; contents: Uint8Array }
+  | { type: 'directory'; entries: Record<string, NarNode> };
+
+/** What a nix store bundle says of itself, in its worker.json. */
+export type Manifest = {
+  mainModule: string;
+  compatibilityDate: string;
+  compatibilityFlags: string[];
+};
+
+/**
+ * What the Worker Loader runs a bundle as, beside the vat runtime: its
+ * modules, and the compatibility it asks for.
+ */
+export type BundleCode = {
+  compatibilityDate: string;
+  compatibilityFlags?: string[];
+  modules: Record<string, unknown>;
+};
+
+/** A regular file in a git tree, as `git ls-tree -r` lists it (git-tree.js). */
+export type TreeFile = {
+  mode: '100644' | '100755';
+  path: string;
+  oid: string;
+};

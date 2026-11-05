@@ -3,7 +3,7 @@ import { encodeHex } from '@endo/hex';
 import { M } from '@endo/patterns';
 import { kzone } from './objects.js';
 
-/** @import { Kref, TablePowers } from '../types.js' */
+/** @import { BundleCode, Kref, Manifest, TablePowers } from '../types.js' */
 
 export const TABLES = {
   kbundle:
@@ -23,19 +23,6 @@ export const TABLES = {
 
 /** The compatibility date of a bundle that names none. */
 export const COMPATIBILITY_DATE = '2026-10-01';
-
-/**
- * What a nix store bundle says of itself, in its worker.json.
- *
- * @typedef {{ mainModule: string, compatibilityDate: string, compatibilityFlags: string[] }} Manifest
- */
-
-/**
- * What the Worker Loader runs a bundle as, beside the vat runtime: its
- * modules, and the compatibility it asks for.
- *
- * @typedef {{ compatibilityDate: string, compatibilityFlags?: string[], modules: Record<string, unknown> }} BundleCode
- */
 
 /** Worker Loader module types, by file extension; any other file is `data`. */
 const MODULE_TYPES = /** @type {Record<string, string>} */ ({
