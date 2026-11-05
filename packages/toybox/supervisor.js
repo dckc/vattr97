@@ -1,6 +1,7 @@
 /** @file toybox's entrypoints: the ingress (`Public`), the boot vat's own socket (`App`), and the admin socket (`Admin`), in front of {@link Kernel}s; and the {@link Directory} of ingress mounts. */
 import '@endo/init';
 import { DurableObject, WorkerEntrypoint } from 'cloudflare:workers';
+import { Fail, q } from '@endo/errors';
 import { mergeLabels } from './labels.js';
 import {
   LOOKUP,
@@ -56,9 +57,7 @@ export class Directory extends DurableObject {
       if (!labels) return void sql.exec(UNMOUNT, vat);
       const json = JSON.stringify(labels);
       if (sql.exec(OVERLAP, json, vat).toArray().length) {
-        throw new Error(
-          'mount overlaps another: add a label whose value tells them apart',
-        );
+        throw Fail`mount overlaps another: add a label whose value tells them apart`;
       }
       sql.exec(MOUNT, vat, json);
       sql.exec(MOUNT_LABELS, vat, json);
@@ -99,7 +98,7 @@ const requestLabels = request => {
   /** @type {Map<string, string>} */
   const labels = new Map();
   for (const [k, v] of new URL(request.url).searchParams) {
-    if (labels.has(k)) throw new Error(`label ${k} given twice`);
+    if (labels.has(k)) throw Fail`label ${q(k)} given twice`;
     labels.set(k, v);
   }
   return Object.freeze(Object.fromEntries(labels));

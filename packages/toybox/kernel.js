@@ -1,6 +1,7 @@
 /** @file The kernel: one Durable Object hosting many vats, each a facet on code installed at runtime, after SwingSet's kernel. */
 import { DurableObject, WorkerEntrypoint } from 'cloudflare:workers';
 import { RpcTarget, newWorkersRpcResponse } from 'capnweb';
+import { Fail, q } from '@endo/errors';
 import { makeMarshal } from '@endo/marshal';
 import { Far } from '@endo/pass-style';
 import KVAT_RUNTIME from 'kvat-runtime.txt';
@@ -73,11 +74,8 @@ const makeSessionClist = () => {
     toKernel: vref => {
       const kref = byVref.get(vref);
       if (kref) return kref;
-      throw Error(
-        vref.startsWith('o+')
-          ? 'a session exports nothing'
-          : `this session holds no ${vref}`,
-      );
+      if (vref.startsWith('o+')) throw Fail`a session exports nothing`;
+      throw Fail`this session holds no ${q(vref)}`;
     },
     toVat: kref => {
       let vref = byKref.get(kref);
@@ -107,7 +105,7 @@ const makeKrefMarshal = () => {
   /** @param {unknown} obj */
   const toKref = obj => {
     const kref = typeof obj === 'object' && obj && krefOf.get(obj);
-    if (!kref) throw Error('not a reference the kernel handed out');
+    if (!kref) throw Fail`not a reference the kernel handed out`;
     return kref;
   };
   const marshal = makeMarshal(toKref, standIn, {
@@ -282,7 +280,7 @@ export class Kernel extends DurableObject {
       toKernel: vref => {
         const row = db.lookup('clist', { vat, vref }).get();
         if (row) return row.kref;
-        if (!EXPORT.test(vref)) throw Error(`${vat} holds no ${vref}`);
+        if (!EXPORT.test(vref)) throw Fail`${q(vat)} holds no ${q(vref)}`;
         /** @type {Kref} */
         const kref = `ko${this.#next('kref')}`;
         db.insert('kobject', { kref, owner: vat, vref });
@@ -343,13 +341,13 @@ export class Kernel extends DurableObject {
    */
   async #deliver(kref, method, kargs) {
     const obj = this.#db.lookup('kobject', { kref }).get();
-    if (!obj) throw Error(`no such object ${kref}`);
+    if (!obj) throw Fail`no such object ${q(kref)}`;
     const { owner, vref } = obj;
     if (owner === KERNEL) {
       const at = vref.indexOf(':');
       const prefix = vref.slice(0, at);
       if (at < 0 || !Object.hasOwn(this.#objects, prefix))
-        throw Error(`no kind of kernel object for ${vref}`);
+        throw Fail`no kind of kernel object for ${q(vref)}`;
       const kind = this.#objects[prefix];
       const args = this.#krefs.fromCapData(kargs);
       return this.#krefs.toCapData(
@@ -457,7 +455,7 @@ export class Kernel extends DurableObject {
   async #upgradeVat(vat, hash) {
     const row = this.#db.lookup('kvat', { vat });
     const old = row.get();
-    if (!old) throw Error(`no such vat ${vat}`);
+    if (!old) throw Fail`no such vat ${q(vat)}`;
     row.update({ hash });
     this.ctx.facets.abort(vat, Error('upgraded'));
     try {

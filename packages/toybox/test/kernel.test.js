@@ -152,18 +152,18 @@ test('a vat that calls its syscall directly reaches only what it holds', async (
 
   assert.match(
     await E(forger).target('o-1', 'incr'),
-    /^refused: v\d+ holds no o-1$/,
+    /^refused: "v\d+" holds no "o-1"$/,
   );
 
   await E(forger).hold(counter);
   assert.equal(await E(forger).target('o-1', 'incr'), 'reached: #1');
   assert.match(
     await E(forger).target('o-2', 'incr'),
-    /^refused: v\d+ holds no o-2$/,
+    /^refused: "v\d+" holds no "o-2"$/,
   );
   assert.match(
     await E(forger).slot('o-1', 'incr', 'o-9'),
-    /^refused: v\d+ holds no o-9$/,
+    /^refused: "v\d+" holds no "o-9"$/,
   );
 
   // the counter's own vref, claimed as an export: it names only the forger's objects
