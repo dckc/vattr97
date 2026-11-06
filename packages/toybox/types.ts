@@ -286,7 +286,12 @@ export type WithTables = (tables: Record<string, string>) => TablePowers<any>;
  */
 export type Remote = any;
 
-/** What a nix store bundle says of itself, in its worker.json. */
+/** A file or directory tree, as a bundle is read: no executable bits or symlinks (kernel/tree.js). */
+export type TreeNode =
+  | { type: 'regular'; contents: Uint8Array }
+  | { type: 'directory'; entries: Record<string, TreeNode> };
+
+/** What a bundle says of itself, in its worker.json. */
 export type Manifest = {
   mainModule: string;
   compatibilityDate: string;

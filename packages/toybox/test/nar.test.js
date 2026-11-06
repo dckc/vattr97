@@ -15,22 +15,23 @@ import { test } from 'node:test';
 import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
 import { narHash } from '../devices/nix/nar.js';
-import { installTree, makeTreeReader } from '../devices/nix/nix-store.js';
+import { installTree } from '../devices/nix/nix-store.js';
+import { makeTreeReader } from '../kernel/tree.js';
 import { makeNix } from './nix.js';
 import { here } from '../workerd-process.js';
 
 const { addToStore, narHashOf } = makeNix({ run: promisify(execFile) });
 
-/** @import { NarNode } from '../devices/types.js' */
+/** @import { TreeNode } from '../types.js' */
 /** @import { Kref } from '../types.js' */
 
-/** @param {string} path a regular file or a directory of them @returns {Promise<NarNode>} */
+/** @param {string} path a regular file or a directory of them @returns {Promise<TreeNode>} */
 const narNode = async path => {
   const entries = await readdir(path, { withFileTypes: true }).catch(
     () => null,
   );
   if (!entries) return { type: 'regular', contents: await readFile(path) };
-  /** @type {[string, NarNode][]} */
+  /** @type {[string, TreeNode][]} */
   const nodes = await Promise.all(
     entries.map(async e => [e.name, await narNode(join(path, e.name))]),
   );
@@ -140,7 +141,7 @@ test("a store bundle's bad worker.json is named in the error", async () => {
     /** @returns {Kref} */
     installNar: () => 'ko1',
   };
-  /** @param {string} text @returns {NarNode} */
+  /** @param {string} text @returns {TreeNode} */
   const withManifest = text => ({
     type: 'directory',
     entries: {

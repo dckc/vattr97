@@ -5,7 +5,7 @@ import { compareUtf8 } from '../byte-order.js';
 
 const encoder = new TextEncoder();
 
-/** @import { NarNode } from '../types.js' */
+/** @import { TreeNode } from '../../types.js' */
 
 /** A NAR string: its length as a 64-bit little-endian integer, its bytes, zeros to a multiple of 8. @param {Uint8Array | string} s */
 const narString = s => {
@@ -24,7 +24,7 @@ const checkName = name => {
     );
 };
 
-/** @param {NarNode} node @returns {Uint8Array[]} */
+/** @param {TreeNode} node @returns {Uint8Array[]} */
 const serialize = node => {
   if (node.type === 'regular')
     return ['(', 'type', 'regular', 'contents', node.contents, ')'].map(
@@ -54,7 +54,7 @@ const serialize = node => {
  * `nix path-info --json` reports (`sha256-<base64>`). Every file counts as
  * non-executable.
  *
- * @param {NarNode} node
+ * @param {TreeNode} node
  * @see https://nix.dev/manual/nix/2.35/protocols/nix-archive/
  */
 export const narHash = async node => {
