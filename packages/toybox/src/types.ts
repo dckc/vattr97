@@ -200,7 +200,7 @@ export type BuildRootObject<P = unknown> = (
 /**
  * What `buildRootObject` gets, beside its params. A module has no other
  * way to reach the world: no clock, no randomness, no network, but what
- * its params give it.
+ * its params and endowments give it.
  */
 export type Powers = {
   /**
@@ -228,6 +228,12 @@ export type Powers = {
   zone: Zone;
   /** the module's own SQLite, for what suits tables better than objects */
   db: SqlDatabase;
+  /**
+   * The service binding granted to this module as `name`. A function, not
+   * a record of bindings, since workerd's stubs can't be frozen, so can't
+   * be hardened.
+   */
+  endowment: (name: string) => Fetcher;
 };
 
 /**
