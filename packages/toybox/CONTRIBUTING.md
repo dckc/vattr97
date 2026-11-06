@@ -12,7 +12,7 @@ The nixStore tests put files in the nix store (`nix store add-path`), and the gi
 ## Layout of the code
 
 - [kernel.js](kernel.js): the `Kernel` Durable Object, which hosts many vats, and `Syscall`, a vat's only way out.
-- [devices/](devices/): each kind of the kernel's own objects, one module apiece. [devices/index.js](devices/index.js) wires up the I/O devices; the kernel knows those only as a `Device`, `{ kinds, make }` ([types.ts](types.ts)), and names just what it runs vats with: bundles, the boot directory, vatAdmin, ingress, and endowments.
+- [devices/](devices/): each kind of the kernel's own objects, one module apiece. [devices/index.js](devices/index.js) makes the I/O devices, and [supervisor.js](supervisor.js) hands them to the kernel (`makeKernelClass`); the kernel knows those only as a `Device`, `{ kinds, make }` ([types.ts](types.ts)), and names just what it runs vats with: bundles, the boot directory, vatAdmin, ingress, and endowments.
 - [liveslots.js](liveslots.js) and [kvat-runtime.js](kvat-runtime.js): a vat's side: vrefs, presences, its durable zone, and its SQLite.
 - [supervisor.js](supervisor.js): workerd's entrypoints, `Public` (the ingress), `App` (the boot vat's socket), and `Admin`, and the `Directory` of ingress mounts.
 - [orm.js](orm.js): rows as records, for single-table statements on the kernel's SQLite. A module exports its `TABLES`, and the kernel gives it a `db` limited to those; no kind of kernel object holds `sql`.

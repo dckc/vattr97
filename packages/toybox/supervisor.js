@@ -13,8 +13,14 @@ import {
   UNMOUNT_LABELS,
 } from './mounts-sql.js';
 
+import { makeDevices } from './devices/index.js';
+import { makeKernelClass } from './kernel.js';
+
 // config.capnp names these as classes of workerd's main module, this one
-export { Kernel, Syscall } from './kernel.js';
+export { Syscall } from './kernel.js';
+
+/** The kernel, with toybox's own I/O devices (devices/index.js). */
+export const Kernel = makeKernelClass({ makeDevices });
 
 /** @import { HttpResponse, IngressKey } from './types.js' */
 

@@ -4,22 +4,13 @@ import { makeFetchDevices } from './fetch.js';
 import { TABLES as GIT_TABLES, makeGit } from './git.js';
 import { makeNixStores } from './nix-store.js';
 
-/**
- * @import { Device, KernelPowers, WithTables } from '../types.js';
- * @import { makeBundles } from './bundles.js';
- */
+/** @import { MakeDevices } from '../types.js' */
 
 /**
- * The kernel's I/O devices, by name: the boot vat gets one of each under that
- * name, and an admin session's `makeDevice(name)` makes one.
+ * toybox's own I/O devices: networks (`fetch`, `lan`), the nix store, git
+ * trees, and entropy.
  *
- * @param {KernelPowers} powers
- * @param {object} io
- * @param {Env} io.env
- * @param {ReturnType<typeof makeBundles>} io.bundles
- * @param {(n: number) => Uint8Array} io.random `n` random bytes
- * @param {WithTables} io.withTables
- * @returns {Record<string, Device>}
+ * @type {MakeDevices}
  */
 export const makeDevices = (powers, { env, bundles, random, withTables }) =>
   harden({

@@ -253,6 +253,21 @@ export type Device = {
   make: () => Kref;
 };
 
+/**
+ * The kernel's I/O devices, by name: the boot vat gets one of each under that
+ * name, and an admin session's `makeDevice(name)` makes one.
+ */
+export type MakeDevices = (
+  powers: KernelPowers,
+  io: {
+    env: Env;
+    bundles: ReturnType<typeof import('./devices/bundles.js').makeBundles>;
+    /** `n` random bytes */
+    random: (n: number) => Uint8Array;
+    withTables: WithTables;
+  },
+) => Record<string, Device>;
+
 /** What every kind of kernel object may use of the kernel. */
 export type KernelPowers = {
   /** the next number in the counter `name` */

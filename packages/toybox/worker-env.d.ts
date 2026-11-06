@@ -5,7 +5,9 @@
 
 /** The supervisor's bindings (config.capnp). */
 interface Env {
-  KERNEL: DurableObjectNamespace<import('./kernel.js').Kernel>;
+  KERNEL: DurableObjectNamespace<
+    InstanceType<typeof import('./supervisor.js').Kernel>
+  >;
   DIRECTORY: DurableObjectNamespace<import('./supervisor.js').Directory>;
   LOADER: WorkerLoader;
   /** the fetch device's network: public addresses */
