@@ -1,0 +1,32 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // toybox as a Cloudflare Worker; ./build-cloudflare.js examples/neighbor writes dist/cloudflare
+  "name": "toybox",
+  "main": "dist/cloudflare/worker.js",
+  "base_dir": "dist/cloudflare",
+  "no_bundle": true,
+  "find_additional_modules": true,
+  "rules": [{ "type": "Text", "globs": ["**/*.txt"], "fallthrough": false }],
+  "compatibility_date": "2026-10-01",
+  "durable_objects": {
+    "bindings": [
+      { "name": "KERNEL", "class_name": "Kernel" },
+      { "name": "DIRECTORY", "class_name": "Directory" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Kernel", "Directory"] },
+  ],
+  // Dynamic Workers: each vat a facet of its kernel; this takes the Workers Paid plan
+  "worker_loaders": [{ "binding": "LOADER" }],
+  // the service bindings the boot vat may grant to vats
+  "vars": { "GRANTABLE": [] },
+  // what config.capnp's disk and network services give the kernel
+  "services": [
+    { "binding": "BOOT", "service": "toybox", "entrypoint": "Boot" },
+    { "binding": "INTERNET", "service": "toybox", "entrypoint": "Internet" },
+    { "binding": "LAN", "service": "toybox", "entrypoint": "Nowhere" },
+    { "binding": "NIX_STORE", "service": "toybox", "entrypoint": "Nowhere" },
+    { "binding": "GIT_CHECKOUT", "service": "toybox", "entrypoint": "Nowhere" },
+  ],
+}

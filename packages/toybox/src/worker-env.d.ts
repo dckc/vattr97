@@ -36,6 +36,14 @@ declare module 'vat-runtime.txt' {
   export default src;
 }
 
+/** the boot directory built into the Cloudflare Worker (build-cloudflare.js) */
+declare module 'toybox-boot' {
+  /** a directory: each entry a file's UTF-8 contents, or a directory */
+  export type BootTree = { [name: string]: string | BootTree };
+  const tree: BootTree;
+  export default tree;
+}
+
 /** a text module: in a nixStore bundle, a `.txt` file's contents */
 declare module '*.txt' {
   const text: string;
