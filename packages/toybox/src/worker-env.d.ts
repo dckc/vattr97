@@ -10,6 +10,8 @@ interface Env {
   >;
   DIRECTORY: DurableObjectNamespace<import('./supervisor.js').Directory>;
   LOADER: WorkerLoader;
+  /** the boot directory, read-only: the boot vat's code, and the bundles it makes vats from */
+  BOOT: Fetcher;
 }
 
 declare namespace Cloudflare {

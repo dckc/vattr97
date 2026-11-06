@@ -11,7 +11,7 @@ export type VatId = `v${number}`;
 /** A kernel object's key: its kind's prefix, then whatever tells it from others of its kind. */
 export type KernelKey = `${string}:${string}`;
 
-/** An ingress's key: `<kernel id>:<number>` after its prefix. */
+/** An ingress's key: `<kernel id>:<number or socket name>` after its prefix. */
 export type IngressKey = `kernel:${string}`;
 
 /** One party's vrefs, translated to and from krefs. */
@@ -41,8 +41,8 @@ export type Device = {
 };
 
 /**
- * The kernel's I/O devices, by name: an admin session's `makeDevice(name)`
- * makes one.
+ * The kernel's I/O devices, by name: the boot vat gets one of each under that
+ * name, and an admin session's `makeDevice(name)` makes one.
  */
 export type MakeDevices = (
   powers: KernelPowers,
@@ -79,6 +79,11 @@ export type TablePowers<DB extends Record<string, Row>> = KernelPowers & {
 export type WithTables = <DB extends Record<string, Row>>(
   tables: Record<string, string>,
 ) => TablePowers<DB>;
+
+/** A file or directory tree, as a bundle is read: no executable bits or symlinks (tree.js). */
+export type TreeNode =
+  | { type: 'regular'; contents: Uint8Array }
+  | { type: 'directory'; entries: Record<string, TreeNode> };
 
 /** What a bundle says of itself, in its worker.json. */
 export type Manifest = {

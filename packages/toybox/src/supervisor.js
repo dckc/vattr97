@@ -1,4 +1,4 @@
-/** @file toybox's entrypoints: the ingress (`Public`) and the admin socket (`Admin`), in front of {@link Kernel}s; and the {@link Directory} of ingress mounts. */
+/** @file toybox's entrypoints: the ingress (`Public`), the boot vat's own socket (`App`), and the admin socket (`Admin`), in front of {@link Kernel}s; and the {@link Directory} of ingress mounts. */
 import '@endo/init';
 import { DurableObject, WorkerEntrypoint } from 'cloudflare:workers';
 import { Fail, q } from '@endo/errors';
@@ -30,6 +30,10 @@ export const Kernel = makeKernelClass({ makeDevices });
  * a script on one vat's page could read what another's page keeps.
  */
 const PUBLIC_POLICY = "script-src 'none'";
+
+/** The app socket is the boot vat's alone, on an origin of its own: its pages' scripts come from it. */
+const APP_POLICY =
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'";
 
 /** A mount, as the Directory finds it: the ingress key it leads to, and its labels. @typedef {{ vat: IngressKey, labels: Record<string, string> }} Mount */
 
@@ -144,6 +148,33 @@ export class Public extends WorkerEntrypoint {
     const [, id] = mount.vat.split(':');
     const kernel = this.env.KERNEL.get(this.env.KERNEL.idFromString(id));
     return served(kernel.serveHttp(mount.vat, req), PUBLIC_POLICY);
+  }
+}
+
+/**
+ * The app socket: every request goes to the boot vat of the kernel named
+ * `main`, started on the first one (see {@link Kernel.boot}), for whoever
+ * it has serve the socket. Its origin is its own, so its pages may keep
+ * secrets in the browser's storage and run their own scripts.
+ */
+/** @extends {WorkerEntrypoint<Env>} */
+export class App extends WorkerEntrypoint {
+  /** @param {Request} request */
+  async fetch(request) {
+    let labels;
+    try {
+      labels = requestLabels(request);
+    } catch (e) {
+      return new Response(`bad labels: ${/** @type {Error} */ (e).message}\n`, {
+        status: 400,
+      });
+    }
+    return served(
+      this.env.KERNEL.getByName('main').serveApp(
+        await requestData(labels, request),
+      ),
+      APP_POLICY,
+    );
   }
 }
 
