@@ -49,6 +49,8 @@ export type MakeDevices = (
   io: {
     env: Env;
     bundles: ReturnType<typeof import('./bundles.js').makeBundles>;
+    /** `n` random bytes */
+    random: (n: number) => Uint8Array;
     withTables: WithTables;
   },
 ) => Record<string, Device>;
