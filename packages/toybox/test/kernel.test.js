@@ -187,6 +187,47 @@ test('vats in one kernel', async t => {
   );
 
   await t.test(
+    'payments move between vats through a deposit facet, which cannot withdraw; spent and counterfeit ones are refused; balances survive restarts',
+    async () => {
+      const { adminNode: mintAdmin, root: mintRoot } = await k.createVat(
+        await kvat('rights-transfer/mint.js'),
+      );
+      const { adminNode: aliceAdmin, root: alice } = await k.createVat(
+        await kvat('rights-transfer/payer.js'),
+      );
+      const { root: other } = await k.createVat(await kvat('ephemeral.js'));
+      const issuer = await E(mintRoot).getIssuer();
+      const mint = await E(mintRoot).getMint();
+      const bobPurse = await E(issuer).makeEmptyPurse();
+      const bobDeposit = await E(bobPurse).getDepositFacet();
+      assert.equal(await E(bobPurse).getDepositFacet(), bobDeposit);
+      await assert.rejects(E(bobDeposit).withdraw(1), /withdraw/);
+      await E(alice).setPayee(bobDeposit);
+
+      const ten = await E(mint).mintPayment(10);
+      assert.equal(await E(alice).pay(ten), 10);
+      assert.equal(await E(bobPurse).getBalance(), 10);
+      await assert.rejects(
+        E(alice).pay(ten),
+        /not a live payment of this mint/,
+      );
+      await assert.rejects(
+        E(alice).pay(await E(other).getTicker()),
+        /not a live payment of this mint/,
+      );
+
+      const three = await E(bobPurse).withdraw(3);
+      assert.equal(await E(issuer).isLive(three), true);
+      await E(mintAdmin).restart();
+      await E(aliceAdmin).restart();
+      assert.equal(await E(alice).pay(three), 3);
+      assert.equal(await E(alice).pay(await E(mint).mintPayment(5)), 5);
+      assert.equal(await E(bobPurse).getBalance(), 15);
+      await assert.rejects(E(bobPurse).withdraw(16), /insufficient funds/);
+    },
+  );
+
+  await t.test(
     "upgrading a vat's code keeps its durable objects, and others' references to them",
     async () => {
       const { adminNode: admin, root } = await k.createVat(
@@ -340,4 +381,41 @@ test('vats in one kernel', async t => {
       assert.deepEqual(await E(other).list(), []);
     },
   );
+});
+
+test("after the whole toybox crashes, vats' references to each other still work", async t => {
+  const { startToybox, makeDir, kvat } = await worldP;
+  // its own toybox: a crash breaks every session to it
+  const dir = await makeDir('toybox-kernel-crash-');
+  t.after(dir.remove);
+
+  await t.test('vats that refer to each other', async t => {
+    const box = await startToybox(dir);
+    t.after(box.stop);
+    const client = await box.admin('crashy');
+    t.after(client.close);
+    const { root: mintRoot } = await client.createVat(
+      await kvat('rights-transfer/mint.js'),
+    );
+    const { root: alice } = await client.createVat(
+      await kvat('rights-transfer/payer.js'),
+    );
+    const { root: holder } = await client.createVat(await kvat('holder.js'));
+    const purse = await E(await E(mintRoot).getIssuer()).makeEmptyPurse();
+    await E(alice).setPayee(await E(purse).getDepositFacet());
+    await E(holder).keep('purse', purse);
+    await E(holder).keep('mint', await E(mintRoot).getMint());
+  });
+
+  await t.test('after a crash', async t => {
+    const box = await startToybox(dir);
+    t.after(box.stop);
+    const client = await box.admin('crashy');
+    t.after(client.close);
+    // a new session finds the vats again by their order of making
+    const [, { root: alice }, { root: holder }] = await client.vats();
+    const mint = await E(holder).get('mint');
+    assert.equal(await E(alice).pay(await E(mint).mintPayment(7)), 7);
+    assert.equal(await E(await E(holder).get('purse')).getBalance(), 7);
+  });
 });
