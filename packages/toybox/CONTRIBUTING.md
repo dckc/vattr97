@@ -19,7 +19,7 @@ The nixStore tests put files in the nix store (`nix store add-path`), and the gi
 - [orm.js](orm.js): rows as records, for single-table statements on the kernel's SQLite. A module exports its `TABLES`, and the kernel gives it a `db` limited to those; no kind of kernel object holds `sql`.
 - [labels.js](labels.js): [Flower](https://github.com/NuxiNL/flower)'s label rule for mounts.
 - [config.capnp](config.capnp): workerd's config. Its sockets have no addresses; whoever starts workerd hands them in, so holding a socket is the authority it grants.
-- [types.ts](types.ts) and [worker-env.d.ts](worker-env.d.ts): the types the modules share, and workerd's bindings.
+- [types.ts](types.ts) and [worker-env.d.ts](worker-env.d.ts): the types the kernel, vats, and devices share, and workerd's bindings. The I/O devices' own types are in [devices/types.ts](devices/types.ts).
 - [examples/](examples/): vats built on toybox rather than part of it; the tests exercise them: counters, a mint and purses, lend-the-mower, hello, a WebApp maker, a store maker, a bookmark cache, and a bootstrap vat that wires them.
 - [examples/wallet/](examples/wallet/): a boot directory: a boot vat, counters, issuer kits, and a gateway that keeps a NameHub per client and serves the app socket. [scripts/serve.js](scripts/serve.js) runs a toybox from any boot directory, and prints the boot vat's `ownerLink()` if it answers one; [scripts/service.sh](scripts/service.sh) runs that as a transient systemd user service, and `yarn wallet` runs the wallet that way.
 

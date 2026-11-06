@@ -5,7 +5,7 @@ import { compareUtf8 } from '../byte-order.js';
 
 const encoder = new TextEncoder();
 
-/** @import { NarNode } from '../../types.js' */
+/** @import { NarNode } from '../types.js' */
 
 /** A NAR string: its length as a 64-bit little-endian integer, its bytes, zeros to a multiple of 8. @param {Uint8Array | string} s */
 const narString = s => {

@@ -219,20 +219,6 @@ export type HttpResponse = {
   body?: string;
 };
 
-/** What a fetch device sends. */
-export type FetchInit = {
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string;
-};
-
-/** What a fetch device answers: the body as text. */
-export type FetchAnswer = {
-  status: number;
-  headers: Record<string, string>;
-  body: string;
-};
-
 /**
  * A kind of kernel object (a device, after SwingSet's): messages to an
  * object whose key is `<prefix>:<rest>` come here, their arguments
@@ -300,11 +286,6 @@ export type WithTables = (tables: Record<string, string>) => TablePowers<any>;
  */
 export type Remote = any;
 
-/** A store path's contents, without executable bits or symlinks (devices/nix/nar.js). */
-export type NarNode =
-  | { type: 'regular'; contents: Uint8Array }
-  | { type: 'directory'; entries: Record<string, NarNode> };
-
 /** What a nix store bundle says of itself, in its worker.json. */
 export type Manifest = {
   mainModule: string;
@@ -320,11 +301,4 @@ export type BundleCode = {
   compatibilityDate: string;
   compatibilityFlags?: string[];
   modules: Record<string, unknown>;
-};
-
-/** A regular file in a git tree, as `git ls-tree -r` lists it (devices/git/git-tree.js). */
-export type TreeFile = {
-  mode: '100644' | '100755';
-  path: string;
-  oid: string;
 };
