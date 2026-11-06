@@ -233,6 +233,10 @@ export const makeKernelClass = ({ makeDevices }) =>
         env,
         bundles: this.#bundles,
         withTables,
+        // the Kernel is workerd's to construct, so randomness enters here, for
+        // a device to hand out
+        // eslint-disable-next-line no-restricted-properties
+        random: n => crypto.getRandomValues(new Uint8Array(n)),
       });
       this.#objects = {
         kernel: this.#ingresses,
