@@ -248,6 +248,20 @@ export type Powers = {
 export type Remote<Primary = any, Local = DataOnly<Primary>> =
   Primary | RemotableBrand<Local, Primary>;
 
+declare const SwissNumBrand: unique symbol;
+
+/**
+ * A swiss number: 128 random bits, base64url-encoded without padding (22
+ * characters), as an entropy device answers them. It's a bearer secret:
+ * whoever presents it gets what it designates, so it goes in a link's
+ * fragment or a request's body, never in a log, an error, or a URL's path
+ * or query.
+ *
+ * @see https://github.com/ocapn/ocapn/blob/main/draft-specifications/Locators.md OCapN's sturdyrefs, whose `/s/<swiss-num>` this fits
+ * @see https://www.rfc-editor.org/rfc/rfc4648#section-5 base64url
+ */
+export type SwissNum = string & { readonly [SwissNumBrand]: true };
+
 /** A module's own SQLite database, its statements run synchronously. */
 export type SqlDatabase = {
   exec: (sql: string) => void;

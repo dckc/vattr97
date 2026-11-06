@@ -74,6 +74,12 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
       first.headers.get('content-security-policy') ?? '',
       /^default-src 'self';/,
     );
+    const [a, b] = [
+      await (await box.app('/swiss')).text(),
+      await (await box.app('/swiss')).text(),
+    ];
+    assert.match(a, /^[A-Za-z0-9_-]{22}$/);
+    assert.notEqual(a, b);
 
     const main = await box.admin();
     t.after(main.close);
@@ -82,6 +88,7 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
     assert.deepEqual(await E(bootVat.root).powers(), [
       'bundles',
       'endowments',
+      'entropy',
       'fetch',
       'gitTrees',
       'ingress',

@@ -1,9 +1,9 @@
 /**
- * A boot vat for tests: it serves the app socket, counts its starts, and
- * makes a child vat from `child.js` in the boot directory. The test
- * rewrites `VERSION` to upgrade it.
+ * A boot vat for tests: it serves the app socket, counts its starts, makes
+ * a child vat from `child.js` in the boot directory, and hands out swiss
+ * numbers from its entropy device. The test rewrites `VERSION` to upgrade it.
  */
-/** @import { BuildRootObject, MapStore, Remote } from '../../src/types.js' */
+/** @import { BuildRootObject, HttpRequest, MapStore, Remote } from '../../src/types.js' */
 
 const VERSION = 'v1';
 
@@ -11,20 +11,26 @@ const VERSION = 'v1';
  * @typedef {object} Params
  * @property {Remote} vatAdmin
  * @property {Remote} bundles the boot directory's
+ * @property {Remote} entropy
  * @property {Remote} ingress the app socket's
  */
 
 /** @type {BuildRootObject<Params>} */
 export const buildRootObject = ({ E, Far, zone }, params) => {
-  const { vatAdmin, bundles, ingress } = params;
+  const { vatAdmin, bundles, entropy, ingress } = params;
   /** @type {MapStore<string, number | Remote>} the start count, and the child's root */
   const kept = zone.mapStore('kept');
   const makeHandler = zone.exoClass('Handler', undefined, () => ({}), {
-    handle() {
+    /** @param {HttpRequest} request */
+    async handle({ path }) {
+      const body =
+        path === '/swiss'
+          ? await E(entropy).swiss()
+          : `${VERSION} started ${kept.get('starts')}`;
       return {
         status: 200,
         headers: { 'content-type': 'text/plain' },
-        body: `${VERSION} started ${kept.get('starts')}`,
+        body,
       };
     },
   });

@@ -23,7 +23,7 @@ on PORT+1, and the admin socket is STATE_DIR/admin.sock. The source
 device reads bundles by path from the source DIR (BOOT_DIR by default);
 git trees, from the git checkout DIR (STATE_DIR/checkout by default).
 
-If the boot vat answers ownerLink(), prints "open: " and the app socket's
+If the boot vat answers provideOwnerLink(), prints "open: " and the app socket's
 URL with that link appended: whoever opens it holds what it designates.
 Runs until interrupted or terminated; workerd's log goes to stderr.
 `;
@@ -93,7 +93,7 @@ export const main = async ({
     const [bootVat] = await kernel.vats();
     const link = bootVat
       ? await E(bootVat.root)
-          .ownerLink()
+          .provideOwnerLink()
           .catch(() => '')
       : '';
     kernel.close();
