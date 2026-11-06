@@ -1,4 +1,4 @@
-/** @file The order git and nix sort names in: by their UTF-8 bytes. */
+/** @file The order git sorts names in: by their UTF-8 bytes. */
 
 const encoder = new TextEncoder();
 

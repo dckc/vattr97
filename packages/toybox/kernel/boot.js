@@ -1,8 +1,7 @@
 /** @file The boot directory: bundleCaps for what config.capnp's `boot` directory holds, for the boot vat to make vats from. */
 import { M } from '@endo/patterns';
-import { installTree } from '../devices/nix/nix-store.js';
 import { kzone } from './objects.js';
-import { makeTreeReader } from './tree.js';
+import { bundleFiles, makeTreeReader } from './tree.js';
 
 /**
  * @import { KernelPowers } from '../types.js';
@@ -13,9 +12,9 @@ import { makeTreeReader } from './tree.js';
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /**
- * The boot directory's bundles. Each name in it is a bundle, as a nix store
- * path is ({@link installTree}), so a name whose contents changed answers a
- * different bundleCap.
+ * The boot directory's bundles. Each name in it is a bundle ({@link
+ * bundleFiles}), so a name whose contents changed answers a different
+ * bundleCap.
  *
  * The kernel starts its boot vat from `boot.js` there, and hands the boot
  * vat the directory's bundles object, whose `getBundleCap(name)` it makes
@@ -46,7 +45,9 @@ export const makeBootBundles = (
   const install = async name => {
     if (!NAME.test(name))
       throw Error(`not a name in the boot directory: ${JSON.stringify(name)}`);
-    return installTree(bundles, `boot/${name}`, await read([name]));
+    return bundles.installFiles(
+      bundleFiles(`boot/${name}`, await read([name])),
+    );
   };
 
   return harden({

@@ -1,11 +1,10 @@
-/** @file nixStores: bundleCaps for nix store paths, keyed by their NAR hashes. */
+/** @file nixStores: bundleCaps for nix store paths. */
 import { M } from '@endo/patterns';
-import { narHash } from './nar.js';
 import { kzone } from '../../kernel/objects.js';
 import { bundleFiles, makeTreeReader } from '../../kernel/tree.js';
 
 /**
- * @import { Device, KernelPowers, TreeNode } from '../../types.js';
+ * @import { Device, KernelPowers } from '../../types.js';
  * @import { makeBundles } from '../../kernel/bundles.js';
  */
 
@@ -14,23 +13,9 @@ const STORE_PATH =
   /^\/nix\/store\/([0-9a-df-np-sv-z]{32}-[A-Za-z0-9+\-._?=]+)$/;
 
 /**
- * Keep the tree `node`, read from `path`, as a bundle, by its NAR hash;
- * answers its bundleCap's kref. A file is a bundle of one module; a
- * directory's files are its modules, its `worker.json` naming the main one.
- *
- * @param {Pick<ReturnType<typeof makeBundles>, 'installNar'>} bundles
- * @param {string} path
- * @param {TreeNode} node
- */
-export const installTree = async (bundles, path, node) => {
-  const { manifest, files } = bundleFiles(path, node);
-  return bundles.installNar(await narHash(node), manifest, files);
-};
-
-/**
  * nixStores: `getBundleCap(path)` reads a store path through config.capnp's
  * read-only `nix-store` service, so the same contents give the same
- * bundleCap ({@link installTree}). A `worker.json` may also give a
+ * bundleCap ({@link bundleFiles}). A `worker.json` may also give a
  * compatibility date and flags. Symlinks, and anything not in the store,
  * are refused.
  *
@@ -66,7 +51,9 @@ export const makeNixStores = (
             const [, name] = path.match(STORE_PATH) ?? [];
             if (!name) throw Error('not a store path');
             return standIn(
-              await installTree(bundles, path, await readStore([name])),
+              await bundles.installFiles(
+                bundleFiles(path, await readStore([name])),
+              ),
             );
           },
         },

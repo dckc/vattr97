@@ -9,9 +9,4 @@ export const makeNix = ({ run }) =>
     /** Add `path` (a file or directory) to the store; answers its store path. @param {string} path */
     addToStore: async path =>
       (await run('nix', ['store', 'add-path', path])).stdout.trim(),
-    /** What `nix path-info --json` says is the NAR hash of `storePath`. @param {string} storePath @returns {Promise<string>} */
-    narHashOf: async storePath =>
-      JSON.parse((await run('nix', ['path-info', '--json', storePath])).stdout)[
-        storePath
-      ].narHash,
   });
