@@ -8,6 +8,7 @@ interface Env {
   KERNEL: DurableObjectNamespace<
     InstanceType<typeof import('./supervisor.js').Kernel>
   >;
+  DIRECTORY: DurableObjectNamespace<import('./supervisor.js').Directory>;
   LOADER: WorkerLoader;
 }
 

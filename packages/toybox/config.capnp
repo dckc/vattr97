@@ -12,7 +12,9 @@ const config :Workerd.Config = (
     (name = "state", disk = (path = "state", writable = true)),
   ],
   sockets = [
-    # a kernel session: create vats, install code, make devices
+    # the ingress: reach the handler mounted at a request's labels
+    (name = "http", http = (), service = (name = "main", entrypoint = "Public")),
+    # a kernel session: create vats, install code, make devices and ingresses
     (name = "admin", http = (), service = (name = "main", entrypoint = "Admin")),
   ],
 );
@@ -26,6 +28,7 @@ const modules :List(Workerd.Worker.Module) = [
 ];
 
 const durableObjectNamespaces :List(Workerd.Worker.DurableObjectNamespace) = [
+  (className = "Directory", uniqueKey = "toybox-directory", enableSql = true),
   (className = "Kernel", uniqueKey = "toybox-kernel", enableSql = true),
 ];
 
@@ -35,6 +38,7 @@ const supervisor :Workerd.Worker = (
   durableObjectNamespaces = .durableObjectNamespaces,
   durableObjectStorage = (localDisk = "state"),
   bindings = [
+    (name = "DIRECTORY", durableObjectNamespace = "Directory"),
     (name = "KERNEL", durableObjectNamespace = "Kernel"),
     (name = "LOADER", workerLoader = ()),
   ],

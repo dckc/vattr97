@@ -34,7 +34,7 @@ import { makeWorkerd } from '../src/workerd-process.js';
  * takes what it uses from here.
  */
 const worldP = (async () => {
-  const { startWorkerd } = makeWorkerd({
+  const { freePort, startWorkerd } = makeWorkerd({
     workerd: workerdPackage.default,
     spawn,
     rm,
@@ -51,7 +51,13 @@ const worldP = (async () => {
   /** A new directory of its own, for a test. @param {string} prefix */
   const makeDir = async prefix =>
     makeTree(fs, await mkdtemp(join(tmpdir(), prefix)));
-  const { startToybox } = makeToyboxes({ startWorkerd, pkg, WebSocket });
+  const { startToybox } = makeToyboxes({
+    startWorkerd,
+    freePort,
+    pkg,
+    fetch,
+    WebSocket,
+  });
   return {
     startToybox,
     pkg,
@@ -381,6 +387,38 @@ test('vats in one kernel', async t => {
       assert.deepEqual(await E(other).list(), []);
     },
   );
+
+  await t.test(
+    'an ingress answers a status that has no body, and a 502 when its handler throws',
+    async () => {
+      await assert.rejects(
+        // @ts-expect-error a label's value is a string
+        k.makeIngress({ site: 'answers', n: 1 }),
+        /label n is not a string/,
+      );
+      const ingress = await k.makeIngress({ site: 'answers' });
+      await k.createVat(await kvat('probes/ingress.js'), { ingress });
+      /** @param {string} path */
+      const get = path => box.http(path);
+      for (const status of [200, 204, 304]) {
+        const resp = await get(`/?site=answers&status=${status}`);
+        assert.equal(resp.status, status);
+        assert.equal(await resp.text(), status === 200 ? 'body' : '');
+      }
+      // a label may have any name that isn't given twice
+      assert.equal(
+        (await get('/?site=answers&status=200&constructor=x')).status,
+        200,
+      );
+      assert.equal(
+        (await get('/?site=answers&status=200&site=answers')).status,
+        400,
+      );
+      const failed = await get('/throw?site=answers&status=200');
+      assert.equal(failed.status, 502);
+      assert.doesNotMatch(await failed.text(), /asked to throw/);
+    },
+  );
 });
 
 test("after the whole toybox crashes, vats' references to each other still work", async t => {
@@ -417,5 +455,49 @@ test("after the whole toybox crashes, vats' references to each other still work"
     const mint = await E(holder).get('mint');
     assert.equal(await E(alice).pay(await E(mint).mintPayment(7)), 7);
     assert.equal(await E(await E(holder).get('purse')).getBalance(), 7);
+  });
+});
+
+test('a kernel vat serves the web through its ingress, after a restart and after a crash', async t => {
+  const { startToybox, makeDir, kvat } = await worldP;
+  const dir = await makeDir('toybox-kernel-web-');
+  t.after(dir.remove);
+
+  await t.test('through a restart', async t => {
+    const box = await startToybox(dir);
+    t.after(box.stop);
+    /** @param {string} path */
+    const get = path => box.http(path);
+    const client = await box.admin('web');
+    t.after(client.close);
+    assert.equal((await get('/?site=hello')).status, 404);
+    const ingress = await client.makeIngress({ site: 'hello' });
+    assert.equal((await get('/?site=hello')).status, 503);
+    await assert.rejects(client.makeIngress({ site: 'hello' }), /overlaps/);
+    const { adminNode: admin } = await client.createVat(
+      await kvat('hello-page.js'),
+      { ingress },
+    );
+    const first = await get('/greet?site=hello');
+    assert.equal(first.status, 200);
+    assert.equal(first.headers.get('content-type'), 'text/html; charset=utf-8');
+    // a page here runs no scripts: every mount shares this origin
+    assert.equal(
+      first.headers.get('content-security-policy'),
+      "script-src 'none'",
+    );
+    assert.match(await first.text(), /from a kernel vat, at \/greet, hit 1</);
+    await E(admin).restart();
+    assert.match(await (await get('/again?site=hello')).text(), /hit 2</);
+  });
+
+  // nobody reconnects: the kernel holds the handler's kref, and its vat starts on demand
+  await t.test('after a crash', async t => {
+    const box = await startToybox(dir);
+    t.after(box.stop);
+    assert.match(
+      await (await box.http('/after-crash?site=hello')).text(),
+      /at \/after-crash, hit 3</,
+    );
   });
 });
