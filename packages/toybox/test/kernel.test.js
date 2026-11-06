@@ -152,6 +152,76 @@ test('a vat that calls its syscall directly reaches only what it holds', async (
   assert.equal(await E(counter).read(), 1);
 });
 
+test('payments move between vats through a deposit facet, which cannot withdraw; spent and counterfeit ones are refused; balances survive restarts', async () => {
+  const { adminNode: mintAdmin, root: mintRoot } = await k.createVat(
+    await kvat('rights-transfer/mint.js'),
+  );
+  const { adminNode: aliceAdmin, root: alice } = await k.createVat(
+    await kvat('rights-transfer/payer.js'),
+  );
+  const { root: other } = await k.createVat(await kvat('ephemeral.js'));
+  const issuer = await E(mintRoot).getIssuer();
+  const mint = await E(mintRoot).getMint();
+  const bobPurse = await E(issuer).makeEmptyPurse();
+  const bobDeposit = await E(bobPurse).getDepositFacet();
+  assert.equal(await E(bobPurse).getDepositFacet(), bobDeposit);
+  await assert.rejects(E(bobDeposit).withdraw(1), /withdraw/);
+  await E(alice).setPayee(bobDeposit);
+
+  const ten = await E(mint).mintPayment(10);
+  assert.equal(await E(alice).pay(ten), 10);
+  assert.equal(await E(bobPurse).getBalance(), 10);
+  await assert.rejects(E(alice).pay(ten), /not a live payment of this mint/);
+  await assert.rejects(
+    E(alice).pay(await E(other).getTicker()),
+    /not a live payment of this mint/,
+  );
+
+  const three = await E(bobPurse).withdraw(3);
+  assert.equal(await E(issuer).isLive(three), true);
+  await E(mintAdmin).restart();
+  await E(aliceAdmin).restart();
+  assert.equal(await E(alice).pay(three), 3);
+  assert.equal(await E(alice).pay(await E(mint).mintPayment(5)), 5);
+  assert.equal(await E(bobPurse).getBalance(), 15);
+  await assert.rejects(E(bobPurse).withdraw(16), /insufficient funds/);
+});
+
+test("after the whole toybox crashes, vats' references to each other still work", async () => {
+  // its own toybox: a crash breaks every session to it
+  const home = await mkdtemp(join(tmpdir(), 'toybox-kernel-crash-'));
+  await mkdir(join(home, 'state'));
+  let box = await startToybox(home);
+  try {
+    let client = await connectTo(box.sock, 'crashy');
+    const { root: mintRoot } = await client.createVat(
+      await kvat('rights-transfer/mint.js'),
+    );
+    const { root: alice } = await client.createVat(
+      await kvat('rights-transfer/payer.js'),
+    );
+    const { root: holder } = await client.createVat(await kvat('holder.js'));
+    const purse = await E(await E(mintRoot).getIssuer()).makeEmptyPurse();
+    await E(alice).setPayee(await E(purse).getDepositFacet());
+    await E(holder).keep('purse', purse);
+    await E(holder).keep('mint', await E(mintRoot).getMint());
+    client.close();
+
+    await box.server.stop();
+    box = await startToybox(home);
+    client = await connectTo(box.sock, 'crashy');
+    // a new session finds the vats again by their order of making
+    const [, { root: alice2 }, { root: holder2 }] = await client.vats();
+    const mint = await E(holder2).get('mint');
+    assert.equal(await E(alice2).pay(await E(mint).mintPayment(7)), 7);
+    assert.equal(await E(await E(holder2).get('purse')).getBalance(), 7);
+    client.close();
+  } finally {
+    await box.server.stop();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("upgrading a vat's code keeps its durable objects, and others' references to them", async () => {
   const { adminNode: admin, root } = await k.createVat(
     await kvat('counter.js'),
