@@ -1,5 +1,5 @@
 /** Durable counters, made on request. */
-/** @import { BuildRootObject } from '../../types.js' */
+/** @import { BuildRootObject } from '../../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ Far, zone }) => {

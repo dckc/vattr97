@@ -1,7 +1,7 @@
 /** @file Labels merge as Flower's do. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeLabels } from '../labels.js';
+import { mergeLabels } from '../src/labels.js';
 
 test('labels merge; a key both give must agree, whatever its name', () => {
   assert.deepEqual(mergeLabels({ a: '1' }, { a: '1', b: '2' }), {

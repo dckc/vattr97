@@ -1,5 +1,5 @@
 /** Pays into the purse she was told to, durably. */
-/** @import { BuildRootObject, MapStore, Remote } from '../types.js' */
+/** @import { BuildRootObject, MapStore, Remote } from '../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ E, Far, zone }) => {

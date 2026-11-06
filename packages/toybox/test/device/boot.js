@@ -3,7 +3,7 @@
  * a sibling on the same code with no grant, and keeps a reader the device
  * handed out.
  */
-/** @import { BuildRootObject, MapStore, Remote } from '../../types.js' */
+/** @import { BuildRootObject, MapStore, Remote } from '../../src/types.js' */
 
 /**
  * @typedef {object} Params

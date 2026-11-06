@@ -1,5 +1,5 @@
 /** Governed mowers: a fence `limit` pushes from where the mower starts. */
-/** @import { BuildRootObject, Remote } from '../types.js' */
+/** @import { BuildRootObject, Remote } from '../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ E, Far, zone }) => {

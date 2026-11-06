@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
  */
 
 /** The package's directory. */
-export const here = fileURLToPath(new URL('.', import.meta.url));
+export const here = fileURLToPath(new URL('..', import.meta.url));
 
 /**
  * What running workerd takes, all supplied by the caller.

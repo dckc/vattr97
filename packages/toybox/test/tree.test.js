@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bundleFiles, makeTreeReader } from '../kernel/tree.js';
+import { bundleFiles, makeTreeReader } from '../src/kernel/tree.js';
 
-/** @import { TreeNode } from '../types.js' */
+/** @import { TreeNode } from '../src/types.js' */
 
 /**
  * A tree reader over a local directory, served as workerd's disk services

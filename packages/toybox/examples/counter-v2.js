@@ -1,5 +1,5 @@
 /** Counter v2: the same kind, now counting by tens. */
-/** @import { BuildRootObject } from '../types.js' */
+/** @import { BuildRootObject } from '../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ Far, zone }) => {

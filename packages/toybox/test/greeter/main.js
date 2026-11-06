@@ -2,7 +2,7 @@
 import greeting from './greeting.txt';
 import { prepareCount } from './lib/count.js';
 
-/** @import { BuildRootObject } from '../../types.js' */
+/** @import { BuildRootObject } from '../../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ Far, zone }) => {

@@ -1,5 +1,5 @@
 /** Runs a mower: starts it and pushes until told to stop, or until it refuses. */
-/** @import { BuildRootObject, Remote } from '../types.js' */
+/** @import { BuildRootObject, Remote } from '../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ E, Far }) =>

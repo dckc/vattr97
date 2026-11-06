@@ -1,5 +1,5 @@
 /** One durable count. */
-/** @import { Zone } from '../../../types.js' */
+/** @import { Zone } from '../../../src/types.js' */
 
 /** @param {Zone} zone */
 export const prepareCount = zone => {

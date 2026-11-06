@@ -2,7 +2,7 @@
  * A device vat for tests: it holds the `files` binding, and hands out
  * readers of one file each. The test rewrites `VERSION` to upgrade it.
  */
-/** @import { BuildRootObject } from '../../types.js' */
+/** @import { BuildRootObject } from '../../src/types.js' */
 
 const VERSION = 'v1';
 

@@ -1,5 +1,5 @@
 /** Makes durable map stores for whoever asks; the asker holds the store, and can hand out its `readOnly()` facet. */
-/** @import { BuildRootObject } from '../types.js' */
+/** @import { BuildRootObject } from '../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ Far, zone }) =>

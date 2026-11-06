@@ -1,5 +1,5 @@
 /** Keeps what it's given, by name, durably; bumps a kept counter. */
-/** @import { BuildRootObject, MapStore, Remote } from '../types.js' */
+/** @import { BuildRootObject, MapStore, Remote } from '../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ E, Far, zone }) => {

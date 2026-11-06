@@ -14,9 +14,9 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
-import { blobId, parseLsTree, treeId } from '../devices/git/git-tree.js';
+import { blobId, parseLsTree, treeId } from '../src/devices/git/git-tree.js';
 import { makeGit } from './git.js';
-import { here } from '../workerd-process.js';
+import { here } from '../src/workerd-process.js';
 
 const { makeRepo } = makeGit({
   run: promisify(execFile),

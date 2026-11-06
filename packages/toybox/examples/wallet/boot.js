@@ -4,7 +4,7 @@
  * The gateway serves the app socket, with the counters and issuers as
  * what every client's hub starts with.
  */
-/** @import { BuildRootObject, MapStore, Remote } from '../../types.js' */
+/** @import { BuildRootObject, MapStore, Remote } from '../../src/types.js' */
 
 /**
  * @typedef {object} Params

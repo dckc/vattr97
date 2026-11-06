@@ -5,7 +5,7 @@
  * that reads it through the store's read-only facet, the ingress to serve
  * its page at, and the git tree of templates to render it with.
  */
-/** @import { BuildRootObject, MapStore, Remote } from '../types.js' */
+/** @import { BuildRootObject, MapStore, Remote } from '../src/types.js' */
 
 /**
  * @typedef {object} Params

@@ -17,8 +17,8 @@ import assert from 'node:assert/strict';
 import { E } from '@endo/far';
 import workerdPackage from 'workerd';
 import WebSocket from 'ws';
-import { connectKernel } from '../kernel-client.js';
-import { here, makeWorkerd } from '../workerd-process.js';
+import { connectKernel } from '../src/kernel-client.js';
+import { here, makeWorkerd } from '../src/workerd-process.js';
 import { makeToyboxes } from './toybox.js';
 
 // this test is the edge: it holds Node's I/O, and gives each helper what it uses

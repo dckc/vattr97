@@ -1,5 +1,5 @@
 /** Mowers on an 8x8 yard: each starts at (4, 4) facing north and cuts the cells it enters. */
-/** @import { BuildRootObject } from '../types.js' */
+/** @import { BuildRootObject } from '../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ Far, zone }) => {

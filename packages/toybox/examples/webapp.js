@@ -17,8 +17,8 @@
 const { entries, fromEntries } = Object;
 
 /**
- * @import { BuildRootObject, Remote } from '../types.js';
- * @import { FetchAnswer } from '../devices/types.js';
+ * @import { BuildRootObject, Remote } from '../src/types.js';
+ * @import { FetchAnswer } from '../src/devices/types.js';
  */
 
 /** A WebApp's state: its URL, its fixed headers, and the maps it reads more from at each send. @typedef {{ url: string, headers: Record<string, string>, maps: Remote[] }} WebAppState */

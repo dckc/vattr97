@@ -1,5 +1,5 @@
 /** Notes, kept in the vat's own SQLite (`db`), not its zone. */
-/** @import { BuildRootObject, SqlStatement } from '../types.js' */
+/** @import { BuildRootObject, SqlStatement } from '../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ Far, db }) => {

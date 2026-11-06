@@ -1,5 +1,5 @@
 /** Answers each request with the status its `status` label asks for, or throws if its path is `/throw`. */
-/** @import { BuildRootObject, HttpRequest, Remote } from '../types.js' */
+/** @import { BuildRootObject, HttpRequest, Remote } from '../src/types.js' */
 
 /** @type {BuildRootObject<{ ingress: Remote }>} */
 export const buildRootObject = ({ E, Far, zone }, { ingress }) => {

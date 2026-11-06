@@ -2,9 +2,9 @@
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeORM } from '../orm.js';
+import { makeORM } from '../src/orm.js';
 
-/** @import { ORM } from '../orm.js' */
+/** @import { ORM } from '../src/orm.js' */
 
 /**
  * What the ORM uses of a Durable Object's SqlStorage, over `db`.

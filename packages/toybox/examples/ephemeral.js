@@ -1,5 +1,5 @@
 /** Hands out an object that isn't durable: it goes when the vat restarts. */
-/** @import { BuildRootObject } from '../types.js' */
+/** @import { BuildRootObject } from '../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ Far }) => {

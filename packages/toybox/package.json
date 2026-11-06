@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "prepack": "node build.js",
-    "test": "node build.js && node --import ./node-lockdown.js --test test/*.test.js",
+    "test": "node build.js && node --import ./src/node-lockdown.js --test test/*.test.js",
     "build": "node build.js",
     "lint": "eslint .",
     "lint-fix": "eslint . --fix",
@@ -34,13 +34,12 @@
     "ws": "8.22.0"
   },
   "files": [
-    "*.js",
-    "*.ts",
+    "build.js",
     "config.capnp",
-    "devices",
     "dist",
     "examples",
     "scripts",
+    "src",
     "test"
   ],
   "description": "vats whose code is installed at runtime, on workerd: a kernel after SwingSet, Durable Object facets as vats"

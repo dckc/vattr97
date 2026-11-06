@@ -5,7 +5,7 @@
  * WebApp alone: it holds no cookie to rotate, no path outside the app's,
  * and no way to read from anywhere else.
  */
-/** @import { BuildRootObject, HttpResponse, MapStore, Remote } from '../types.js' */
+/** @import { BuildRootObject, HttpResponse, MapStore, Remote } from '../src/types.js' */
 
 const ESCAPES = /** @type {Record<string, string>} */ ({
   '&': '&amp;',

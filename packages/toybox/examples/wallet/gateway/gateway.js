@@ -12,7 +12,7 @@
  */
 import { PAGE, SCRIPT } from './page.js';
 
-/** @import { BuildRootObject, HttpRequest, HttpResponse, MapStore, Remote } from '../../../types.js' */
+/** @import { BuildRootObject, HttpRequest, HttpResponse, MapStore, Remote } from '../../../src/types.js' */
 
 const { entries, fromEntries, getPrototypeOf, keys } = Object;
 

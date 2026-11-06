@@ -3,7 +3,7 @@
  * and a `read` facet that share one count. Either can be handed out alone.
  * Each facet's interface guard says what it takes and answers.
  */
-/** @import { BuildRootObject } from '../types.js' */
+/** @import { BuildRootObject } from '../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ Far, M, zone }) => {

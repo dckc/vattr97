@@ -1,10 +1,10 @@
 /** @file A vat's liveslots on its own: durable kinds, read from a vatstore written by earlier code. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeLiveslots } from '../liveslots.js';
+import { makeLiveslots } from '../src/liveslots.js';
 import { makeMemoryVatstore as makeKv } from './memory-vatstore.js';
 
-/** @import { Vatstore, Zone } from '../types.js' */
+/** @import { Vatstore, Zone } from '../src/types.js' */
 
 const send = () => Promise.reject(Error('no kernel here'));
 

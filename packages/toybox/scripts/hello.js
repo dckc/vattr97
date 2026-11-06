@@ -2,7 +2,7 @@
 /**
  * @file Start a toybox in a scratch directory and serve a hello-world vat.
  */
-import '../node-lockdown.js';
+import '../src/node-lockdown.js';
 import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { connect, createServer } from 'node:net';
@@ -11,8 +11,8 @@ import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import workerdPackage from 'workerd';
 import WebSocket from 'ws';
-import { connectKernel } from '../kernel-client.js';
-import { here, makeWorkerd } from '../workerd-process.js';
+import { connectKernel } from '../src/kernel-client.js';
+import { here, makeWorkerd } from '../src/workerd-process.js';
 
 const HELP = `usage: scripts/hello.js
 

@@ -5,7 +5,7 @@
  * interface guard checks what its methods take; the methods check amounts.
  */
 
-/** @import { BuildRootObject, MapStore } from '../types.js' */
+/** @import { BuildRootObject, MapStore } from '../src/types.js' */
 
 /** A whole number of units, no more than JavaScript counts exactly. @param {number} value */
 const isAmount = value => Number.isSafeInteger(value) && value >= 0;

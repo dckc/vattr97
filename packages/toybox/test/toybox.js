@@ -1,7 +1,7 @@
 /** @file Toyboxes for tests: workerd on this package's config, its state in a directory of the test's. */
 import { join } from 'node:path';
 
-/** @import { makeWorkerd } from '../workerd-process.js' */
+/** @import { makeWorkerd } from '../src/workerd-process.js' */
 
 /**
  * @param {object} io

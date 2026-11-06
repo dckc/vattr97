@@ -36,13 +36,13 @@ const common = {
 export const main = async ({ build } = { build: esbuild.build }) => {
   await build({
     ...common,
-    entryPoints: ['supervisor.js'],
+    entryPoints: ['src/supervisor.js'],
     outfile: 'dist/supervisor.js',
     external: [...external, 'kvat-runtime.txt'],
   });
   await build({
     ...common,
-    entryPoints: ['kvat-runtime.js'],
+    entryPoints: ['src/kvat-runtime.js'],
     outfile: 'dist/kvat-runtime.js',
     external: [...external, './vat.js'],
   });

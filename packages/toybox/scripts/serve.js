@@ -2,7 +2,7 @@
 /**
  * @file Run a toybox from a boot directory, keeping its state, and print the boot vat's link.
  */
-import '../node-lockdown.js';
+import '../src/node-lockdown.js';
 import { spawn } from 'node:child_process';
 import { mkdir, rm } from 'node:fs/promises';
 import { connect, createServer } from 'node:net';
@@ -12,8 +12,8 @@ import { parseArgs } from 'node:util';
 import { E } from '@endo/far';
 import workerdPackage from 'workerd';
 import WebSocket from 'ws';
-import { connectKernel } from '../kernel-client.js';
-import { makeWorkerd } from '../workerd-process.js';
+import { connectKernel } from '../src/kernel-client.js';
+import { makeWorkerd } from '../src/workerd-process.js';
 
 const HELP = `usage: scripts/serve.js STATE_DIR BOOT_DIR [--worktree DIR] [--port PORT]
 

@@ -3,7 +3,7 @@
  * a child vat from `child.js` in the boot directory, and hands out swiss
  * numbers from its entropy device. The test rewrites `VERSION` to upgrade it.
  */
-/** @import { BuildRootObject, HttpRequest, MapStore, Remote } from '../../types.js' */
+/** @import { BuildRootObject, HttpRequest, MapStore, Remote } from '../../src/types.js' */
 
 const VERSION = 'v1';
 

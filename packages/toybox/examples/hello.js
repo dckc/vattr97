@@ -1,5 +1,5 @@
 /** Hello, world, served through the `ingress` it was created with, by a durable handler. */
-/** @import { BuildRootObject, HttpRequest, Remote } from '../types.js' */
+/** @import { BuildRootObject, HttpRequest, Remote } from '../src/types.js' */
 
 /** @type {BuildRootObject<{ ingress: Remote }>} */
 export const buildRootObject = ({ E, Far, zone }, { ingress }) => {

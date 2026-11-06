@@ -4,7 +4,7 @@
  * whoever should be able to pay into it, and only that. Amounts are whole
  * numbers of units.
  */
-/** @import { BuildRootObject, MapStore } from '../../types.js' */
+/** @import { BuildRootObject, MapStore } from '../../src/types.js' */
 
 /** @param {unknown} value */
 const mustBeAmount = value => {

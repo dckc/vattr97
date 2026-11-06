@@ -22,11 +22,11 @@ import assert from 'node:assert/strict';
 import { E } from '@endo/far';
 import workerdPackage from 'workerd';
 import WebSocket from 'ws';
-import { connectKernel } from '../kernel-client.js';
+import { connectKernel } from '../src/kernel-client.js';
 import { makeGit } from './git.js';
 import { makeNix } from './nix.js';
 import { makeToyboxes } from './toybox.js';
-import { here, makeWorkerd } from '../workerd-process.js';
+import { here, makeWorkerd } from '../src/workerd-process.js';
 
 const { values } = Object;
 
@@ -53,7 +53,7 @@ const { startToybox } = makeToyboxes({ startWorkerd, freePort, mkdir });
 const connectTo = (sock, name) =>
   connectKernel(new WebSocket(`ws+unix:${sock}:/kernel/${name}`));
 
-/** @import { Remote } from '../types.js' */
+/** @import { Remote } from '../src/types.js' */
 
 /** @param {string} name */
 const kvat = name => readFile(join(here, 'examples', name), 'utf8');

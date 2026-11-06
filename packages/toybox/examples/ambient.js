@@ -4,7 +4,7 @@
  */
 /* eslint-disable no-restricted-properties, no-restricted-syntax -- reaching for ambient authority is the point */
 
-/** @import { BuildRootObject } from '../types.js' */
+/** @import { BuildRootObject } from '../src/types.js' */
 
 /** @param {() => unknown} thunk */
 const attempt = thunk => {

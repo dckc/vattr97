@@ -1,5 +1,5 @@
 /** A durable counter kind; the first counter is made once and kept. */
-/** @import { BuildRootObject } from '../types.js' */
+/** @import { BuildRootObject } from '../src/types.js' */
 
 /** @type {BuildRootObject} */
 export const buildRootObject = ({ Far, zone }) => {

@@ -7,8 +7,8 @@
   },
   "include": [
     "*.js",
-    "*.ts",
-    "devices/**/*.js",
+    "src/**/*.js",
+    "src/**/*.ts",
     "examples/**/*.js",
     "test/**/*.js",
     "test/**/*.ts",

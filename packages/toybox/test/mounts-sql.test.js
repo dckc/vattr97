@@ -8,7 +8,7 @@ import {
   MOUNT_LABELS,
   MOUNT_SCHEMA,
   OVERLAP,
-} from '../mounts-sql.js';
+} from '../src/mounts-sql.js';
 
 const makeDb = () => {
   const db = new DatabaseSync(':memory:');
