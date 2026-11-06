@@ -1,0 +1,51 @@
+/**
+ * @file What workerd gives toybox's worker (config.capnp), as types: its
+ * bindings, and the modules it embeds rather than imports.
+ */
+
+/** The supervisor's bindings (config.capnp). */
+interface Env {
+  KERNEL: DurableObjectNamespace<
+    InstanceType<typeof import('./supervisor.js').Kernel>
+  >;
+  DIRECTORY: DurableObjectNamespace<import('./supervisor.js').Directory>;
+  LOADER: WorkerLoader;
+  /** the fetch device's network: public addresses */
+  INTERNET: Fetcher;
+  /** the LAN device's network: private addresses, not loopback */
+  LAN: Fetcher;
+  /** the nix store, read-only */
+  NIX_STORE: Fetcher;
+  /** the git checkout the gitTrees device reads, read-only */
+  GIT_CHECKOUT: Fetcher;
+  /** the boot directory, read-only: the boot vat's code, and the bundles it makes vats from */
+  BOOT: Fetcher;
+  /** the names of the service bindings the boot vat may grant to vats */
+  GRANTABLE: string[];
+}
+
+declare namespace Cloudflare {
+  interface Exports {
+    Syscall: LoopbackServiceStub<import('./kernel.js').Syscall>;
+  }
+}
+
+/** the kernel vat runtime, bundled by build.js and embedded as text */
+declare module 'vat-runtime.txt' {
+  const src: string;
+  export default src;
+}
+
+/** the boot directory built into the Cloudflare Worker (build-cloudflare.js) */
+declare module 'toybox-boot' {
+  /** a directory: each entry a file's UTF-8 contents, or a directory */
+  export type BootTree = { [name: string]: string | BootTree };
+  const tree: BootTree;
+  export default tree;
+}
+
+/** a text module: in a nixStore bundle, a `.txt` file's contents */
+declare module '*.txt' {
+  const text: string;
+  export default text;
+}
