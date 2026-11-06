@@ -129,7 +129,7 @@ test('a counter passed to another vat reaches its maker; identity holds; both va
 });
 
 test('a vat finds no clock or randomness, from its first line on', async () => {
-  const { root } = await k.createVat(await kvat('ambient-probe.js'));
+  const { root } = await k.createVat(await kvat('probes/ambient.js'));
   const inert = {
     frozen: true,
     now: 'throws',
@@ -147,7 +147,7 @@ test('a vat finds no clock or randomness, from its first line on', async () => {
 
 test('a vat that calls its syscall directly reaches only what it holds', async () => {
   const { root: counterRoot } = await k.createVat(await kvat('counter.js'));
-  const { root: forger } = await k.createVat(await kvat('vref-forger.js'));
+  const { root: forger } = await k.createVat(await kvat('probes/forger.js'));
   const counter = await E(counterRoot).getCounter();
 
   assert.match(
@@ -548,7 +548,7 @@ test('a kernel vat serves the web through its ingress, after a restart and after
     assert.equal((await get('/?site=hello')).status, 503);
     await assert.rejects(client.makeIngress({ site: 'hello' }), /overlaps/);
     const { adminNode: admin } = await client.createVat(
-      await kvat('hello.js'),
+      await kvat('hello-page.js'),
       { ingress },
     );
     const first = await get('/greet?site=hello');
@@ -584,7 +584,7 @@ test('an ingress answers a status that has no body, and a 502 when its handler t
     /label n is not a string/,
   );
   const ingress = await k.makeIngress({ site: 'answers' });
-  await k.createVat(await kvat('status-echo.js'), { ingress });
+  await k.createVat(await kvat('probes/ingress.js'), { ingress });
   /** @param {string} path */
   const get = path => fetch(`http://127.0.0.1:${toybox.port}${path}`);
   for (const status of [200, 204, 304]) {

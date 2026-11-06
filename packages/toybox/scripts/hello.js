@@ -17,7 +17,7 @@ import { here, makeWorkerd } from '../src/workerd-process.js';
 const HELP = `usage: scripts/hello.js
 
 Starts toybox (workerd, on this package's config.capnp) with its state in a
-new directory under ${tmpdir()}, creates the hello vat (examples/hello.js), and
+new directory under ${tmpdir()}, creates the hello vat (examples/hello-page.js), and
 mounts it on an ingress. Prints the URL to open. Ctrl-C stops toybox and
 removes the directory.
 `;
@@ -66,7 +66,7 @@ export const main = async ({
     );
     const ingress = await kernel.makeIngress({ app: 'hello' });
     await kernel.createVat(
-      await readFile(join(here, 'examples', 'hello.js'), 'utf8'),
+      await readFile(join(here, 'examples', 'hello-page.js'), 'utf8'),
       { ingress },
     );
     kernel.close();

@@ -14,7 +14,7 @@ yarn build
 ./scripts/hello.js
 ```
 
-It prints a URL; open it to see a page served by a vat ([examples/hello.js](examples/hello.js)). Ctrl-C stops it.
+It prints a URL; open it to see a page served by a vat ([examples/hello-page.js](examples/hello-page.js)). Ctrl-C stops it.
 
 ## A wallet, from one secret
 
