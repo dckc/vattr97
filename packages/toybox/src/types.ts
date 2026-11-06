@@ -79,11 +79,12 @@ export type Exo = <T extends Methods>(
 ) => Guarded<T>;
 
 /**
- * Define a kind of durable object with several facets that share one
- * state, and answer its maker, which answers the facets. Each facet is a
- * reference of its own, so one can be handed out without the others: a
- * purse's deposit facet, say, without its withdraw. A method sees the
- * state as `this.state`, and the instance's facets as `this.facets`.
+ * Define a kind of durable object with several facets that share one state,
+ * and answer its maker, which answers the facets. Each facet is a reference
+ * of its own, so one can be handed out without the others: a read facet to
+ * someone who may look but not change, as a store's {@link
+ * MapStore.readOnly} facet is. A method sees the state as `this.state`, and
+ * the instance's facets as `this.facets`.
  *
  * @example
  * const makeCounterKit = zone.exoClassKit(
