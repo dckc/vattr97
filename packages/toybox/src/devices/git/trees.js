@@ -1,4 +1,4 @@
-/** @file Git worktrees, trees, and readers: files read only as a git tree lists them, and only while they hash to what it lists. */
+/** @file Git trees and their readers: files read from a checkout only as a git tree lists them, and only while they hash to what it lists. */
 import { encodeHex } from '@endo/hex';
 import { M } from '@endo/patterns';
 import { blobId, parseLsTree, treeId } from './object-ids.js';
@@ -20,7 +20,7 @@ const READ_CHUNK = 64 * 1024;
 const TreeId = M.string();
 
 /**
- * Text, as the worktree's bytes are: UTF-8, its BOM kept, as git hashes it.
+ * Text, as a file's bytes are: UTF-8, its BOM kept, as git hashes it.
  */
 const makeDecoder = () =>
   new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
@@ -39,11 +39,11 @@ export const cutLines = (pending, size) => {
 };
 
 /**
- * Git worktrees, trees, and readers: files that must stay out of the
- * world-readable nix store, read from config.capnp's `git-worktree`
+ * Git trees and their readers: files that must stay out of the
+ * world-readable nix store, read from config.capnp's `git-checkout`
  * directory, but only as a git tree lists them.
  *
- * A worktree's `getTree(tree, listing)` takes what `git ls-tree -r <tree>`
+ * A gitTrees device's `getTree(tree, listing)` takes what `git ls-tree -r <tree>`
  * lists (with or without `-z`) and answers a tree only if the listing hashes
  * to `tree` (or, given null, to whatever it hashes to: the tree's `id()`,
  * which vouches for nothing but the listing itself). The tree reads a file
@@ -59,34 +59,37 @@ export const cutLines = (pending, size) => {
  *
  * @param {TablePowers<Tables>} powers
  * @param {object} io
- * @param {{ fetch: (url: string) => Promise<Response> }} io.worktree config.capnp's `git-worktree` service
+ * @param {{ fetch: (url: string) => Promise<Response> }} io.checkout config.capnp's `git-checkout` service
  * @returns {Device}
  */
-export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
+export const makeGitTrees = (
+  { db, next, kernelObject, standIn },
+  { checkout },
+) => {
   /** @param {string} tree @returns {Record<string, string>} each file's blob id, by path */
   const filesOf = tree =>
     JSON.parse(db.lookup('kgittree', { tree }).one().files);
 
-  /** The worktree's file at `path`, as `tree` lists it. @param {string} tree @param {string} path */
+  /** The checkout's file at `path`, as `tree` lists it. @param {string} tree @param {string} path */
   const fetchListed = async (tree, path) => {
     if (!Object.hasOwn(filesOf(tree), path))
       throw Error(`tree ${tree} has no file ${JSON.stringify(path)}`);
-    const resp = await worktree.fetch(
-      `http://git-worktree/${path.split('/').map(encodeURIComponent).join('/')}`,
+    const resp = await checkout.fetch(
+      `http://git-checkout/${path.split('/').map(encodeURIComponent).join('/')}`,
     );
     if (
       !resp.ok ||
       resp.headers.get('content-type') !== 'application/octet-stream' ||
       !resp.body
     )
-      throw Error(`${path} is not a file in the worktree`);
+      throw Error(`${path} is not a file in the checkout`);
     return resp;
   };
 
   /** @param {string} tree @param {string} path */
   const changed = (tree, path) =>
     Error(
-      `${path} in the worktree is not what tree ${tree} has; it changed since`,
+      `${path} in the checkout is not what tree ${tree} has; it changed since`,
     );
 
   /**
@@ -103,7 +106,7 @@ export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
       !/^\d+$/.test(header) ||
       !Number.isSafeInteger(length)
     )
-      throw Error('the worktree gave no length for that file');
+      throw Error('the checkout gave no length for that file');
     const digest = new crypto.DigestStream('SHA-1');
     const hashing = digest.getWriter();
     await hashing.write(new TextEncoder().encode(`blob ${length}\0`));
@@ -181,9 +184,9 @@ export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
   /** Each open reader's next chunk, by key: in memory only. @type {Map<string, () => Promise<IteratorResult<string, undefined>>>} */
   const live = new Map();
 
-  const worktrees = kzone.exoClass(
-    'GitWorktree',
-    M.interface('GitWorktree', {
+  const gitTrees = kzone.exoClass(
+    'GitTrees',
+    M.interface('GitTrees', {
       getTree: M.call(M.or(TreeId, M.null()), M.string()).returns(M.promise()),
     }),
     {
@@ -282,8 +285,8 @@ export const makeGit = ({ db, next, kernelObject, standIn }, { worktree }) => {
   );
 
   return harden({
-    kinds: { gitWorktree: worktrees, gitTree: trees, gitReader: readers },
-    /** A git worktree: whoever holds it can read any file in the worktree whose git blob id they know. */
-    make: () => kernelObject(`gitWorktree:${next('gitWorktree')}`),
+    kinds: { gitTrees, gitTree: trees, gitReader: readers },
+    /** Git trees: whoever holds it can read any file in the checkout whose git blob id they know. */
+    make: () => kernelObject(`gitTrees:${next('gitTrees')}`),
   });
 };

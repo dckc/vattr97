@@ -20,7 +20,7 @@
   # kernel state; the default is a StateDirectory
   stateDir ? null,
   # what the kernel's git trees read from; the default is an empty StateDirectory
-  gitWorktree ? null,
+  gitCheckout ? null,
   # the user to run as; the default is a DynamicUser
   user ? null,
   # whether the devices may reach the network
@@ -28,11 +28,11 @@
 }:
 let
   state = if stateDir == null then "/var/lib/toybox" else stateDir;
-  worktree = if gitWorktree == null then "/var/lib/toybox-worktree" else gitWorktree;
+  checkout = if gitCheckout == null then "/var/lib/toybox-worktree" else gitCheckout;
   bootDir = if boot == null then "${dirOf bin}/share/toybox/boot" else boot;
   stateDirectories =
-    lib.optional (stateDir == null) "toybox" ++ lib.optional (gitWorktree == null) "toybox-worktree";
-  inHome = lib.hasPrefix "/home/" worktree || lib.hasPrefix "/home/" state;
+    lib.optional (stateDir == null) "toybox" ++ lib.optional (gitCheckout == null) "toybox-worktree";
+  inHome = lib.hasPrefix "/home/" checkout || lib.hasPrefix "/home/" state;
 in
 {
   sockets.toybox = {
@@ -56,11 +56,11 @@ in
     requires = [ "toybox.socket" ];
     after = [ "toybox.socket" ];
     serviceConfig = {
-      ExecStart = "${bin}/toybox-serve -S http=3 -S admin=4 -S app=5 -d state=${state} -d git-worktree=${worktree} -d boot=${bootDir}";
+      ExecStart = "${bin}/toybox-serve -S http=3 -S admin=4 -S app=5 -d state=${state} -d git-checkout=${checkout} -d boot=${bootDir}";
       PrivateNetwork = !network;
       RestrictAddressFamilies = if network then "AF_UNIX AF_INET AF_INET6" else "AF_UNIX";
       ProtectSystem = "strict";
-      # a worktree or state under /home is read, or kept, there
+      # a checkout or state under /home is read, or kept, there
       ProtectHome = if inHome then "read-only" else true;
       PrivateTmp = true;
       SystemCallFilter = "@system-service";

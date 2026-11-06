@@ -11,7 +11,7 @@ const config :Workerd.Config = (
     (name = "lan", network = (allow = ["local"])),
     (name = "state", disk = (path = "state", writable = true)),
     (name = "nix-store", disk = (path = "/nix/store", allowDotfiles = true)),
-    (name = "git-worktree", disk = (path = "git-worktree")),
+    (name = "git-checkout", disk = (path = "git-checkout")),
     (name = "boot", disk = (path = "boot")),
   ],
   sockets = [

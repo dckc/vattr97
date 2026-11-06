@@ -16,8 +16,8 @@ interface Env {
   LAN: Fetcher;
   /** the nix store, read-only */
   NIX_STORE: Fetcher;
-  /** the git worktree, read-only */
-  GIT_WORKTREE: Fetcher;
+  /** the git checkout the gitTrees device reads, read-only */
+  GIT_CHECKOUT: Fetcher;
   /** the boot directory, read-only: the boot vat's code, and the bundles it makes vats from */
   BOOT: Fetcher;
   /** the names of the service bindings the boot vat may grant to vats */

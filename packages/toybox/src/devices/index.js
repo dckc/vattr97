@@ -1,7 +1,7 @@
 /** @file The kernel's I/O devices: which there are, and which of workerd's bindings each reaches. */
 import { makeEntropy } from './entropy.js';
 import { makeFetchDevices } from './fetch.js';
-import { TABLES as GIT_TABLES, makeGit } from './git/trees.js';
+import { TABLES as GIT_TABLES, makeGitTrees } from './git/trees.js';
 import { makeNixStores } from './nix/store.js';
 
 /** @import { MakeDevices } from '../types.js' */
@@ -20,8 +20,8 @@ export const makeDevices = (powers, { env, bundles, random, withTables }) =>
       prefix: 'fetch',
       net: env.INTERNET,
     }),
-    gitWorktree: makeGit(withTables(GIT_TABLES), {
-      worktree: env.GIT_WORKTREE,
+    gitTrees: makeGitTrees(withTables(GIT_TABLES), {
+      checkout: env.GIT_CHECKOUT,
     }),
     lan: makeFetchDevices(powers, {
       tag: 'LanDevice',

@@ -25,7 +25,7 @@ export const makeToyboxes = ({ startWorkerd, freePort, mkdir }) =>
       dir,
       { config = 'config.capnp', boot = join(dir, 'boot'), args = [] } = {},
     ) => {
-      for (const sub of ['state', 'worktree', 'boot'])
+      for (const sub of ['state', 'checkout', 'boot'])
         await mkdir(join(dir, sub), { recursive: true });
       const port = await freePort();
       const appPort = await freePort();
@@ -37,7 +37,7 @@ export const makeToyboxes = ({ startWorkerd, freePort, mkdir }) =>
           ...['-s', `app=127.0.0.1:${appPort}`],
           ...['-s', `admin=unix:${sock}`],
           ...['-d', `state=${join(dir, 'state')}`],
-          ...['-d', `git-worktree=${join(dir, 'worktree')}`],
+          ...['-d', `git-checkout=${join(dir, 'checkout')}`],
           ...['-d', `boot=${boot}`],
           ...args,
         ],

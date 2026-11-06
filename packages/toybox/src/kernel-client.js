@@ -55,7 +55,7 @@ export const connectKernel = async ws => {
     /** An ingress for a mount at `labels`. @param {Record<string, string>} labels */
     makeIngress: async labels =>
       ls.slotToVal(await session.makeIngress(labels)),
-    /** An I/O device, for a vat's params: `fetch`, `lan`, `nixStore`, `gitWorktree`, or `entropy` (devices/index.js). @param {string} name */
+    /** An I/O device, for a vat's params: `fetch`, `lan`, `nixStore`, `gitTrees`, or `entropy` (devices/index.js). @param {string} name */
     makeDevice: async name => ls.slotToVal(await session.makeDevice(name)),
     /** A vatAdmin, for a bootstrap vat's params. */
     makeVatAdmin: async () => ls.slotToVal(await session.makeVatAdmin()),

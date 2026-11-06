@@ -71,7 +71,7 @@ A vat reaches outside only through the kernel's own objects. Whoever holds the a
 - **nixStore**: runs code from a nix store path, kept by the hash of its contents. Boot gets each vat's code from one, so what runs is exactly what was built into the store.
 - **Fetch device**: the public internet. The webApp vat holds it, and hands the cache a WebApp narrowed to one site, with the cookie as a header. (A LAN device is the same, for private addresses.)
 - **Ingress**: serves web requests at some labels (`?app=bookmarks`). The cache serves its page through one.
-- **Git worktree**: reads files as a git tree lists them, and only while they still match. The cache renders its page from a template in one, so the page's template is exactly the one committed.
+- **Git trees**: read files from a git checkout as a git tree lists them, and only while they still match. The cache renders its page from a template in one, so the page's template is exactly the one committed.
 
 A project built on toybox can add its own: a device is an ordinary vat granted a service binding from the config, and who gets the I/O is up to the boot vat. See [adding a device](CONTRIBUTING.md#adding-a-device).
 

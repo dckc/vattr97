@@ -2,8 +2,8 @@
 #
 # Sockets have no address here: whoever starts workerd hands them in
 # (-S name=fd from systemd, or -s name=addr), so holding a socket is the
-# authority it grants. `state`, `git-worktree`, and `boot` are likewise
-# overridden with -d state=<dir>, -d git-worktree=<dir>, and -d boot=<dir>.
+# authority it grants. `state`, `git-checkout`, and `boot` are likewise
+# overridden with -d state=<dir>, -d git-checkout=<dir>, and -d boot=<dir>.
 #
 # A dependent adds a device with a config of its own, as
 # test/config-device.capnp does: workerd can't add a binding to a worker it
@@ -25,7 +25,7 @@ const config :Workerd.Config = (
     # read-only; the kernel's nixStore makes bundleCaps from its files
     (name = "nix-store", disk = (path = "/nix/store", allowDotfiles = true)),
     # read-only; the kernel's git trees read the files they list from it
-    (name = "git-worktree", disk = (path = "git-worktree")),
+    (name = "git-checkout", disk = (path = "git-checkout")),
     # read-only; the kernel named `main` starts its boot vat from boot.js
     # here, if there is one, and the boot vat makes vats from the rest
     (name = "boot", disk = (path = "boot")),
@@ -66,7 +66,7 @@ const supervisor :Workerd.Worker = (
     (name = "INTERNET", service = "internet"),
     (name = "LAN", service = "lan"),
     (name = "NIX_STORE", service = "nix-store"),
-    (name = "GIT_WORKTREE", service = "git-worktree"),
+    (name = "GIT_CHECKOUT", service = "git-checkout"),
     (name = "BOOT", service = "boot"),
     # the names of the service bindings the boot vat may grant to vats
     (name = "GRANTABLE", json = "[]"),

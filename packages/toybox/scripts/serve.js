@@ -15,14 +15,14 @@ import WebSocket from 'ws';
 import { connectKernel } from '../src/kernel-client.js';
 import { makeWorkerd } from '../src/workerd-process.js';
 
-const HELP = `usage: scripts/serve.js STATE_DIR BOOT_DIR [--worktree DIR] [--port PORT]
+const HELP = `usage: scripts/serve.js STATE_DIR BOOT_DIR [--checkout DIR] [--port PORT]
 
 Runs toybox (workerd, on this package's config.capnp) with its state in
 STATE_DIR, made if need be and kept across runs, and BOOT_DIR as its boot
 directory: the kernel \`main\` boots from BOOT_DIR/boot.js. The app socket
 is http://127.0.0.1:PORT/ (PORT is 8788 by default), the http socket is
 on PORT+1, and the admin socket is STATE_DIR/admin.sock. Git trees read
-from the worktree DIR (STATE_DIR/worktree by default).
+from the git checkout DIR (STATE_DIR/checkout by default).
 
 If the boot vat answers ownerLink(), prints "open: " and the app socket's
 URL with that link appended: whoever opens it holds what it designates.
@@ -48,7 +48,7 @@ export const main = async ({
     parsed = parseArgs({
       args,
       allowPositionals: true,
-      options: { worktree: { type: 'string' }, port: { type: 'string' } },
+      options: { checkout: { type: 'string' }, port: { type: 'string' } },
     });
   } catch {
     return print(HELP);
@@ -59,7 +59,7 @@ export const main = async ({
   const portOk = Number.isInteger(port) && port > 0 && port < 65535;
   if (positionals.length !== 2 || !portOk) return print(HELP);
   const [dir, boot] = positionals.map(p => resolve(p));
-  const worktree = resolve(values.worktree ?? join(dir, 'worktree'));
+  const checkout = resolve(values.checkout ?? join(dir, 'checkout'));
   const { startWorkerd } = makeWorkerd({
     workerd: workerdPackage.default,
     spawn,
@@ -69,7 +69,7 @@ export const main = async ({
     sleep,
     log: chunk => void process.stderr.write(chunk),
   });
-  for (const sub of [join(dir, 'state'), worktree])
+  for (const sub of [join(dir, 'state'), checkout])
     await mkdir(sub, { recursive: true });
   const sock = join(dir, 'admin.sock');
   const toybox = await startWorkerd(
@@ -78,7 +78,7 @@ export const main = async ({
       ...['-s', `app=127.0.0.1:${port}`, '-s', `http=127.0.0.1:${port + 1}`],
       ...['-s', `admin=unix:${sock}`],
       ...['-d', `state=${join(dir, 'state')}`],
-      ...['-d', `git-worktree=${worktree}`],
+      ...['-d', `git-checkout=${checkout}`],
       ...['-d', `boot=${boot}`],
     ],
     { port, host: '127.0.0.1' },

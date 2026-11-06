@@ -66,7 +66,7 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
       'endowments',
       'entropy',
       'fetch',
-      'gitWorktree',
+      'gitTrees',
       'ingress',
       'lan',
       'nixStore',

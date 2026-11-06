@@ -442,24 +442,24 @@ test('a nixStore bundle can be a directory of modules, its main one named by wor
   await rm(withLink, { recursive: true });
 });
 
-test("a git worktree reads only the files a git tree lists, and only while they're what it says", async () => {
-  const worktree = join(dir, 'worktree');
+test("git trees read only the files a git tree lists, and only while they're what it says", async () => {
+  const checkout = join(dir, 'checkout');
   // more than one chunk's worth, with a multi-byte character to cut around
   const big = Array.from({ length: 5000 }, (_, i) =>
     JSON.stringify([i, 'Café Ñandú', 'x'.repeat(i % 50)]),
   ).join('\n');
-  await writeFile(join(worktree, 'big.ndjson'), big);
+  await writeFile(join(checkout, 'big.ndjson'), big);
   const { tree, listing } = await makeRepo(
     join(here, 'test', 'greeter'),
     'greeter',
-    worktree,
+    checkout,
   );
   await writeFile(
-    join(worktree, 'elsewhere.txt'),
-    'in the worktree, not the tree',
+    join(checkout, 'elsewhere.txt'),
+    'in the checkout, not the tree',
   );
-  const gitWorktree = await k.makeDevice('gitWorktree');
-  const greeter = await E(gitWorktree).getTree(tree, listing);
+  const gitTrees = await k.makeDevice('gitTrees');
+  const greeter = await E(gitTrees).getTree(tree, listing);
   assert.deepEqual(await E(greeter).list(), [
     'big.ndjson',
     'greeter/greeting.txt',
@@ -469,12 +469,12 @@ test("a git worktree reads only the files a git tree lists, and only while they'
   ]);
 
   await assert.rejects(
-    E(gitWorktree).getTree('0'.repeat(40), listing),
+    E(gitTrees).getTree('0'.repeat(40), listing),
     new RegExp(`listing is of tree ${tree}, not 0{40}`),
   );
   // no id given: the listing, -z or not, names the tree
   assert.equal(
-    await E(E(gitWorktree).getTree(null, listing.replaceAll('\0', '\n'))).id(),
+    await E(E(gitTrees).getTree(null, listing.replaceAll('\0', '\n'))).id(),
     tree,
   );
   assert.equal(await E(greeter).id(), tree);
@@ -488,7 +488,7 @@ test("a git worktree reads only the files a git tree lists, and only while they'
   );
   assert.match(await E(greeter).read('greeter/greeting.txt'), /Hello/);
   await appendFile(
-    join(worktree, 'greeter', 'greeting.txt'),
+    join(checkout, 'greeter', 'greeting.txt'),
     'a forged line\n',
   );
   await assert.rejects(
@@ -512,7 +512,7 @@ test("a git worktree reads only the files a git tree lists, and only while they'
   // a file that changes while it's read: what was given out can't be done
   const midway = await E(greeter).open('big.ndjson');
   assert.equal((await E(midway).next()).done, false);
-  await writeFile(join(worktree, 'big.ndjson'), big.replaceAll('a', 'b'));
+  await writeFile(join(checkout, 'big.ndjson'), big.replaceAll('a', 'b'));
   const draining = async () => {
     for (let r = await E(midway).next(); !r.done; r = await E(midway).next());
   };
@@ -634,11 +634,11 @@ test('a bootstrap vat wires a bookmark cache from nix store code; the cache serv
     box = await startToybox(home, { config: 'test/config-local.capnp' });
     const { port } = box;
     const client = await connectTo(box.sock, 'cache');
-    // the site's templates, as a git tree of the toybox's worktree
+    // the site's templates, as a git tree of the toybox's checkout
     const { tree, listing } = await makeRepo(
       join(here, 'examples', 'bookmarks', 'templates'),
       'templates',
-      join(home, 'worktree'),
+      join(home, 'checkout'),
     );
     const { root: boot, adminNode: bootAdmin } = await client.createVat(
       await kvat('bookmarks/boot.js'),
@@ -656,7 +656,7 @@ test('a bootstrap vat wires a bookmark cache from nix store code; the cache serv
         },
         fetch: await client.makeDevice('fetch'),
         ingress: await client.makeIngress({ app: 'bookmarks' }),
-        templates: await E(await client.makeDevice('gitWorktree')).getTree(
+        templates: await E(await client.makeDevice('gitTrees')).getTree(
           tree,
           listing,
         ),

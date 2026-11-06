@@ -101,7 +101,7 @@
       };
 
       # unit files with options of your own (nix/units.nix): a user, a git
-      # worktree, a state directory, a port
+      # checkout, a state directory, a port
       lib.${system} = { inherit toyboxUnits; };
 
       nixosModules.toybox =
@@ -113,7 +113,7 @@
 
       checks.${system} = {
         inherit toybox;
-        # the module evaluates, and its service reads the worktree it was given as that user
+        # the module evaluates, and its service reads the checkout it was given as that user
         module =
           let
             nixos = nixpkgs.lib.nixosSystem {
@@ -124,7 +124,7 @@
                   services.toybox = {
                     enable = true;
                     user = "alice";
-                    gitWorktree = "/home/alice/worktree";
+                    gitCheckout = "/home/alice/checkout";
                   };
                   boot.isContainer = true;
                   system.stateVersion = "26.05";
@@ -135,12 +135,12 @@
           in
           assert service.User == "alice";
           assert service.ProtectHome == "read-only";
-          assert lib.hasInfix "-d git-worktree=/home/alice/worktree" service.ExecStart;
+          assert lib.hasInfix "-d git-checkout=/home/alice/checkout" service.ExecStart;
           assert lib.hasInfix "-S app=5 " service.ExecStart;
           assert lib.hasInfix "/share/toybox/boot" service.ExecStart;
           assert service.PrivateNetwork;
           pkgs.writeText "toybox-module-check" (builtins.toJSON service);
-        # a worktree without a user to read it is refused
+        # a checkout without a user to read it is refused
         module-needs-user =
           let
             nixos = nixpkgs.lib.nixosSystem {
@@ -150,7 +150,7 @@
                 {
                   services.toybox = {
                     enable = true;
-                    gitWorktree = "/home/alice/worktree";
+                    gitCheckout = "/home/alice/checkout";
                   };
                   boot.isContainer = true;
                   system.stateVersion = "26.05";

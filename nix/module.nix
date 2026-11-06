@@ -15,13 +15,20 @@ let
       appListen
       boot
       stateDir
-      gitWorktree
+      gitCheckout
       user
       network
       ;
   };
 in
 {
+  imports = [
+    (lib.mkRenamedOptionModule
+      [ "services" "toybox" "gitWorktree" ]
+      [ "services" "toybox" "gitCheckout" ]
+    )
+  ];
+
   options.services.toybox = {
     enable = lib.mkEnableOption "toybox, kernels of vats installed at runtime, on workerd";
     package = lib.mkOption {
@@ -48,7 +55,7 @@ in
       default = null;
       description = "Where kernels keep their state; by default, the StateDirectory /var/lib/toybox.";
     };
-    gitWorktree = lib.mkOption {
+    gitCheckout = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
       default = null;
       description = "The directory the kernel's git trees read files from; by default, an empty StateDirectory.";
@@ -61,17 +68,17 @@ in
     user = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
-      description = "The user to run as, to read a git worktree that user owns; by default, a DynamicUser.";
+      description = "The user to run as, to read a git checkout that user owns; by default, a DynamicUser.";
     };
   };
 
   config = lib.mkIf cfg.enable {
     # a DynamicUser owns nothing outside its StateDirectories, so it can't
-    # read a worktree, or write a state directory, that is someone else's
+    # read a checkout, or write a state directory, that is someone else's
     assertions = [
       {
-        assertion = cfg.user != null || (cfg.gitWorktree == null && cfg.stateDir == null);
-        message = "services.toybox: a gitWorktree or stateDir of your own needs a user who can reach it";
+        assertion = cfg.user != null || (cfg.gitCheckout == null && cfg.stateDir == null);
+        message = "services.toybox: a gitCheckout or stateDir of your own needs a user who can reach it";
       }
     ];
     systemd.sockets = units.sockets;
