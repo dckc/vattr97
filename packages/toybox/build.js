@@ -42,7 +42,7 @@ export const main = async ({ build } = { build: esbuild.build }) => {
   });
   await build({
     ...common,
-    entryPoints: ['src/vat-runtime.js'],
+    entryPoints: ['src/vat/runtime.js'],
     outfile: 'dist/vat-runtime.js',
     external: [...external, './vat.js'],
   });

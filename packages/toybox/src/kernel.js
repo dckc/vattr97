@@ -16,7 +16,9 @@ import { makeVatAdmins } from './kernel/vat-admin.js';
 import { makeORM } from './orm.js';
 
 /**
- * @import { CapData, Clist, Device, HttpRequest, HttpResponse, IngressKey, KernelKey, KernelObjects, KernelPowers, Kref, MakeDevices, VatId, Vref, WithTables } from './types.js';
+ * @import { Clist, Device, IngressKey, KernelKey, KernelObjects, KernelPowers, Kref, MakeDevices, VatId, WithTables } from './kernel/types.js';
+ * @import { HttpRequest, HttpResponse } from './types.js';
+ * @import { CapData, Vref } from './vat/types.js';
  * @import { ORM } from './orm.js';
  */
 
@@ -129,7 +131,7 @@ const makeKrefMarshal = () => {
 
 /**
  * The kernel names every exported object by a kref (`ko<n>`) and keeps, for
- * each vat, a c-list from that vat's vrefs to krefs (see liveslots.js for
+ * each vat, a c-list from that vat's vrefs to krefs (see vat/liveslots.js for
  * vrefs). Every message a vat sends is translated through its own c-list:
  * an import vref it doesn't hold is refused, and an export vref names only
  * its own objects. So a vat can't forge a reference to anything it wasn't
@@ -315,7 +317,7 @@ export const makeKernelClass = ({ makeDevices }) =>
      * @returns {{ deliver: (vref: Vref, method: string, capdata: CapData) => Promise<CapData>, ready: () => Promise<void> }}
      */
     #vat(vat) {
-      return /** @type {any} the facet's stub, whose methods are vat-runtime.js's App's */ (
+      return /** @type {any} the facet's stub, whose methods are vat/runtime.js's App's */ (
         this.ctx.facets.get(vat, () => {
           const { hash } = this.#db.lookup('kvat', { vat }).one();
           const worker = this.env.LOADER.get(

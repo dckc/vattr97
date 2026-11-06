@@ -6,7 +6,7 @@
 import { M } from '@endo/patterns';
 import { kzone } from './objects.js';
 
-/** @import { IngressKey, Kref, TablePowers } from '../types.js' */
+/** @import { IngressKey, Kref, TablePowers } from './types.js' */
 
 export const TABLES = {
   // an ingress (a kernel object; its key is its vref) and the kref of whoever serves it

@@ -4,7 +4,7 @@ import { M } from '@endo/patterns';
 import { kzone } from '../kernel/objects.js';
 
 /**
- * @import { Device, KernelPowers } from '../types.js';
+ * @import { Device, KernelPowers } from '../kernel/types.js';
  * @import { FetchAnswer, FetchInit } from './types.js';
  */
 

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { E, Far } from '@endo/far';
 import { M } from '@endo/patterns';
-import { makeLiveslots } from '../src/liveslots.js';
+import { makeLiveslots } from '../src/vat/liveslots.js';
 import { buildRootObject } from '../examples/wallet/issuers.js';
 import { makeMemoryVatstore } from './memory-vatstore.js';
 

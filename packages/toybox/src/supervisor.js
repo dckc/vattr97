@@ -22,7 +22,8 @@ export { Syscall } from './kernel.js';
 /** The kernel, with toybox's own I/O devices (devices/index.js). */
 export const Kernel = makeKernelClass({ makeDevices });
 
-/** @import { HttpResponse, IngressKey } from './types.js' */
+/** @import { IngressKey } from './kernel/types.js' */
+/** @import { HttpResponse } from './types.js' */
 
 /**
  * The http socket's pages run no scripts: its mounts share one origin, so

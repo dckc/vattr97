@@ -4,7 +4,7 @@
  * session. Run under SES (see node-lockdown.js).
  */
 import { newWebSocketRpcSession } from 'capnweb';
-import { makeLiveslots } from './liveslots.js';
+import { makeLiveslots } from './vat/liveslots.js';
 
 /**
  * @import { RpcStub } from 'capnweb';

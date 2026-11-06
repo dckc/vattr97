@@ -3,7 +3,7 @@ import { encodeHex } from '@endo/hex';
 import { M } from '@endo/patterns';
 import { kzone } from './objects.js';
 
-/** @import { BundleCode, Kref, Manifest, TablePowers } from '../types.js' */
+/** @import { BundleCode, Kref, Manifest, TablePowers } from './types.js' */
 
 export const TABLES = {
   // manifest: JSON { mainModule, compatibilityDate, compatibilityFlags }

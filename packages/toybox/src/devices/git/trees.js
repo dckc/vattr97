@@ -4,7 +4,7 @@ import { M } from '@endo/patterns';
 import { blobId, parseLsTree, treeId } from './object-ids.js';
 import { kzone } from '../../kernel/objects.js';
 
-/** @import { Device, KernelKey, TablePowers } from '../../types.js' */
+/** @import { Device, KernelKey, TablePowers } from '../../kernel/types.js' */
 
 export const TABLES = {
   // a git tree (its id, in hex) and its files: JSON { path: blob id }

@@ -1,6 +1,6 @@
 /** @file A vatstore in memory, as a facet's SQLite would be, for liveslots in one process. */
 
-/** @import { Vatstore, VatstoreKey } from '../src/types.js' */
+/** @import { Vatstore, VatstoreKey } from '../src/vat/types.js' */
 
 /**
  * @param {Record<string, string>} [entries] what's in it already

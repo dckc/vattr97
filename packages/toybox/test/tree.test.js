@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bundleFiles, makeTreeReader } from '../src/kernel/tree.js';
 
-/** @import { TreeNode } from '../src/types.js' */
+/** @import { TreeNode } from '../src/kernel/types.js' */
 
 /**
  * A tree reader over a local directory, served as workerd's disk services

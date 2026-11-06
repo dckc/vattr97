@@ -2,13 +2,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { E, Far } from '@endo/far';
-import { makeLiveslots } from '../src/liveslots.js';
+import { makeLiveslots } from '../src/vat/liveslots.js';
 import { makeFetchDevice } from '../src/devices/fetch.js';
 import { M } from '@endo/patterns';
 import { buildRootObject as buildWebApp } from '../examples/webapp.js';
 import { makeMemoryVatstore as makeKv } from './memory-vatstore.js';
 
-/** @import { MapStore, Remote, SqlDatabase, Vatstore } from '../src/types.js' */
+/** @import { MapStore, Remote, SqlDatabase } from '../src/types.js' */
+/** @import { Vatstore } from '../src/vat/types.js' */
 
 /** A db for vats that use none. */
 const noDb = /** @type {SqlDatabase} */ (

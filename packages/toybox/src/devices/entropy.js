@@ -3,7 +3,7 @@ import { encodeHex } from '@endo/hex';
 import { M } from '@endo/patterns';
 import { kzone } from '../kernel/objects.js';
 
-/** @import { Device, KernelPowers } from '../types.js' */
+/** @import { Device, KernelPowers } from '../kernel/types.js' */
 
 /**
  * Entropy devices: `swiss()` answers 128 random bits in hex, as a swiss

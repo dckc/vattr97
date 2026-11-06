@@ -2,7 +2,7 @@
 import { M } from '@endo/patterns';
 import { kzone } from './objects.js';
 
-/** @import { TablePowers, VatId } from '../types.js'; */
+/** @import { TablePowers, VatId } from './types.js'; */
 
 /**
  * What a vat is granted: the binding each of its endowments stands for, by

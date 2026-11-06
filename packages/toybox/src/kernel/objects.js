@@ -5,7 +5,8 @@
  */
 import { defineExoClass } from '@endo/exo';
 
-/** @import { KernelObjects, Methods } from '../types.js' */
+/** @import { KernelObjects } from './types.js' */
+/** @import { Methods } from '../types.js' */
 
 /**
  * The kernel objects of one kind: `deliver(rest, method, args)` calls

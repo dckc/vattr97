@@ -11,17 +11,17 @@ The nixStore tests put files in the nix store (`nix store add-path`), and the gi
 
 ## Layout of the code
 
-toybox itself is in [src/](src/); [build.js](build.js) bundles it into `dist/`, which [config.capnp](config.capnp) embeds. Beside it are [test/](test/), [examples/](examples/), and [scripts/](scripts/).
+toybox itself is in [src/](src/), in three parts: the kernel ([kernel.js](src/kernel.js) and [kernel/](src/kernel/)), a vat's side of it ([vat/](src/vat/)), and the I/O devices ([devices/](src/devices/)). [build.js](build.js) bundles it into `dist/`, which [config.capnp](config.capnp) embeds. Beside it are [test/](test/), [examples/](examples/), and [scripts/](scripts/).
 
 - [kernel.js](src/kernel.js): the `Kernel` Durable Object, which hosts many vats, and `Syscall`, a vat's only way out.
 - [kernel/](src/kernel/): the kernel's own objects, one module per kind: what it runs vats with (bundles, the boot directory, vatAdmin, ingress, and endowments).
-- [devices/](src/devices/): toybox's I/O devices: networks, the nix store, git trees, and entropy. [devices/index.js](src/devices/index.js) makes them, and [supervisor.js](src/supervisor.js) hands them to the kernel (`makeKernelClass`), which knows each only as a `Device`, `{ kinds, make }` ([types.ts](src/types.ts)).
-- [liveslots.js](src/liveslots.js) and [vat-runtime.js](src/vat-runtime.js): a vat's side: vrefs, presences, its durable zone, and its SQLite.
+- [devices/](src/devices/): toybox's I/O devices: networks, the nix store, git trees, and entropy. [devices/index.js](src/devices/index.js) makes them, and [supervisor.js](src/supervisor.js) hands them to the kernel (`makeKernelClass`), which knows each only as a `Device`, `{ kinds, make }` ([kernel/types.ts](src/kernel/types.ts)).
+- [vat/](src/vat/): a vat's side: [liveslots.js](src/vat/liveslots.js) (vrefs, presences, and its durable zone) and [runtime.js](src/vat/runtime.js) (its facet, SQLite, and syscalls). Its own types, vrefs and the vatstore among them, are in [vat/types.ts](src/vat/types.ts).
 - [supervisor.js](src/supervisor.js): workerd's entrypoints, `Public` (the ingress), `App` (the boot vat's socket), and `Admin`, and the `Directory` of ingress mounts.
 - [orm.js](src/orm.js): rows as records, for single-table statements on the kernel's SQLite. A module exports its `TABLES`, and the kernel gives it a `db` limited to those; no kind of kernel object holds `sql`.
 - [labels.js](src/labels.js): [Flower](https://github.com/NuxiNL/flower)'s label rule for mounts.
 - [config.capnp](config.capnp): workerd's config. Its sockets have no addresses; whoever starts workerd hands them in, so holding a socket is the authority it grants.
-- [types.ts](src/types.ts) and [worker-env.d.ts](src/worker-env.d.ts): the types the kernel, vats, and devices share, and workerd's bindings. The I/O devices' own types are in [devices/types.ts](src/devices/types.ts).
+- [types.ts](src/types.ts): what a vat's author writes against: `BuildRootObject`, its powers, the zone and stores, and an ingress handler's requests and answers. The kernel, a vat's side, and the devices each have their own types beside them ([kernel/types.ts](src/kernel/types.ts), [vat/types.ts](src/vat/types.ts), [devices/types.ts](src/devices/types.ts)); [worker-env.d.ts](src/worker-env.d.ts) has workerd's bindings.
 - [examples/](examples/): vats built on toybox rather than part of it; the tests exercise them: counters, a hello page, a WebApp maker, and a store maker. [probes/](examples/probes/) holds vats that test the kernel's limits: one that looks for ambient authority, one that forges vrefs, and one that answers whatever status it's asked for, or throws. A scenario of several vats has a directory: [rights-transfer/](examples/rights-transfer/) (a mint, purses, and a payer), [neighbor/](examples/neighbor/) (lend-the-mower), and [bookmarks/](examples/bookmarks/) (a bookmark cache and the bootstrap vat that wires it).
 - [examples/wallet/](examples/wallet/): a boot directory: a boot vat, counters, issuer kits, and a gateway that keeps a NameHub per client and serves the app socket. [scripts/serve.js](scripts/serve.js) runs a toybox from any boot directory, and prints the boot vat's `ownerLink()` if it answers one; [scripts/service.sh](scripts/service.sh) runs that as a transient systemd user service, and `yarn wallet` runs the wallet that way.
 
@@ -33,7 +33,7 @@ toybox itself is in [src/](src/); [build.js](build.js) bundles it into `dist/`, 
 
 ## Vats and references
 
-A vat names objects only by vrefs in its own namespace (see liveslots.js). The kernel keeps each vat's c-list from vrefs to krefs and translates every message through it, so a vat that calls its syscall directly still reaches only what it holds. Passing a reference to another vat adds a row to the receiver's c-list. The c-lists are in the kernel's SQLite and durable objects in each vat's, so references between vats survive a vat restarting, an upgrade, or a crash of the whole toybox.
+A vat names objects only by vrefs in its own namespace (see [vat/liveslots.js](src/vat/liveslots.js)). The kernel keeps each vat's c-list from vrefs to krefs and translates every message through it, so a vat that calls its syscall directly still reaches only what it holds. Passing a reference to another vat adds a row to the receiver's c-list. The c-lists are in the kernel's SQLite and durable objects in each vat's, so references between vats survive a vat restarting, an upgrade, or a crash of the whole toybox.
 
 A vat's `buildRootObject({ E, Far, M, zone, db }, params)` gets:
 
@@ -93,7 +93,7 @@ Clocks, randomness, and I/O start at the edge: the tests (`*.test.js`) and scrip
 
 ## Types
 
-The code is JavaScript, run as it is by workerd; the Worker Loader takes no TypeScript. Types live in [types.ts](src/types.ts), imported with JSDoc `@import`, and `tsc --checkJs` checks everything. `Remote`, a reference to another vat's object, is the one place `any` stands for types a vat can't name; each remaining cast says why.
+The code is JavaScript, run as it is by workerd; the Worker Loader takes no TypeScript. Types live in `.ts` files beside the modules that use them (see [layout](#layout-of-the-code)), imported with JSDoc `@import`, and `tsc --checkJs` checks everything. `Remote`, a reference to another vat's object, is the one place `any` stands for types a vat can't name; each remaining cast says why.
 
 ## Under nix and systemd
 

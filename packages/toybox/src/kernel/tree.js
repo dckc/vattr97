@@ -1,7 +1,7 @@
 /** @file Directory trees, as workerd's disk services serve them, and the bundles they make: files and a manifest. */
 import { COMPATIBILITY_DATE, decode } from './bundles.js';
 
-/** @import { Manifest, TreeNode } from '../types.js' */
+/** @import { Manifest, TreeNode } from './types.js' */
 
 /**
  * The files of a tree, by path; a file alone is `main.js`.

@@ -1,76 +1,11 @@
 /**
- * @file Types shared by toybox's modules and vats. The modules are
- * JavaScript, run as they are by workerd; they import these with JSDoc
- * `@import`, and `tsc --checkJs` checks them.
+ * @file Types for writing a vat: what `buildRootObject` gets (its powers,
+ * zone, stores, and SQLite) and what an ingress's handler takes and answers.
+ * toybox's modules are JavaScript, run as they are by workerd; they import
+ * types with JSDoc `@import`, and `tsc --checkJs` checks them.
  */
 import type { E as EType, Far as FarType } from '@endo/far';
 import type { M as MType } from '@endo/patterns';
-import type { ORM, Row } from './orm.js';
-
-/** The kernel's name for an object, the same for every party. */
-export type Kref = `ko${number}`;
-
-/** A vat, as the kernel knows it. */
-export type VatId = `v${number}`;
-
-/** An object a party exports: its root, an ephemeral, or a durable object or kit facet (see liveslots.js). */
-export type ExportVref = `o+${string}`;
-
-/** An object a party holds from elsewhere, numbered by the kernel. */
-export type ImportVref = `o-${number}`;
-
-/** A party's own name for an object. Only that party's c-list gives it meaning. */
-export type Vref = ExportVref | ImportVref;
-
-/** A kernel object's key: its kind's prefix, then whatever tells it from others of its kind. */
-export type KernelKey = `${string}:${string}`;
-
-/** An ingress's key: `<kernel id>:<number or socket name>` after its prefix. */
-export type IngressKey = `kernel:${string}`;
-
-/** A message's arguments or answer: marshalled data, and the references in it, by slot. */
-export type CapData<Slot extends string = Vref> = {
-  body: string;
-  slots: Slot[];
-};
-
-/** How a party sends a message to an object it holds, by vref. */
-export type Send = (
-  vref: Vref,
-  method: string,
-  capdata: CapData,
-) => Promise<CapData>;
-
-/** The prefix of a store's entries in the vatstore, its id between the dots. */
-export type StorePrefix = `store.${string}.`;
-
-/** A key in the vatstore (see liveslots.js). */
-export type VatstoreKey =
-  /** a durable object's state, by vref */
-  | `vom.${ExportVref}`
-  /** how many durable objects a kind has made */
-  | `vom.next.${string}`
-  /** a kind's id, by tag; `kind.next` counts kinds */
-  | `kind.${string}`
-  /** a kind's facets, by kind id */
-  | `kindFacets.${string}`
-  /** what `makeOnce` made */
-  | `once.${string}`
-  /** a named store's reference */
-  | `storeName.${string}`
-  /** a store's entry */
-  | `${StorePrefix}${string}`
-  /** counts detached stores */
-  | 'store.next';
-
-/** Where a vat's durable objects and stores live: strings by key. */
-export type Vatstore = {
-  get: (k: VatstoreKey) => string | undefined;
-  put: (k: VatstoreKey, v: string) => void;
-  delete: (k: VatstoreKey) => void;
-  /** the keys with `prefix`, sorted */
-  keys: (prefix: StorePrefix) => VatstoreKey[];
-};
 
 /**
  * A kind's methods, as a vat defines them. Their parameters and answers
@@ -81,17 +16,6 @@ export type Methods = Record<string, (...args: any[]) => any>;
 
 /** A durable object's state: the record its kind's `init` answers. */
 export type State = Record<string, unknown>;
-
-/**
- * A durable kind, this incarnation: `make(state)` answers an object (or,
- * for a kit, a record of facets) whose methods see `state` as `this.state`,
- * after @endo/exo, which checks any interface guards.
- */
-export type Kind = {
-  kit: boolean;
-  facets: string[];
-  make: (state: State) => any;
-};
 
 /** What a method of a kind of one facet sees as `this`. */
 export type ClassContext<S extends State, T> = { state: S; self: T };
@@ -198,12 +122,6 @@ export type VatPowers = {
 /** A kernel vat's module: it builds its root anew each incarnation. */
 export type BuildRootObject<P = any> = (powers: VatPowers, params: P) => object;
 
-/** One party's vrefs, translated to and from krefs. */
-export type Clist = {
-  toKernel: (vref: Vref) => Kref;
-  toVat: (kref: Kref) => Vref;
-};
-
 /** An HTTP request to an ingress's mount, as data. */
 export type HttpRequest = {
   method: string;
@@ -220,90 +138,8 @@ export type HttpResponse = {
 };
 
 /**
- * A kind of kernel object (a device, after SwingSet's): messages to an
- * object whose key is `<prefix>:<rest>` come here, their arguments
- * unmarshalled, references as the kernel's stand-ins for krefs.
- */
-export type KernelObjects = {
-  deliver: (rest: string, method: string, args: unknown[]) => unknown;
-};
-
-/**
- * An I/O device, as the kernel knows it: all it does with one is route
- * messages to its kinds, and make one of its objects for whoever may hold it.
- */
-export type Device = {
-  /** the kinds of object it defines, by key prefix */
-  kinds: Record<string, KernelObjects>;
-  /** a new object of this device, as a kref */
-  make: () => Kref;
-};
-
-/**
- * The kernel's I/O devices, by name: the boot vat gets one of each under that
- * name, and an admin session's `makeDevice(name)` makes one.
- */
-export type MakeDevices = (
-  powers: KernelPowers,
-  io: {
-    env: Env;
-    bundles: ReturnType<typeof import('./kernel/bundles.js').makeBundles>;
-    /** `n` random bytes */
-    random: (n: number) => Uint8Array;
-    withTables: WithTables;
-  },
-) => Record<string, Device>;
-
-/** What every kind of kernel object may use of the kernel. */
-export type KernelPowers = {
-  /** the next number in the counter `name` */
-  next: (name: string) => number;
-  /** the kref of the kernel object `key`, made the first time it's asked for */
-  kernelObject: (key: KernelKey) => Kref;
-  /** the object that stands for `kref` in a message */
-  standIn: (kref: Kref) => object;
-  /** the kref a stand-in stands for, if it is one */
-  krefOf: (obj: unknown) => Kref | undefined;
-  /** the key of the kernel's own object `kref`, if it is one */
-  keyOf: (kref: Kref) => KernelKey | undefined;
-};
-
-/** What a kind of kernel object with tables of its own gets: statements on those, and no others. */
-export type TablePowers<DB extends Record<string, Row>> = KernelPowers & {
-  db: ORM<DB>;
-};
-
-/**
- * Create `tables` (DDL by table name), and answer powers limited to them.
- * The rows' types are the module's that declares the tables.
- */
-export type WithTables = (tables: Record<string, string>) => TablePowers<any>;
-
-/**
  * A reference to an object in another vat, or a kernel object: E() reaches
  * its methods, whose types this vat can't name. (Its interface guard, where
  * it lives, is what checks the calls.)
  */
 export type Remote = any;
-
-/** A file or directory tree, as a bundle is read: no executable bits or symlinks (kernel/tree.js). */
-export type TreeNode =
-  | { type: 'regular'; contents: Uint8Array }
-  | { type: 'directory'; entries: Record<string, TreeNode> };
-
-/** What a bundle says of itself, in its worker.json. */
-export type Manifest = {
-  mainModule: string;
-  compatibilityDate: string;
-  compatibilityFlags: string[];
-};
-
-/**
- * What the Worker Loader runs a bundle as, beside the vat runtime: its
- * modules, and the compatibility it asks for.
- */
-export type BundleCode = {
-  compatibilityDate: string;
-  compatibilityFlags?: string[];
-  modules: Record<string, unknown>;
-};

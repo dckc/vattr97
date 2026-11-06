@@ -6,8 +6,9 @@ import { M } from '@endo/patterns';
 import { makeLiveslots } from './liveslots.js';
 
 /**
- * @import { CapData, Send, SqlDatabase, SqlValue, StorePrefix, VatPowers, Vatstore, VatstoreKey, Vref } from './types.js';
- * @import { Syscall } from './kernel.js';
+ * @import { SqlDatabase, SqlValue, VatPowers } from '../types.js';
+ * @import { CapData, Send, StorePrefix, Vatstore, VatstoreKey, Vref } from './types.js';
+ * @import { Syscall } from '../kernel.js';
  */
 
 /**

@@ -4,9 +4,10 @@
  */
 import { env as workerEnv } from 'cloudflare:workers';
 
-/** @import { BuildRootObject, CapData, Send, Vref } from '../../src/types.js' */
+/** @import { BuildRootObject } from '../../src/types.js' */
+/** @import { CapData, Send, Vref } from '../../src/vat/types.js' */
 
-// a vat's facet env, which the kernel gives it (vat-runtime.js's VatEnv), not the supervisor's
+// a vat's facet env, which the kernel gives it (src/vat/runtime.js's VatEnv), not the supervisor's
 const env = /** @type {{ syscall: { send: Send } }} */ (
   /** @type {unknown} */ (workerEnv)
 );

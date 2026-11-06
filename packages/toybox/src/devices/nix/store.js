@@ -4,7 +4,7 @@ import { kzone } from '../../kernel/objects.js';
 import { bundleFiles, makeTreeReader } from '../../kernel/tree.js';
 
 /**
- * @import { Device, KernelPowers } from '../../types.js';
+ * @import { Device, KernelPowers } from '../../kernel/types.js';
  * @import { makeBundles } from '../../kernel/bundles.js';
  */
 

@@ -8,7 +8,8 @@ import { Remotable, passStyleOf } from '@endo/pass-style';
 /**
  * @import { MakeMarshalOptions } from '@endo/marshal';
  * @import { Passable } from '@endo/pass-style';
- * @import { CapData, ExportVref, Kind, Methods, Send, State, Vatstore, VatstoreKey, Vref, Zone } from './types.js';
+ * @import { Methods, State, Zone } from '../types.js';
+ * @import { CapData, ExportVref, Kind, Send, Vatstore, VatstoreKey, Vref } from './types.js';
  */
 
 const { entries, fromEntries, keys } = Object;

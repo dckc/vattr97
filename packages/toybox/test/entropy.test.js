@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeEntropy } from '../src/devices/entropy.js';
 
-/** @import { KernelPowers } from '../src/types.js' */
+/** @import { KernelPowers } from '../src/kernel/types.js' */
 
 const powers = /** @type {KernelPowers} the device's kinds use none of them */ (
   harden({})

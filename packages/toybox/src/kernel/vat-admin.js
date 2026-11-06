@@ -3,7 +3,7 @@ import { M } from '@endo/patterns';
 import { kzone } from './objects.js';
 
 /**
- * @import { KernelPowers, Kref, VatId } from '../types.js';
+ * @import { KernelPowers, Kref, VatId } from './types.js';
  * @import { makeBundles } from './bundles.js';
  * @import { Grants, makeEndowments } from './endowments.js';
  */
