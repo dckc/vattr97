@@ -4,7 +4,7 @@
  * objects, and references to objects elsewhere, not only rows of data.
  * @see {@link ExoClass} to start
  * @see {@link BuildRootObject} for what a module exports
- * @see ../CONTRIBUTING.md#types for how toybox's JavaScript is typed and checked
+ * @see ../CONTRIBUTING.md#conventions for how toybox's JavaScript is typed and checked
  */
 import type { E as EType, Far as FarType } from '@endo/far';
 import type { InterfaceGuard, M as MType } from '@endo/patterns';

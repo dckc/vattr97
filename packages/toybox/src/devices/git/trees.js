@@ -57,6 +57,8 @@ export const cutLines = (pending, size) => {
  * a consumer that acts on a chunk before then must be ready to undo it. A
  * reader lives in memory: once the kernel restarts, it only throws.
  *
+ * Files are read as text only: messages between vats can't carry bytes yet.
+ *
  * @param {TablePowers<Tables>} powers
  * @param {object} io
  * @param {{ fetch: (url: string) => Promise<Response> }} io.checkout config.capnp's `git-checkout` service
