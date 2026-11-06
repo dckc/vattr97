@@ -44,13 +44,17 @@ export const main = async ({
   });
   const dir = await mkdtemp(join(tmpdir(), 'toybox-hello-'));
   await mkdir(join(dir, 'state'));
+  await mkdir(join(dir, 'boot'));
   const port = await freePort();
+  const appPort = await freePort();
   const sock = join(dir, 'admin.sock');
   const toybox = await startWorkerd(
     'config.capnp',
     [
       ...['-s', `http=127.0.0.1:${port}`, '-s', `admin=unix:${sock}`],
+      ...['-s', `app=127.0.0.1:${appPort}`],
       ...['-d', `state=${join(dir, 'state')}`],
+      ...['-d', `boot=${join(dir, 'boot')}`],
     ],
     { port, host: '127.0.0.1' },
   );
