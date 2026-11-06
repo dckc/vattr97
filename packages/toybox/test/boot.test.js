@@ -49,6 +49,12 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
       first.headers.get('content-security-policy') ?? '',
       /^default-src 'self';/,
     );
+    const [a, b] = [
+      await (await app('/swiss')).text(),
+      await (await app('/swiss')).text(),
+    ];
+    assert.match(a, /^[0-9a-f]{32}$/);
+    assert.notEqual(a, b);
 
     const main = await connectKernel(
       new WebSocket(`ws+unix:${box.sock}:/kernel/main`),
@@ -58,6 +64,7 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
     assert.deepEqual(await E(bootVat.root).powers(), [
       'bundles',
       'endowments',
+      'entropy',
       'fetch',
       'gitTrees',
       'ingress',
