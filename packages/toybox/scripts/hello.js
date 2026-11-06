@@ -17,8 +17,8 @@ import { here, makeWorkerd } from '../src/workerd-process.js';
 const HELP = `usage: scripts/hello.js
 
 Starts toybox (workerd, on this package's config.capnp) with its state in a
-new directory under ${tmpdir()}, creates the hello vat (examples/hello-page.js), and
-mounts it on an ingress. Prints the URL to open. Ctrl-C stops toybox and
+new directory under ${tmpdir()}, runs the hello page (examples/hello-page.js) in it,
+served at an ingress. Prints the URL to open. Ctrl-C stops toybox and
 removes the directory.
 `;
 

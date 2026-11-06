@@ -1,5 +1,11 @@
 # Contributing to toybox
 
+## How it works, in brief
+
+toybox is a Durable Object class, the **kernel**, that runs other code. Each program it runs is a **vat**: a module installed at runtime, run in a Durable Object facet of its own, with its own SQLite. Vats share nothing but references: a vat calls an object in another vat by asking the kernel to deliver a message, and the kernel delivers it only if the vat holds that reference. What a vat can do beyond computing, from reaching the network to making other vats, it does through an object someone handed it: another vat's, or one of the kernel's own, such as a **device** for I/O. The **boot vat** starts with every device, and decides who gets what.
+
+A vat keeps its objects in its SQLite ([src/types.ts](src/types.ts) says how it defines them), and the kernel keeps every vat's references in its own, so both survive restarts, upgrades, and crashes. The sections below elaborate each part; the README's [prior art](README.md#prior-art) is where the design comes from.
+
 ## Testing
 
 ```sh
@@ -33,16 +39,16 @@ toybox itself is in [src/](src/), in three parts: the kernel ([kernel.js](src/ke
 
 ## Vats and references
 
-A vat names objects only by vrefs in its own namespace (see [vat/liveslots.js](src/vat/liveslots.js)). The kernel keeps each vat's c-list from vrefs to krefs and translates every message through it, so a vat that calls its syscall directly still reaches only what it holds. Passing a reference to another vat adds a row to the receiver's c-list. The c-lists are in the kernel's SQLite and durable objects in each vat's, so references between vats survive a vat restarting, an upgrade, or a crash of the whole toybox.
+A vat names objects by _vrefs_, names of its own that mean nothing to any other vat ([vat/liveslots.js](src/vat/liveslots.js)). The kernel names them by _krefs_, and keeps each vat's _c-list_ (capability list), from its vrefs to krefs. It translates every message through the sender's c-list and the receiver's, so a vat that calls its syscall directly still reaches only what it holds. Passing a reference to another vat adds a row to the receiver's c-list. The c-lists are in the kernel's SQLite and durable objects in each vat's, so references between vats survive a vat restarting, an upgrade, or a crash of the whole toybox.
 
-A vat's `buildRootObject({ E, Far, M, zone, db }, params)` gets:
+A vat's `buildRootObject({ E, Far, M, zone, db }, params)` gets these ([src/types.ts](src/types.ts) says more of each):
 
 - `M`, from `@endo/patterns`, for interface guards;
-- `db`, its own SQLite, in ertp-books' `SqlDatabase` shape; the vatstore is its `vatstore` table;
+- `db`, its own SQLite; the vatstore, where its zone keeps its objects, is that database's `vatstore` table;
 - `zone`, whose kinds are `@endo/exo`'s, so their guards are checked: `exoClassKit` (two or more facets sharing one state, each a reference of its own, `o+d<kind>/<n>:<facet>`), `exoClass` (one facet, `o+d<kind>/<n>`), `exo`, `makeOnce`, `mapStore(name)`, and `detached().mapStore(label)`;
 - `endowment(name)`, the service binding granted to it as `name`, if any ([adding a device](#adding-a-device)).
 
-Every incarnation must define every kind, with the facets it had: a kind can't change between one facet and a kit, since references to its objects are stored by facet. Other exports are ephemeral, gone when the vat restarts.
+Each time a vat starts (each incarnation), it must define every kind, with the facets it had: a kind can't change between one facet and a kit, since references to its objects are stored by facet. Other exports are ephemeral, gone when the vat restarts.
 
 Not yet: promise pipelining between vats (each message waits for its answer), messages that outlive an eviction, and dropping c-list entries nobody holds.
 
