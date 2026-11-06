@@ -6,7 +6,7 @@ import { M } from '@endo/patterns';
 import { makeLiveslots } from './liveslots.js';
 
 /**
- * @import { SqlDatabase, SqlValue, VatPowers } from '../types.js';
+ * @import { SqlDatabase, SqlValue, Powers } from '../types.js';
  * @import { CapData, Send, StorePrefix, Vatstore, VatstoreKey, Vref } from './types.js';
  * @import { Syscall } from '../kernel.js';
  */
@@ -130,7 +130,7 @@ const makeSqlDatabase = storage => {
 
 /**
  * @param {Record<string, Fetcher>} endowments
- * @returns {VatPowers['endowment']}
+ * @returns {Powers['endowment']}
  */
 const makeEndowment = endowments => name => {
   if (!Object.hasOwn(endowments, name))

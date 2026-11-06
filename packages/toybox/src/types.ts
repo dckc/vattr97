@@ -1,43 +1,26 @@
 /**
- * @file Types for writing a vat: its durable zone, and the rest of what
- * `buildRootObject` gets.
- * @see {@link Zone}
- * @see {@link BuildRootObject}
+ * @file Types for writing code that runs in toybox: like a Cloudflare
+ * Durable Object, its state outlives restarts, but that state can hold
+ * objects, and references to objects elsewhere, not only rows of data.
+ * @see {@link ExoClass} to start
+ * @see {@link BuildRootObject} for what a module exports
  * @see ../CONTRIBUTING.md#types for how toybox's JavaScript is typed and checked
  */
 import type { E as EType, Far as FarType } from '@endo/far';
 import type { InterfaceGuard, M as MType } from '@endo/patterns';
 
 /**
- * Where a vat defines kinds of durable objects, and keeps them. What a zone
- * makes outlives the vat's incarnation: when the vat restarts, or is
- * upgraded to new code, its objects are still there, and references to
- * them held elsewhere still work. So each incarnation must define every
- * kind again, by the same tag, to give its objects their methods.
- *
- * @see https://github.com/Agoric/agoric-sdk/tree/master/packages/zone `@agoric/zone`, whose API this follows
- */
-export interface Zone {
-  /** Define a kind of durable object. */
-  exoClass: ExoClass;
-  /** Make one durable object, the same one in every incarnation. */
-  exo: Exo;
-  /** Define a kind of durable object with several facets. */
-  exoClassKit: ExoClassKit;
-  /** `make()`'s result, made only the first time any incarnation asks for `key`. */
-  makeOnce<T>(key: string, make: () => T): T;
-  /** A durable map store, by name: the same name in a later incarnation is the same store. */
-  mapStore<K extends Key, V>(name: string): MapStore<K, V>;
-  /** Stores without names, for a vat to keep or hand out as it likes. */
-  detached(): { mapStore<K extends Key, V>(label: string): MapStore<K, V> };
-}
-
-/**
  * Define a kind of durable object, by `tag`, and answer its maker. The
  * maker passes its arguments to `init`, whose answer is the new object's
  * state; each of `methods` sees that state as `this.state`, and the object
- * as `this.self`. A message reaches only `methods`, and only as
- * `interfaceGuard` allows, if there is one.
+ * as `this.self`. An assignment to `this.state.count` is stored at once,
+ * as a write to a Durable Object's storage would be. But the state may
+ * hold other objects too, or references to objects elsewhere, and the
+ * object itself can be passed to code elsewhere, which can call it later,
+ * after a restart.
+ *
+ * A message reaches only `methods`, and only as `interfaceGuard` allows,
+ * if there is one.
  *
  * @example
  * const makeCounter = zone.exoClass(
@@ -66,30 +49,28 @@ export type ExoClass = <
 ) => (...args: A) => Guarded<T>;
 
 /**
- * A kind's methods, as a vat defines them. Their parameters and answers
- * are the vat's to choose, so they're `any` here; an interface guard is
- * what checks them.
+ * A kind's methods. Their parameters and answers are yours to choose, so
+ * they're `any` here; an interface guard is what checks them.
  */
 export type Methods = Record<string, (...args: any[]) => any>;
 
 /**
  * A durable object's state: the record its kind's `init` answers. Its
- * values must be data or references that can be passed between vats, and
- * an assignment to one is stored.
+ * values are data, durable objects, or references to objects elsewhere.
  */
 export type State = Record<string, unknown>;
 
 /** What a method of a kind of one facet sees as `this`. */
 export type ClassContext<S extends State, T> = { state: S; self: T };
 
-/** What the zone's makers answer: the methods, with `this` bound for them. */
+/** What a kind's maker answers: the methods, with `this` bound for them. */
 export type Guarded<T extends Methods> = {
   [K in keyof T]: OmitThisParameter<T[K]>;
 };
 
 /**
- * One durable object, made the first time any incarnation asks for `tag`:
- * an {@link ExoClass} with no state, made once.
+ * One durable object, made the first time it's asked for by `tag`: an
+ * {@link ExoClass} with no state, made once.
  */
 export type Exo = <T extends Methods>(
   tag: string,
@@ -165,10 +146,31 @@ export interface ReadonlyMapStore<K extends Key, V> {
 export type Key = string | number | object;
 
 /**
- * A vat's module exports `buildRootObject`, which builds its root object
- * anew each incarnation, from its powers and the params it was made with.
- * Whoever made the vat holds its root; everything else the vat offers is
- * reached from there.
+ * Where a module defines its kinds of durable objects, and keeps them.
+ * When the module restarts, or is upgraded to new code, its objects are
+ * still there, and references to them held elsewhere still work; so each
+ * time it starts it must define every kind again, by the same tag, to give
+ * its objects their methods.
+ *
+ * @see https://github.com/Agoric/agoric-sdk/tree/master/packages/zone `@agoric/zone`, whose API this follows
+ */
+export interface Zone {
+  exoClass: ExoClass;
+  exo: Exo;
+  exoClassKit: ExoClassKit;
+  /** `make()`'s result, made only the first time it's asked for by `key`, ever. */
+  makeOnce<T>(key: string, make: () => T): T;
+  /** A durable map store, by name: the same name after a restart is the same store. */
+  mapStore<K extends Key, V>(name: string): MapStore<K, V>;
+  /** Stores without names, to keep or hand out as you like. */
+  detached(): { mapStore<K extends Key, V>(label: string): MapStore<K, V> };
+}
+
+/**
+ * A module exports `buildRootObject`, which builds its root object each
+ * time the module starts, from its powers and the params it was made with.
+ * Whoever made it holds its root; everything else it offers is reached
+ * from there.
  *
  * @example
  * export const buildRootObject = ({ Far, zone }) => {
@@ -176,14 +178,14 @@ export type Key = string | number | object;
  *   return Far('root', { makeCounter: () => makeCounter() });
  * };
  */
-export type BuildRootObject<P = any> = (powers: VatPowers, params: P) => object;
+export type BuildRootObject<P = any> = (powers: Powers, params: P) => object;
 
 /**
- * What a vat's `buildRootObject` gets, beside its params. A vat has no
- * other way to reach the world: no clock, no randomness, no network, but
- * what its params and endowments give it.
+ * What `buildRootObject` gets, beside its params. A module has no other
+ * way to reach the world: no clock, no randomness, no network, but what
+ * its params and endowments give it.
  */
-export type VatPowers = {
+export type Powers = {
   /**
    * `E(remote).method(...args)` sends a message to a {@link Remote} and
    * answers a promise for its result.
@@ -192,8 +194,8 @@ export type VatPowers = {
    */
   E: typeof EType;
   /**
-   * `Far(name, methods)` makes an object that can be passed to other vats,
-   * as a reference. Unlike a zone's, it lasts only this incarnation.
+   * `Far(name, methods)` makes an object that can be passed elsewhere, as a
+   * reference. Unlike a zone's objects, it's gone when the module restarts.
    *
    * @see https://github.com/endojs/endo/tree/master/packages/far
    */
@@ -207,24 +209,25 @@ export type VatPowers = {
    */
   M: typeof MType;
   zone: Zone;
-  /** the vat's own SQLite, for what suits tables better than a zone */
+  /** the module's own SQLite, for what suits tables better than objects */
   db: SqlDatabase;
   /**
-   * The service binding granted to this vat as `name`. A function, not a
-   * record of bindings, since workerd's stubs can't be frozen, so can't be
-   * hardened.
+   * The service binding granted to this module as `name`. A function, not
+   * a record of bindings, since workerd's stubs can't be frozen, so can't
+   * be hardened.
    */
   endowment: (name: string) => Fetcher;
 };
 
 /**
- * A reference to an object in another vat, or a kernel object: E() reaches
- * its methods, whose types this vat can't name. (Its interface guard, where
- * it lives, is what checks the calls.)
+ * A reference to an object elsewhere: another module's, or one of toybox's
+ * own, such as a network device. E() reaches its methods, whose types this
+ * module can't name. (Its interface guard, where it lives, is what checks
+ * the calls.)
  */
 export type Remote = any;
 
-/** A vat's own SQLite database, its statements run synchronously. */
+/** A module's own SQLite database, its statements run synchronously. */
 export type SqlDatabase = {
   exec: (sql: string) => void;
   prepare: <P extends SqlValue[] = SqlValue[], R = SqlRow>(
@@ -248,8 +251,8 @@ export type SqlRow = Record<string, SqlValue>;
 export type SqlValue = string | number | null | ArrayBuffer;
 
 /**
- * An HTTP request to an ingress's mount, as data: what a handler served at
- * an ingress gets in `handle(request)`.
+ * An HTTP request, as data: what a handler gets in `handle(request)`
+ * when it's served at an ingress, a route on toybox's HTTP socket.
  */
 export type HttpRequest = {
   method: string;
