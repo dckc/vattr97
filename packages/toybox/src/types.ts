@@ -244,3 +244,22 @@ export type SqlRow = Record<string, SqlValue>;
 
 /** A SQLite value as a statement takes or answers it. */
 export type SqlValue = string | number | null | ArrayBuffer;
+
+/**
+ * An HTTP request, as data: what a handler gets in `handle(request)`
+ * when it's served at an ingress, a route on toybox's HTTP socket.
+ */
+export type HttpRequest = {
+  method: string;
+  path: string;
+  /** the mount's labels and the request's query parameters, together */
+  labels: Record<string, string>;
+  body: string;
+};
+
+/** A handler's answer to an {@link HttpRequest}, as data. */
+export type HttpResponse = {
+  status?: number;
+  headers?: Record<string, string>;
+  body?: string;
+};

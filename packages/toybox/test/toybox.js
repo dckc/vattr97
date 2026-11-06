@@ -6,13 +6,14 @@ import { join } from 'node:path';
 /**
  * @param {object} io
  * @param {ReturnType<typeof makeWorkerd>['startWorkerd']} io.startWorkerd
+ * @param {() => Promise<number>} io.freePort
  * @param {(path: string, opts: { recursive: boolean }) => Promise<unknown>} io.mkdir
  */
-export const makeToyboxes = ({ startWorkerd, mkdir }) =>
+export const makeToyboxes = ({ startWorkerd, freePort, mkdir }) =>
   harden({
     /**
-     * A toybox in `dir`, its state kept there across restarts, and its
-     * admin socket.
+     * A toybox in `dir`, its state kept there across restarts: its http
+     * port, and its admin socket.
      *
      * @param {string} dir
      * @param {object} [opts]
@@ -21,17 +22,19 @@ export const makeToyboxes = ({ startWorkerd, mkdir }) =>
      */
     startToybox: async (dir, { config = 'config.capnp', args = [] } = {}) => {
       await mkdir(join(dir, 'state'), { recursive: true });
+      const port = await freePort();
       const sock = join(dir, 'admin.sock');
       const server = await startWorkerd(
         config,
         [
+          ...['-s', `http=127.0.0.1:${port}`],
           ...['-s', `admin=unix:${sock}`],
           ...['-d', `state=${join(dir, 'state')}`],
           ...args,
         ],
-        { path: sock },
+        { port, host: '127.0.0.1' },
         [sock],
       );
-      return { server, sock };
+      return { server, sock, port };
     },
   });

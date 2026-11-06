@@ -16,7 +16,7 @@ import { makeToyboxes } from './toybox.js';
 import { here, makeWorkerd } from '../src/workerd-process.js';
 
 // this test is the edge: it holds Node's I/O, and gives each helper what it uses
-const { startWorkerd } = makeWorkerd({
+const { freePort, startWorkerd } = makeWorkerd({
   workerd: workerdPackage.default,
   spawn,
   rm,
@@ -26,7 +26,7 @@ const { startWorkerd } = makeWorkerd({
   // WORKERD_LOG=1 echoes workerd's stderr, for debugging
   log: process.env.WORKERD_LOG ? c => void process.stderr.write(c) : undefined,
 });
-const { startToybox } = makeToyboxes({ startWorkerd, mkdir });
+const { startToybox } = makeToyboxes({ startWorkerd, freePort, mkdir });
 /** A client of the kernel `name` on the admin socket `sock`. @param {string} sock @param {string} name */
 const connectTo = (sock, name) =>
   connectKernel(new WebSocket(`ws+unix:${sock}:/kernel/${name}`));
@@ -352,4 +352,75 @@ test("a vat's db is its own SQLite, and outlasts a restart", async () => {
   assert.deepEqual(await E(root).list(), ['one', 'two', 'three', 'four']);
   const { root: other } = await k.createVat(await kvat('notes.js'));
   assert.deepEqual(await E(other).list(), []);
+});
+
+test('a kernel vat serves the web through its ingress, after a restart and after a crash', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'toybox-kernel-web-'));
+  await mkdir(join(home, 'state'));
+  let box = await startToybox(home);
+  /** @param {string} path */
+  const get = path => fetch(`http://127.0.0.1:${box.port}${path}`);
+  try {
+    const client = await connectTo(box.sock, 'web');
+    assert.equal((await get('/?site=hello')).status, 404);
+    const ingress = await client.makeIngress({ site: 'hello' });
+    assert.equal((await get('/?site=hello')).status, 503);
+    await assert.rejects(client.makeIngress({ site: 'hello' }), /overlaps/);
+    const { adminNode: admin } = await client.createVat(
+      await kvat('hello-page.js'),
+      { ingress },
+    );
+    const first = await get('/greet?site=hello');
+    assert.equal(first.status, 200);
+    assert.equal(first.headers.get('content-type'), 'text/html; charset=utf-8');
+    // a page here runs no scripts: every mount shares this origin
+    assert.equal(
+      first.headers.get('content-security-policy'),
+      "script-src 'none'",
+    );
+    assert.match(await first.text(), /from a kernel vat, at \/greet, hit 1</);
+    await E(admin).restart();
+    assert.match(await (await get('/again?site=hello')).text(), /hit 2</);
+    client.close();
+
+    // nobody reconnects: the kernel holds the handler's kref, and its vat starts on demand
+    await box.server.stop();
+    box = await startToybox(home);
+    assert.match(
+      await (await get('/after-crash?site=hello')).text(),
+      /at \/after-crash, hit 3</,
+    );
+  } finally {
+    await box.server.stop();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test('an ingress answers a status that has no body, and a 502 when its handler throws', async () => {
+  await assert.rejects(
+    // @ts-expect-error a label's value is a string
+    k.makeIngress({ site: 'answers', n: 1 }),
+    /label n is not a string/,
+  );
+  const ingress = await k.makeIngress({ site: 'answers' });
+  await k.createVat(await kvat('probes/ingress.js'), { ingress });
+  /** @param {string} path */
+  const get = path => fetch(`http://127.0.0.1:${toybox.port}${path}`);
+  for (const status of [200, 204, 304]) {
+    const resp = await get(`/?site=answers&status=${status}`);
+    assert.equal(resp.status, status);
+    assert.equal(await resp.text(), status === 200 ? 'body' : '');
+  }
+  // a label may have any name that isn't given twice
+  assert.equal(
+    (await get('/?site=answers&status=200&constructor=x')).status,
+    200,
+  );
+  assert.equal(
+    (await get('/?site=answers&status=200&site=answers')).status,
+    400,
+  );
+  const failed = await get('/throw?site=answers&status=200');
+  assert.equal(failed.status, 502);
+  assert.doesNotMatch(await failed.text(), /asked to throw/);
 });

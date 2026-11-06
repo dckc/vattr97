@@ -52,6 +52,9 @@ export const connectKernel = async ws => {
         root: ls.slotToVal(root),
         adminNode: ls.slotToVal(adminNode),
       })),
+    /** An ingress for a mount at `labels`. @param {Record<string, string>} labels */
+    makeIngress: async labels =>
+      ls.slotToVal(await session.makeIngress(labels)),
     /** An I/O device, for a vat's params (devices/index.js). @param {string} name */
     makeDevice: async name => ls.slotToVal(await session.makeDevice(name)),
     /** A vatAdmin, for a bootstrap vat's params. */
