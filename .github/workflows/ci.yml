@@ -18,9 +18,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+      # toybox's tests put files in the nix store (nixStore bundleCaps)
+      - uses: cachix/install-nix-action@v31
       - run: corepack enable
       - run: yarn install --immutable
       - run: yarn run format-check
       - run: yarn run lint
       - run: yarn run typecheck
       - run: yarn test
+      # the toybox package, its units, and its NixOS module: the same for either node
+      - run: nix flake check
+        if: matrix.node-version == 22
