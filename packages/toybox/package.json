@@ -1,0 +1,31 @@
+{
+  "name": "@vattr/toybox",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --import ./src/node-lockdown.js --test test/*.test.js",
+    "lint": "eslint .",
+    "lint-fix": "eslint . --fix",
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261006.1",
+    "@types/node": "22",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "@endo/eventual-send": "1.5.0",
+    "@endo/exo": "^1.7.0",
+    "@endo/far": "^1.1.14",
+    "@endo/init": "^1.1.13",
+    "@endo/marshal": "1.10.0",
+    "@endo/pass-style": "1.8.2",
+    "@endo/patterns": "^1.9.1"
+  },
+  "files": [
+    "src",
+    "test"
+  ],
+  "description": "vats whose code is installed at runtime, on workerd: a kernel after SwingSet, Durable Object facets as vats"
+}
