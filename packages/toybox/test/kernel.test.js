@@ -1,0 +1,288 @@
+/** @file The kernel: vats as facets of one Durable Object, references through kernel-held c-lists. */
+import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { connect, createServer as createNetServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { after, before, test } from 'node:test';
+import { setTimeout as sleep } from 'node:timers/promises';
+import assert from 'node:assert/strict';
+import { E } from '@endo/far';
+import workerdPackage from 'workerd';
+import WebSocket from 'ws';
+import { connectKernel } from '../src/kernel-client.js';
+import { makeToyboxes } from './toybox.js';
+import { here, makeWorkerd } from '../src/workerd-process.js';
+
+// this test is the edge: it holds Node's I/O, and gives each helper what it uses
+const { startWorkerd } = makeWorkerd({
+  workerd: workerdPackage.default,
+  spawn,
+  rm,
+  connect,
+  createServer: createNetServer,
+  sleep,
+  // WORKERD_LOG=1 echoes workerd's stderr, for debugging
+  log: process.env.WORKERD_LOG ? c => void process.stderr.write(c) : undefined,
+});
+const { startToybox } = makeToyboxes({ startWorkerd, mkdir });
+/** A client of the kernel `name` on the admin socket `sock`. @param {string} sock @param {string} name */
+const connectTo = (sock, name) =>
+  connectKernel(new WebSocket(`ws+unix:${sock}:/kernel/${name}`));
+
+/** @import { Remote } from '../src/types.js' */
+
+/** @param {string} name */
+const kvat = name => readFile(join(here, 'examples', name), 'utf8');
+
+/** Upgrade the vat whose admin node is `adminNode` to `src`. @param {Remote} adminNode @param {string} src */
+const upgrade = async (adminNode, src) =>
+  E(adminNode).upgrade(await k.installBundle(src));
+
+/** @type {string} */
+let dir;
+/** @type {Awaited<ReturnType<typeof startToybox>>} */
+let toybox;
+/** @type {Awaited<ReturnType<typeof connectKernel>>} */
+let k;
+
+before(async () => {
+  dir = await mkdtemp(join(tmpdir(), 'toybox-kernel-'));
+  await mkdir(join(dir, 'state'));
+  toybox = await startToybox(dir);
+  k = await connectTo(toybox.sock, 'k1');
+});
+
+after(async () => {
+  k?.close();
+  await toybox?.server.stop();
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('a durable counter counts on after its vat restarts', async () => {
+  const { adminNode: admin, root } = await k.createVat(
+    await kvat('counter.js'),
+  );
+  const counter = await E(root).getCounter();
+  assert.equal(await E(counter).incr(), 1);
+  assert.equal(await E(counter).incr(), 2);
+  const ten = await E(root).makeCounter(10);
+  await E(admin).restart();
+  assert.equal(await E(counter).incr(), 3);
+  assert.equal(await E(ten).incr(), 11);
+});
+
+test('an ephemeral object is gone after its vat restarts', async () => {
+  const { adminNode: admin, root } = await k.createVat(
+    await kvat('ephemeral.js'),
+  );
+  const ticker = await E(root).getTicker();
+  assert.equal(await E(ticker).tick(), 1);
+  await E(admin).restart();
+  await assert.rejects(E(ticker).tick(), /gone with an earlier incarnation/);
+});
+
+test('a counter passed to another vat reaches its maker; identity holds; both vats restart', async () => {
+  const { adminNode: a, root: counterRoot } = await k.createVat(
+    await kvat('counter.js'),
+  );
+  const { adminNode: b, root: holder } = await k.createVat(
+    await kvat('holder.js'),
+  );
+  const counter = await E(counterRoot).getCounter();
+  await E(holder).keep('c', counter);
+  assert.equal(await E(holder).bump('c'), 1);
+  assert.equal(await E(counter).read(), 1);
+  assert.equal(await E(holder).isKept('c', counter), true);
+  assert.equal(
+    await E(holder).isKept('c', await E(counterRoot).makeCounter()),
+    false,
+  );
+  await E(b).restart();
+  assert.equal(await E(holder).bump('c'), 2);
+  await E(a).restart();
+  assert.equal(await E(holder).bump('c'), 3);
+  assert.equal(await E(holder).isKept('c', counter), true);
+});
+
+test('a vat finds no clock or randomness, from its first line on', async () => {
+  const { root } = await k.createVat(await kvat('probes/ambient.js'));
+  const inert = {
+    frozen: true,
+    now: 'throws',
+    date: 'throws',
+    random: 'throws',
+    crypto: ['subtle'],
+    subtle: ['digest'],
+    performance: 'throws',
+  };
+  assert.deepEqual(await E(root).atEvaluation(), inert);
+  assert.deepEqual(await E(root).now(), inert);
+  // SHA-256 of nothing starts e3: digests still work
+  assert.equal(await E(root).digest(), 0xe3);
+});
+
+test('a vat that calls its syscall directly reaches only what it holds', async () => {
+  const { root: counterRoot } = await k.createVat(await kvat('counter.js'));
+  const { root: forger } = await k.createVat(await kvat('probes/forger.js'));
+  const counter = await E(counterRoot).getCounter();
+
+  assert.match(
+    await E(forger).target('o-1', 'incr'),
+    /^refused: "v\d+" holds no "o-1"$/,
+  );
+
+  await E(forger).hold(counter);
+  assert.equal(await E(forger).target('o-1', 'incr'), 'reached: #1');
+  assert.match(
+    await E(forger).target('o-2', 'incr'),
+    /^refused: "v\d+" holds no "o-2"$/,
+  );
+  assert.match(
+    await E(forger).slot('o-1', 'incr', 'o-9'),
+    /^refused: "v\d+" holds no "o-9"$/,
+  );
+
+  // the counter's own vref, claimed as an export: it names only the forger's objects
+  assert.match(
+    await E(forger).target('o+d1/1', 'incr'),
+    /^refused: o\+d1\/1: its kind is not defined/,
+  );
+  assert.equal(await E(counter).read(), 1);
+});
+
+test("upgrading a vat's code keeps its durable objects, and others' references to them", async () => {
+  const { adminNode: admin, root } = await k.createVat(
+    await kvat('counter.js'),
+  );
+  const { root: holder } = await k.createVat(await kvat('holder.js'));
+  const counter = await E(root).getCounter();
+  await E(holder).keep('c', counter);
+  assert.equal(await E(holder).bump('c'), 1);
+  await upgrade(admin, await kvat('counter-v2.js'));
+  assert.equal(await E(holder).bump('c'), 11);
+  assert.equal(await E(counter).incr(), 21);
+  await assert.rejects(
+    upgrade(
+      admin,
+      "export const buildRootObject = () => { throw Error('broken'); };",
+    ),
+    /broken/,
+  );
+  assert.equal(await E(holder).bump('c'), 31);
+  await assert.rejects(
+    E(admin).upgrade(await k.makeVatAdmin()),
+    /not a bundleCap/,
+  );
+});
+
+test("an exoClassKit's facets share one state, each is its own reference, and both outlive a restart", async () => {
+  const { adminNode: admin, root } = await k.createVat(
+    await kvat('counter-kit.js'),
+  );
+  const { root: holder } = await k.createVat(await kvat('holder.js'));
+  const [incr, read] = [await E(root).getIncr(), await E(root).getRead()];
+  assert.notEqual(incr, read);
+  await E(holder).keep('read', read);
+  assert.equal(await E(incr).incr(), 1);
+  assert.equal(await E(E(holder).get('read')).read(), 1);
+  // a facet has only its own methods, and takes only what its guard says
+  await assert.rejects(E(read).incr(), /no method incr/);
+  await assert.rejects(E(incr).incr('more'), /incr.*arguments/);
+
+  const other = await E(root).makeKit();
+  assert.equal(await E(other.incr).incr(), 1);
+  await E(admin).restart();
+  assert.equal(await E(incr).incr(), 2);
+  assert.equal(await E(E(holder).get('read')).read(), 2);
+  assert.equal(await E(other.read).read(), 1);
+});
+
+test('upgrading may not change a kind between one facet and a kit: references to its objects are stored by facet', async () => {
+  const { adminNode: admin, root } = await k.createVat(
+    await kvat('counter.js'),
+  );
+  const counter = await E(root).getCounter();
+  assert.equal(await E(counter).incr(), 1);
+  const asKit = (await kvat('counter-kit.js')).replaceAll(
+    "'CounterKit'",
+    "'Counter'",
+  );
+  await assert.rejects(
+    upgrade(admin, asKit),
+    /kind Counter had facets self; it can't have \["incr","read"\] now/,
+  );
+  assert.equal(await E(counter).incr(), 2);
+
+  const { adminNode: kitAdmin } = await k.createVat(
+    await kvat('counter-kit.js'),
+  );
+  const fewer = (await kvat('counter-kit.js')).replace(
+    /\n {6}read: \{[\s\S]*?\n {6}\},/,
+    '',
+  );
+  await assert.rejects(upgrade(kitAdmin, fewer), /kind CounterKit had facets/);
+});
+
+test('a vat whose root fails to build is forgotten', async () => {
+  const before = (await k.vats()).length;
+  await assert.rejects(
+    k.createVat(
+      "export const buildRootObject = () => { throw Error('no root'); };",
+    ),
+    /no root/,
+  );
+  assert.equal((await k.vats()).length, before);
+  const { root } = await k.createVat(await kvat('counter.js'));
+  assert.equal(await E(E(root).getCounter()).incr(), 1);
+  assert.equal((await k.vats()).length, before + 1);
+});
+
+test('a vatAdmin creates vats only from bundleCaps; a bundle has one bundleCap', async () => {
+  const vatAdmin = await k.makeVatAdmin();
+  const src = await kvat('counter.js');
+  const bundleCap = await k.installBundle(src);
+  assert.equal(await k.installBundle(src), bundleCap);
+  const { root } = await E(vatAdmin).createVat(bundleCap, {});
+  assert.equal(await E(E(root).getCounter()).incr(), 1);
+
+  const hash = createHash('sha256').update(src).digest('hex');
+  // the guard refuses what isn't a reference at all; the kernel, any other reference
+  await assert.rejects(
+    E(vatAdmin).createVat(hash, {}),
+    /Must be a remotable BundleCap/,
+  );
+  await assert.rejects(
+    E(vatAdmin).createVat(`bundle:sha256:${hash}`, {}),
+    /Must be a remotable BundleCap/,
+  );
+  await assert.rejects(
+    E(vatAdmin).createVat(await k.makeVatAdmin(), {}),
+    /not a bundleCap/,
+  );
+  await assert.rejects(
+    E(bundleCap).getBundle(),
+    /a BundleCap has no getBundle/,
+  );
+});
+
+test('a session makes only the devices there are', async () => {
+  await assert.rejects(k.makeDevice('nope'), /no device nope/);
+  await assert.rejects(k.makeDevice('__proto__'), /no device __proto__/);
+});
+
+test("a vat's db is its own SQLite, and outlasts a restart", async () => {
+  const { adminNode: admin, root } = await k.createVat(await kvat('notes.js'));
+  // one row changed, though the note's index is written too
+  assert.equal(await E(root).add('one'), 1);
+  await E(root).add('two');
+  await E(admin).restart();
+  assert.deepEqual(await E(root).list(), ['one', 'two']);
+  // a transaction: all of them, or none
+  await assert.rejects(E(root).addAll(['three', '']), /an empty note/);
+  assert.deepEqual(await E(root).addAll(['three', 'four']), [1, 1]);
+  assert.deepEqual(await E(root).list(), ['one', 'two', 'three', 'four']);
+  const { root: other } = await k.createVat(await kvat('notes.js'));
+  assert.deepEqual(await E(other).list(), []);
+});
