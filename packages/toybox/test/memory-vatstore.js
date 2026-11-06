@@ -1,0 +1,22 @@
+/** @file A vatstore in memory, as a facet's SQLite would be, for liveslots in one process. */
+
+/** @import { Vatstore, VatstoreKey } from '../src/vat/types.js' */
+
+/**
+ * @param {Record<string, string>} [entries] what's in it already
+ * @returns {Vatstore}
+ */
+export const makeMemoryVatstore = (entries = {}) => {
+  /** @type {Map<VatstoreKey, string>} */
+  const m = new Map(
+    /** @type {[VatstoreKey, string][]} the test's own keys */ (
+      Object.entries(entries)
+    ),
+  );
+  return harden({
+    get: k => m.get(k),
+    put: (k, v) => void m.set(k, v),
+    delete: k => void m.delete(k),
+    keys: prefix => [...m.keys()].filter(k => k.startsWith(prefix)).sort(),
+  });
+};
