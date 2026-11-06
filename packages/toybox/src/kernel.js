@@ -7,6 +7,10 @@ import { Far } from '@endo/pass-style';
 import VAT_RUNTIME from 'vat-runtime.txt';
 import { makeBootBundles } from './kernel/boot.js';
 import { TABLES as BUNDLE_TABLES, makeBundles } from './kernel/bundles.js';
+import {
+  TABLES as ENDOWMENT_TABLES,
+  makeEndowments,
+} from './kernel/endowments.js';
 import { TABLES as INGRESS_TABLES, makeIngresses } from './kernel/ingress.js';
 import { makeVatAdmins } from './kernel/vat-admin.js';
 import { makeORM } from './orm.js';
@@ -159,6 +163,7 @@ export const makeKernelClass = ({ makeDevices }) =>
     #ingresses;
     #vatAdmins;
     #bootBundles;
+    #endowments;
     /** @type {Record<string, Device>} */
     #devices;
     /** @type {Promise<void> | undefined} this incarnation's {@link boot} */
@@ -189,11 +194,26 @@ export const makeKernelClass = ({ makeDevices }) =>
         kernel: ctx.id.toString(),
         directory: env.DIRECTORY.getByName('directory'),
       });
+      this.#endowments = makeEndowments(withTables(ENDOWMENT_TABLES), {
+        bindings: new Map(
+          env.GRANTABLE.map(name => [
+            name,
+            /** @type {Fetcher} a binding the operator declared, by name */ (
+              /** @type {Record<string, unknown>} */ (
+                /** @type {unknown} */ (env)
+              )[name]
+            ),
+          ]),
+        ),
+      });
       this.#vatAdmins = makeVatAdmins(powers, {
         bundles: this.#bundles,
+        endowments: this.#endowments,
         vats: {
-          start: (hash, params) =>
-            this.#startVat(hash, this.#krefs.toCapData(params)),
+          start: (hash, params, grants) =>
+            this.#startVat(hash, this.#krefs.toCapData(params), vat =>
+              this.#endowments.record(vat, grants),
+            ),
           upgrade: (vat, hash) => this.#upgradeVat(vat, hash),
           restart: vat => this.ctx.facets.abort(vat, Error('restarted')),
         },
@@ -213,6 +233,8 @@ export const makeKernelClass = ({ makeDevices }) =>
         adminNode: this.#vatAdmins.adminNodes,
         bundle: this.#bundles,
         bootBundles: this.#bootBundles,
+        endowments: this.#endowments.directories,
+        endowment: this.#endowments.endowments,
         ...fromEntries(
           values(this.#devices).flatMap(({ kinds }) => entries(kinds)),
         ),
@@ -306,6 +328,7 @@ export const makeKernelClass = ({ makeDevices }) =>
                   syscall: this.ctx.exports.Syscall({
                     props: { kernel: this.ctx.id.toString(), vat },
                   }),
+                  endowments: this.#endowments.of(vat),
                 },
                 globalOutbound: null,
               };
@@ -462,8 +485,9 @@ export const makeKernelClass = ({ makeDevices }) =>
      * has no boot vat.
      *
      * The boot vat is the service's root of authority: it gets the boot
-     * directory's bundles, a vatAdmin, the ingress for the `app` socket, and
-     * one of each I/O device, to hand on as it sees fit.
+     * directory's bundles, a vatAdmin, the ingress for the `app` socket, the
+     * endowments the operator made grantable, and one of each I/O device, to
+     * hand on as it sees fit.
      */
     boot() {
       this.#booted ??= this.#boot().catch(e => {
@@ -490,6 +514,7 @@ export const makeKernelClass = ({ makeDevices }) =>
           vatAdmin: standIn(this.#vatAdmins.make()),
           bundles: standIn(this.#bootBundles.make()),
           ingress: standIn(this.#ingresses.socket('app')),
+          endowments: standIn(this.#endowments.make()),
           ...fromEntries(
             entries(this.#devices).map(([name, { make }]) => [
               name,
