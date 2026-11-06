@@ -8,8 +8,3 @@ declare module '@endo/hex' {
   /** The bytes `string`, in hex, encodes; throws if it isn't hex. */
   export function decodeHex(string: string, name?: string): Uint8Array;
 }
-
-declare module '@endo/base64' {
-  /** The base64 encoding of `data`. */
-  export function encodeBase64(data: Uint8Array): string;
-}
