@@ -10,8 +10,18 @@ interface Env {
   >;
   DIRECTORY: DurableObjectNamespace<import('./supervisor.js').Directory>;
   LOADER: WorkerLoader;
+  /** the fetch device's network: public addresses */
+  INTERNET: Fetcher;
+  /** the LAN device's network: private addresses, not loopback */
+  LAN: Fetcher;
+  /** the nix store, read-only */
+  NIX_STORE: Fetcher;
+  /** the git checkout the gitTrees device reads, read-only */
+  GIT_CHECKOUT: Fetcher;
   /** the boot directory, read-only: the boot vat's code, and the bundles it makes vats from */
   BOOT: Fetcher;
+  /** the names of the service bindings the boot vat may grant to vats */
+  GRANTABLE: string[];
 }
 
 declare namespace Cloudflare {
@@ -24,4 +34,10 @@ declare namespace Cloudflare {
 declare module 'vat-runtime.txt' {
   const src: string;
   export default src;
+}
+
+/** a text module: in a nixStore bundle, a `.txt` file's contents */
+declare module '*.txt' {
+  const text: string;
+  export default text;
 }

@@ -30,24 +30,28 @@ export const makeToyboxes = ({
      *
      * @param {Tree} dir
      * @param {object} [opts]
-     * @param {string} [opts.config] its path in the package
+     * @param {string} [opts.config] its path in the package: config.capnp, or test/config-local.capnp for a fetch device that reaches localhost
      * @param {Tree} [opts.boot] the boot directory; by default, an empty one in `dir`
+     * @param {Tree} [opts.checkout] the git checkout; by default, one in `dir`
      * @param {number} [opts.port] the app socket's port, and the http socket's is the next; free ones by default
+     * @param {Record<string, Tree>} [opts.dirs] more of workerd's directories, by name, for what `config` adds
      */
     startToybox: async (
       dir,
       {
         config = 'config.capnp',
         boot = dir.sub('boot'),
+        checkout = dir.sub('checkout'),
         port = undefined,
+        dirs = {},
       } = {},
     ) => {
       const state = dir.sub('state');
-      for (const d of [state, boot]) await d.ensureDir();
+      for (const d of [state, checkout, boot]) await d.ensureDir();
       const appPort = port ?? (await freePort());
       const httpPort = port === undefined ? await freePort() : port + 1;
       const sock = dir.path('admin.sock');
-      const named = { state, boot };
+      const named = { state, 'git-checkout': checkout, boot, ...dirs };
       const server = await startWorkerd(
         pkg.path(config),
         [

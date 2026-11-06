@@ -13,13 +13,14 @@ import { makeWorkerd } from './workerd-process.js';
  * @import { FsIO } from './dir-tree.js';
  */
 
-const HELP = `usage: scripts/serve.js STATE_DIR BOOT_DIR [--port PORT]
+const HELP = `usage: scripts/serve.js STATE_DIR BOOT_DIR [--checkout DIR] [--port PORT]
 
 Runs toybox (workerd, on this package's config.capnp) with its state in
 STATE_DIR, made if need be and kept across runs, and BOOT_DIR as its boot
 directory: the kernel \`main\` boots from BOOT_DIR/boot.js. The app socket
 is http://127.0.0.1:PORT/ (PORT is 8788 by default), the http socket is
-on PORT+1, and the admin socket is STATE_DIR/admin.sock.
+on PORT+1, and the admin socket is STATE_DIR/admin.sock. Git trees read
+from the git checkout DIR (STATE_DIR/checkout by default).
 
 If the boot vat answers ownerLink(), prints "open: " and the app socket's
 URL with that link appended: whoever opens it holds what it designates.
@@ -55,6 +56,7 @@ export const main = async ({
       args,
       allowPositionals: true,
       options: {
+        checkout: { type: 'string' },
         port: { type: 'string' },
       },
     });
@@ -77,6 +79,8 @@ export const main = async ({
   const [dir, boot] = positionals.map(openDir);
   const box = await startToybox(dir, {
     boot,
+    checkout:
+      values.checkout === undefined ? undefined : openDir(values.checkout),
     port,
   });
   try {

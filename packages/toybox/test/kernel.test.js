@@ -1,5 +1,5 @@
 /** @file The kernel: vats as facets of one Durable Object, references through kernel-held c-lists. */
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   chmod,
@@ -11,12 +11,14 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { connect, createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
 import { E } from '@endo/far';
 import workerdPackage from 'workerd';
@@ -25,17 +27,23 @@ import { lendMower, makeNeighbors } from '../examples/neighbor/boot/lend.js';
 import { makeTree } from '../src/dir-tree.js';
 import { makeToyboxes } from '../src/toyboxes.js';
 import { makeWorkerd } from '../src/workerd-process.js';
+import { makeGit } from './git.js';
+import { makeNix } from './nix.js';
 
 /**
+ * @import { RequestListener } from 'node:http';
  * @import { Remote } from '../src/types.js';
  */
+
+const { values } = Object;
 
 /**
  * Node's I/O, as these tests use it: the test is the edge, and each test
  * takes what it uses from here.
  */
 const worldP = (async () => {
-  const { freePort, startWorkerd } = makeWorkerd({
+  const run = promisify(execFile);
+  const { freePort, listenLocal, startWorkerd } = makeWorkerd({
     workerd: workerdPackage.default,
     spawn,
     rm,
@@ -59,17 +67,35 @@ const worldP = (async () => {
     fetch,
     WebSocket,
   });
+  const { makeRepo } = makeGit({ run, makeScratchDir: () => makeDir('git-') });
+  const { addToStore } = makeNix({ run });
   return {
     startToybox,
     pkg,
     makeDir,
+    makeRepo,
+    addToStore,
     /** The source of the kernel vat `name`, in examples/. @param {string} name */
     kvat: name => pkg.readText(`examples/${name}`),
+    /**
+     * A web site on 127.0.0.1, answering as `handler` does, until `close()`.
+     *
+     * @param {RequestListener} handler
+     */
+    serveLocal: async handler => {
+      const site = createServer(handler);
+      const port = await listenLocal(site);
+      return {
+        host: `127.0.0.1:${port}`,
+        close: () => new Promise(resolve => site.close(resolve)),
+      };
+    },
   };
 })();
 
 test('vats in one kernel', async t => {
-  const { startToybox, makeDir, kvat } = await worldP;
+  const { startToybox, pkg, makeDir, makeRepo, addToStore, kvat, serveLocal } =
+    await worldP;
   const dir = await makeDir('toybox-kernel-');
   t.after(dir.remove);
   const box = await startToybox(dir);
@@ -291,7 +317,7 @@ test('vats in one kernel', async t => {
       );
       assert.equal(await E(holder).bump('c'), 31);
       await assert.rejects(
-        E(admin).upgrade(await k.makeVatAdmin()),
+        E(admin).upgrade(await k.makeDevice('fetch')),
         /not a bundleCap/,
       );
     },
@@ -389,7 +415,7 @@ test('vats in one kernel', async t => {
         /Must be a remotable BundleCap/,
       );
       await assert.rejects(
-        E(vatAdmin).createVat(await k.makeVatAdmin(), {}),
+        E(vatAdmin).createVat(await k.makeDevice('fetch'), {}),
         /not a bundleCap/,
       );
       await assert.rejects(
@@ -403,6 +429,154 @@ test('vats in one kernel', async t => {
     await assert.rejects(k.makeDevice('nope'), /no device nope/);
     await assert.rejects(k.makeDevice('__proto__'), /no device __proto__/);
   });
+
+  await t.test(
+    'a nixStore makes a bundleCap for a file in the store, and refuses anything else',
+    async () => {
+      const vatAdmin = await k.makeVatAdmin();
+      const nixStore = await k.makeDevice('nixStore');
+      const storePath = await addToStore(pkg.path('examples/counter.js'));
+      const bundleCap = await E(nixStore).getBundleCap(storePath);
+      assert.equal(await E(nixStore).getBundleCap(storePath), bundleCap);
+      const { root } = await E(vatAdmin).createVat(bundleCap, {});
+      assert.equal(await E(E(root).getCounter()).incr(), 1);
+
+      await assert.rejects(
+        E(nixStore).getBundleCap(pkg.path('examples/counter.js')),
+        /not a store path/,
+      );
+      await assert.rejects(
+        E(nixStore).getBundleCap('/nix/store/../../etc/passwd'),
+        /not a store path/,
+      );
+      await assert.rejects(
+        E(nixStore).getBundleCap(
+          '/nix/store/00000000000000000000000000000000-nothing.js',
+        ),
+        /is not in the nix store/,
+      );
+      await assert.rejects(
+        E(nixStore).getBundleCap(await addToStore(pkg.path('examples'))),
+        /has no worker.json/,
+      );
+    },
+  );
+
+  await t.test(
+    'a nixStore bundle can be a directory of modules, its main one named by worker.json',
+    async t => {
+      const vatAdmin = await k.makeVatAdmin();
+      const nixStore = await k.makeDevice('nixStore');
+      const bundleCap = await E(nixStore).getBundleCap(
+        await addToStore(pkg.path('test/greeter')),
+      );
+      const { adminNode: admin, root } = await E(vatAdmin).createVat(
+        bundleCap,
+        {},
+      );
+      assert.equal(await E(root).greet('Fred'), 'Hello, Fred (#1)');
+      await E(admin).restart();
+      assert.equal(await E(root).greet('Fred'), 'Hello, Fred (#2)');
+
+      const withLink = await makeDir('toybox-symlink-');
+      t.after(withLink.remove);
+      await pkg.copy('test/greeter', withLink);
+      await withLink.symlink('main.js', 'alias.js');
+      await assert.rejects(
+        E(nixStore).getBundleCap(await addToStore(withLink.path())),
+        /alias.js is a symlink/,
+      );
+    },
+  );
+
+  await t.test(
+    "git trees read only the files a git tree lists, and only while they're what it says",
+    async () => {
+      const checkout = dir.sub('checkout');
+      // more than one chunk's worth, with a multi-byte character to cut around
+      const big = Array.from({ length: 5000 }, (_, i) =>
+        JSON.stringify([i, 'Café Ñandú', 'x'.repeat(i % 50)]),
+      ).join('\n');
+      await checkout.writeText('big.ndjson', big);
+      const { tree, listing } = await makeRepo(
+        pkg.sub('test/greeter'),
+        'greeter',
+        checkout,
+      );
+      await checkout.writeText(
+        'elsewhere.txt',
+        'in the checkout, not the tree',
+      );
+      const gitTrees = await k.makeDevice('gitTrees');
+      const greeter = await E(gitTrees).getTree(tree, listing);
+      assert.deepEqual(await E(greeter).list(), [
+        'big.ndjson',
+        'greeter/greeting.txt',
+        'greeter/lib/count.js',
+        'greeter/main.js',
+        'greeter/worker.json',
+      ]);
+
+      await assert.rejects(
+        E(gitTrees).getTree('0'.repeat(40), listing),
+        new RegExp(`listing is of tree ${tree}, not 0{40}`),
+      );
+      // no id given: the listing, -z or not, names the tree
+      assert.equal(
+        await E(E(gitTrees).getTree(null, listing.replaceAll('\0', '\n'))).id(),
+        tree,
+      );
+      assert.equal(await E(greeter).id(), tree);
+      await assert.rejects(
+        E(greeter).read('elsewhere.txt'),
+        /has no file "elsewhere.txt"/,
+      );
+      await assert.rejects(
+        E(greeter).read('greeter/../elsewhere.txt'),
+        /has no file/,
+      );
+      assert.match(await E(greeter).read('greeter/greeting.txt'), /Hello/);
+      const greeting = await checkout.readText('greeter/greeting.txt');
+      await checkout.writeText(
+        'greeter/greeting.txt',
+        `${greeting}a forged line\n`,
+      );
+      await assert.rejects(
+        E(greeter).read('greeter/greeting.txt'),
+        /is not what tree [0-9a-f]{40} has; it changed since/,
+      );
+
+      const reader = await E(greeter).open('big.ndjson');
+      const chunks = [];
+      for (let r = await E(reader).next(); !r.done; r = await E(reader).next())
+        chunks.push(r.value);
+      assert.ok(chunks.length > 1);
+      assert.ok(chunks.slice(0, -1).every(c => c.endsWith('\n')));
+      assert.equal(chunks.join(''), big);
+      assert.deepEqual(await E(reader).next(), {
+        done: true,
+        value: undefined,
+      });
+      await assert.rejects(
+        E(greeter).open('greeter/greeting.txt'),
+        /changed since/,
+      );
+
+      // a file that changes while it's read: what was given out can't be done
+      const midway = await E(greeter).open('big.ndjson');
+      assert.equal((await E(midway).next()).done, false);
+      await checkout.writeText('big.ndjson', big.replaceAll('a', 'b'));
+      const draining = async () => {
+        for (
+          let r = await E(midway).next();
+          !r.done;
+          r = await E(midway).next()
+        );
+      };
+      await assert.rejects(draining(), /changed since/);
+      await assert.rejects(E(midway).next(), /changed since/);
+    },
+  );
 
   await t.test(
     "a vat's db is its own SQLite, and outlasts a restart",
@@ -453,6 +627,20 @@ test('vats in one kernel', async t => {
       const failed = await get('/throw?site=answers&status=200');
       assert.equal(failed.status, 502);
       assert.doesNotMatch(await failed.text(), /asked to throw/);
+    },
+  );
+
+  await t.test(
+    "a LAN device reaches only what config.capnp's lan service allows: private addresses, not loopback",
+    async t => {
+      const site = await serveLocal((req, res) => res.end('hi'));
+      t.after(site.close);
+      const url = `http://${site.host}/`;
+      for (const device of [
+        await k.makeDevice('lan'),
+        await k.makeDevice('fetch'),
+      ])
+        await assert.rejects(E(device).fetch(url), /internal error/);
     },
   );
 });
@@ -536,4 +724,67 @@ test('a kernel vat serves the web through its ingress, after a restart and after
       /at \/after-crash, hit 3</,
     );
   });
+});
+
+test('a bootstrap vat wires a bookmark cache from nix store code; the cache serves its page through an ingress, from a git-tree template; the cookie rotates', async t => {
+  const { startToybox, pkg, makeDir, makeRepo, addToStore, kvat, serveLocal } =
+    await worldP;
+  const dir = await makeDir('toybox-kernel-cache-');
+  t.after(dir.remove);
+  const site = await serveLocal((req, res) =>
+    res.end(`${req.method} ${req.url} cookie=${req.headers.cookie ?? 'none'}`),
+  );
+  t.after(site.close);
+  const { host } = site;
+  const box = await startToybox(dir, { config: 'test/config-local.capnp' });
+  t.after(box.stop);
+  const client = await box.admin('cache');
+  t.after(client.close);
+  // the site's templates, as a git tree of the toybox's checkout
+  const { tree, listing } = await makeRepo(
+    pkg.sub('examples/bookmarks/templates'),
+    'templates',
+    dir.sub('checkout'),
+  );
+  const { root: boot, adminNode: bootAdmin } = await client.createVat(
+    await kvat('bookmarks/boot.js'),
+    {
+      vatAdmin: await client.makeVatAdmin(),
+      nixStore: await client.makeDevice('nixStore'),
+      paths: {
+        webApp: await addToStore(pkg.path('examples/webapp.js')),
+        storeMaker: await addToStore(pkg.path('examples/store-maker.js')),
+        cache: await addToStore(pkg.path('examples/bookmarks/cache.js')),
+      },
+      fetch: await client.makeDevice('fetch'),
+      ingress: await client.makeIngress({ app: 'bookmarks' }),
+      templates: await E(await client.makeDevice('gitTrees')).getTree(
+        tree,
+        listing,
+      ),
+    },
+  );
+  const { cache, admins } = await E(boot).bootstrap(
+    `http://${host}/bookmarks/`,
+  );
+  const page = async () => (await box.http('/?app=bookmarks')).text();
+  assert.match(await page(), /<pre>\(none yet\)<\/pre>/);
+  assert.equal(await E(cache).refresh(), 'GET /bookmarks/ cookie=none');
+  await E(boot).setCookie('session=1');
+  assert.equal(await E(cache).refresh(), 'GET /bookmarks/ cookie=session=1');
+
+  for (const admin of [bootAdmin, ...values(admins)]) await E(admin).restart();
+  assert.equal(await E(cache).latest(), 'GET /bookmarks/ cookie=session=1');
+  assert.match(await page(), /<pre>GET \/bookmarks\/ cookie=session=1<\/pre>/);
+  await E(boot).setCookie('session=2');
+  assert.equal(await E(cache).refresh(), 'GET /bookmarks/ cookie=session=2');
+
+  // here the lan service allows loopback, where this test's site is
+  const lan = await client.makeDevice('lan');
+  assert.deepEqual(
+    (({ status, body }) => ({ status, body }))(
+      await E(lan).fetch(`http://${host}/models`),
+    ),
+    { status: 200, body: 'GET /models cookie=none' },
+  );
 });

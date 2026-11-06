@@ -5,36 +5,40 @@ import { kzone } from './objects.js';
 /**
  * @import { KernelPowers, Kref, VatId } from './types.js';
  * @import { makeBundles } from './bundles.js';
+ * @import { Grants, makeEndowments } from './endowments.js';
  */
 
 /**
  * The vat lifecycle, as the kernel runs it.
  *
  * @typedef {object} Vats
- * @property {(hash: string, params: object) => Promise<{ vat: VatId, root: Kref }>} start a new vat on the bundle `hash`; `root` is a kref
+ * @property {(hash: string, params: object, grants: Grants) => Promise<{ vat: VatId, root: Kref }>} start a new vat on the bundle `hash`, granted `grants`; `root` is a kref
  * @property {(vat: VatId, hash: string) => Promise<void>} upgrade
  * @property {(vat: VatId) => void} restart
  */
 
 const BundleCap = M.remotable('BundleCap');
+const Endowment = M.remotable('Endowment');
 
 /**
  * vatAdmins and admin nodes, after SwingSet's. A vatAdmin's
- * `createVat(bundleCap, params)` starts a vat on an installed bundle,
- * references in `params` included, and answers `{ root, adminNode }`. An
- * admin node's `upgrade(bundleCap)` runs its vat on another bundle, keeping
- * its durable objects and params; `restart()` stops it, as an eviction
- * would, and the next message starts it again. There are no vat ids to
- * hold.
+ * `createVat(bundleCap, params, { endowments })` starts a vat on an installed
+ * bundle, references in `params` included, and answers `{ root, adminNode }`.
+ * `endowments` names the bindings it's granted, each by the name the vat
+ * will know it by. An admin node's `upgrade(bundleCap)` runs its vat on
+ * another bundle, keeping its durable objects, params, and endowments;
+ * `restart()` stops it, as an eviction would, and the next message starts it
+ * again. There are no vat ids to hold.
  *
  * @param {KernelPowers} powers
  * @param {object} io
  * @param {ReturnType<typeof makeBundles>} io.bundles
+ * @param {Pick<ReturnType<typeof makeEndowments>, 'grantsOf'>} io.endowments
  * @param {Vats} io.vats
  */
 export const makeVatAdmins = (
   { next, kernelObject, standIn, krefOf },
-  { bundles, vats },
+  { bundles, endowments: grantable, vats },
 ) => {
   /** The admin node of `vat`. @param {VatId} vat */
   const adminNode = vat => kernelObject(`adminNode:${vat}`);
@@ -47,12 +51,28 @@ export const makeVatAdmins = (
     vatAdmins: kzone.exoClass(
       'VatAdmin',
       M.interface('VatAdmin', {
-        createVat: M.call(BundleCap).optional(M.record()).returns(M.promise()),
+        createVat: M.call(BundleCap)
+          .optional(
+            M.record(),
+            M.splitRecord(
+              {},
+              { endowments: M.recordOf(M.string(), Endowment) },
+            ),
+          )
+          .returns(M.promise()),
       }),
       {
-        /** @param {object} bundleCap @param {object} [params] */
-        async createVat(bundleCap, params = {}) {
-          const { vat, root } = await vats.start(hashOf(bundleCap), params);
+        /**
+         * @param {object} bundleCap
+         * @param {object} [params]
+         * @param {{ endowments?: Record<string, object> }} [options]
+         */
+        async createVat(bundleCap, params = {}, { endowments = {} } = {}) {
+          const { vat, root } = await vats.start(
+            hashOf(bundleCap),
+            params,
+            grantable.grantsOf(endowments),
+          );
           return harden({
             root: standIn(root),
             adminNode: standIn(adminNode(vat)),
