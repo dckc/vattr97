@@ -11,6 +11,9 @@ export type VatId = `v${number}`;
 /** A kernel object's key: its kind's prefix, then whatever tells it from others of its kind. */
 export type KernelKey = `${string}:${string}`;
 
+/** An ingress's key: `<kernel id>:<number>` after its prefix. */
+export type IngressKey = `kernel:${string}`;
+
 /** One party's vrefs, translated to and from krefs. */
 export type Clist = {
   toKernel: (vref: Vref) => Kref;

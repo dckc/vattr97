@@ -6,11 +6,13 @@ import { makeMarshal } from '@endo/marshal';
 import { Far } from '@endo/pass-style';
 import VAT_RUNTIME from 'vat-runtime.txt';
 import { TABLES as BUNDLE_TABLES, makeBundles } from './kernel/bundles.js';
+import { TABLES as INGRESS_TABLES, makeIngresses } from './kernel/ingress.js';
 import { makeVatAdmins } from './kernel/vat-admin.js';
 import { makeORM } from './orm.js';
 
 /**
- * @import { Clist, Device, KernelKey, KernelObjects, KernelPowers, Kref, MakeDevices, VatId, WithTables } from './kernel/types.js';
+ * @import { Clist, Device, IngressKey, KernelKey, KernelObjects, KernelPowers, Kref, MakeDevices, VatId, WithTables } from './kernel/types.js';
+ * @import { HttpRequest, HttpResponse } from './types.js';
  * @import { CapData, Vref } from './vat/types.js';
  * @import { ORM, Row } from './orm.js';
  */
@@ -150,6 +152,7 @@ export const makeKernelClass = ({ makeDevices }) =>
     /** @type {Record<string, KernelObjects>} each kind of the kernel's own objects, by key prefix */
     #objects;
     #bundles;
+    #ingresses;
     #vatAdmins;
     /** @type {Record<string, Device>} */
     #devices;
@@ -182,6 +185,10 @@ export const makeKernelClass = ({ makeDevices }) =>
       /** @type {WithTables} */
       const withTables = tables => harden({ ...powers, db: ownTables(tables) });
       this.#bundles = makeBundles(withTables(BUNDLE_TABLES));
+      this.#ingresses = makeIngresses(withTables(INGRESS_TABLES), {
+        kernel: ctx.id.toString(),
+        directory: env.DIRECTORY.getByName('directory'),
+      });
       this.#vatAdmins = makeVatAdmins(powers, {
         bundles: this.#bundles,
         vats: {
@@ -197,6 +204,7 @@ export const makeKernelClass = ({ makeDevices }) =>
         withTables,
       });
       this.#objects = {
+        kernel: this.#ingresses,
         vatAdmin: this.#vatAdmins.vatAdmins,
         adminNode: this.#vatAdmins.adminNodes,
         bundle: this.#bundles,
@@ -337,6 +345,26 @@ export const makeKernelClass = ({ makeDevices }) =>
     }
 
     /**
+     * One HTTP request, as data, for whoever serves the ingress `key`; `null`
+     * when nobody does.
+     *
+     * @param {IngressKey} key
+     * @param {HttpRequest} request
+     * @returns {Promise<HttpResponse | null>}
+     */
+    async serveHttp(key, request) {
+      const handler = this.#ingresses.handlerOf(key);
+      if (!handler) return null;
+      return this.#krefs.fromCapData(
+        await this.#deliver(
+          handler,
+          'handle',
+          this.#krefs.toCapData(harden([request])),
+        ),
+      );
+    }
+
+    /**
      * A message from a party, in its own vrefs, translated through its c-list
      * both ways.
      *
@@ -454,6 +482,7 @@ export const makeKernelClass = ({ makeDevices }) =>
                   this.#vatAdmins.adminNode(/** @type {VatId} TEXT */ (vat)),
                 ),
               })),
+          makeIngress: labels => toSession(this.#ingresses.make(labels)),
           makeDevice: async name => {
             if (!hasOwn(this.#devices, name)) throw Error(`no device ${name}`);
             return toSession(this.#devices[name].make());
@@ -472,6 +501,7 @@ export const makeKernelClass = ({ makeDevices }) =>
  * @property {(src: string, params: CapData) => Promise<{ root: Vref, adminNode: Vref }>} createVat
  * @property {(vref: Vref, method: string, capdata: CapData) => Promise<CapData>} send
  * @property {() => { root: Vref, adminNode: Vref }[]} vats
+ * @property {(labels: Record<string, string>) => Promise<Vref>} makeIngress
  * @property {(name: string) => Promise<Vref>} makeDevice
  * @property {() => Promise<Vref>} makeVatAdmin
  * @property {(src: string) => Promise<Vref>} installBundle
@@ -513,6 +543,11 @@ export class KernelSession extends RpcTarget {
    */
   vats() {
     return this.#powers.vats();
+  }
+
+  /** An ingress for a mount at `labels`, as a vref of this session. @param {Record<string, string>} labels */
+  makeIngress(labels) {
+    return this.#powers.makeIngress(labels);
   }
 
   /** The I/O device `name` makes (devices/index.js), as a vref of this session. @param {string} name */
