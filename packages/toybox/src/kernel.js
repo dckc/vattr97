@@ -4,7 +4,7 @@ import { RpcTarget, newWorkersRpcResponse } from 'capnweb';
 import { Fail, q } from '@endo/errors';
 import { makeMarshal } from '@endo/marshal';
 import { Far } from '@endo/pass-style';
-import KVAT_RUNTIME from 'kvat-runtime.txt';
+import VAT_RUNTIME from 'vat-runtime.txt';
 import { makeBootBundles } from './kernel/boot.js';
 import { TABLES as BUNDLE_TABLES, makeBundles } from './kernel/bundles.js';
 import {
@@ -315,7 +315,7 @@ export const makeKernelClass = ({ makeDevices }) =>
      * @returns {{ deliver: (vref: Vref, method: string, capdata: CapData) => Promise<CapData>, ready: () => Promise<void> }}
      */
     #vat(vat) {
-      return /** @type {any} the facet's stub, whose methods are kvat-runtime.js's App's */ (
+      return /** @type {any} the facet's stub, whose methods are vat-runtime.js's App's */ (
         this.ctx.facets.get(vat, () => {
           const { hash } = this.#db.lookup('kvat', { vat }).one();
           const worker = this.env.LOADER.get(
@@ -325,7 +325,7 @@ export const makeKernelClass = ({ makeDevices }) =>
               return {
                 ...compatibility,
                 mainModule: 'runtime.js',
-                modules: { 'runtime.js': KVAT_RUNTIME, ...modules },
+                modules: { 'runtime.js': VAT_RUNTIME, ...modules },
                 env: {
                   syscall: this.ctx.exports.Syscall({
                     props: { kernel: this.ctx.id.toString(), vat },

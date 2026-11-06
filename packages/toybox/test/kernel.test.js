@@ -129,7 +129,7 @@ test('a counter passed to another vat reaches its maker; identity holds; both va
 });
 
 test('a vat finds no clock or randomness, from its first line on', async () => {
-  const { root } = await k.createVat(await kvat('ambient.js'));
+  const { root } = await k.createVat(await kvat('ambient-probe.js'));
   const inert = {
     frozen: true,
     now: 'throws',
@@ -147,7 +147,7 @@ test('a vat finds no clock or randomness, from its first line on', async () => {
 
 test('a vat that calls its syscall directly reaches only what it holds', async () => {
   const { root: counterRoot } = await k.createVat(await kvat('counter.js'));
-  const { root: forger } = await k.createVat(await kvat('forger.js'));
+  const { root: forger } = await k.createVat(await kvat('vref-forger.js'));
   const counter = await E(counterRoot).getCounter();
 
   assert.match(
@@ -176,10 +176,10 @@ test('a vat that calls its syscall directly reaches only what it holds', async (
 
 test('payments move between vats into a purse; spent and counterfeit ones are refused; balances survive restarts', async () => {
   const { adminNode: mintAdmin, root: mintRoot } = await k.createVat(
-    await kvat('mint.js'),
+    await kvat('rights-transfer/mint.js'),
   );
   const { adminNode: aliceAdmin, root: alice } = await k.createVat(
-    await kvat('alice.js'),
+    await kvat('rights-transfer/payer.js'),
   );
   const { root: other } = await k.createVat(await kvat('ephemeral.js'));
   const issuer = await E(mintRoot).getIssuer();
@@ -208,12 +208,12 @@ test('payments move between vats into a purse; spent and counterfeit ones are re
 
 test('lend the mower: the tenant holds only the governed mower; the fence holds across restarts', async () => {
   const { adminNode: mowerAdmin, root: mowers } = await k.createVat(
-    await kvat('mower.js'),
+    await kvat('neighbor/mower.js'),
   );
   const { adminNode: governorAdmin, root: governor } = await k.createVat(
-    await kvat('governor.js'),
+    await kvat('neighbor/governor.js'),
   );
-  const { root: tenant } = await k.createVat(await kvat('tenant.js'));
+  const { root: tenant } = await k.createVat(await kvat('neighbor/tenant.js'));
   const mower = await E(mowers).makeMower();
   const governed = await E(governor).govern(mower, 2);
 
@@ -244,8 +244,12 @@ test("after the whole toybox crashes, vats' references to each other still work"
   let box = await startToybox(home);
   try {
     let client = await connectTo(box.sock, 'crashy');
-    const { root: mintRoot } = await client.createVat(await kvat('mint.js'));
-    const { root: alice } = await client.createVat(await kvat('alice.js'));
+    const { root: mintRoot } = await client.createVat(
+      await kvat('rights-transfer/mint.js'),
+    );
+    const { root: alice } = await client.createVat(
+      await kvat('rights-transfer/payer.js'),
+    );
     const { root: holder } = await client.createVat(await kvat('holder.js'));
     const purse = await E(await E(mintRoot).getIssuer()).makeEmptyPurse();
     await E(alice).setPayee(purse);
@@ -294,7 +298,9 @@ test("upgrading a vat's code keeps its durable objects, and others' references t
 });
 
 test("an exoClassKit's facets share one state, each is its own reference, and both outlive a restart", async () => {
-  const { adminNode: admin, root } = await k.createVat(await kvat('kit.js'));
+  const { adminNode: admin, root } = await k.createVat(
+    await kvat('counter-kit.js'),
+  );
   const { root: holder } = await k.createVat(await kvat('holder.js'));
   const [incr, read] = [await E(root).getIncr(), await E(root).getRead()];
   assert.notEqual(incr, read);
@@ -319,15 +325,20 @@ test('upgrading may not change a kind between one facet and a kit: references to
   );
   const counter = await E(root).getCounter();
   assert.equal(await E(counter).incr(), 1);
-  const asKit = (await kvat('kit.js')).replaceAll("'CounterKit'", "'Counter'");
+  const asKit = (await kvat('counter-kit.js')).replaceAll(
+    "'CounterKit'",
+    "'Counter'",
+  );
   await assert.rejects(
     upgrade(admin, asKit),
     /kind Counter had facets self; it can't have \["incr","read"\] now/,
   );
   assert.equal(await E(counter).incr(), 2);
 
-  const { adminNode: kitAdmin } = await k.createVat(await kvat('kit.js'));
-  const fewer = (await kvat('kit.js')).replace(
+  const { adminNode: kitAdmin } = await k.createVat(
+    await kvat('counter-kit.js'),
+  );
+  const fewer = (await kvat('counter-kit.js')).replace(
     /\n {6}read: \{[\s\S]*?\n {6}\},/,
     '',
   );
@@ -573,7 +584,7 @@ test('an ingress answers a status that has no body, and a 502 when its handler t
     /label n is not a string/,
   );
   const ingress = await k.makeIngress({ site: 'answers' });
-  await k.createVat(await kvat('answers.js'), { ingress });
+  await k.createVat(await kvat('status-echo.js'), { ingress });
   /** @param {string} path */
   const get = path => fetch(`http://127.0.0.1:${toybox.port}${path}`);
   for (const status of [200, 204, 304]) {
@@ -625,12 +636,12 @@ test('a bootstrap vat wires a bookmark cache from nix store code; the cache serv
     const client = await connectTo(box.sock, 'cache');
     // the site's templates, as a git tree of the toybox's worktree
     const { tree, listing } = await makeRepo(
-      join(here, 'examples', 'bookmark-templates'),
+      join(here, 'examples', 'bookmarks', 'templates'),
       'templates',
       join(home, 'worktree'),
     );
     const { root: boot, adminNode: bootAdmin } = await client.createVat(
-      await kvat('cache-boot.js'),
+      await kvat('bookmarks/boot.js'),
       {
         vatAdmin: await client.makeVatAdmin(),
         nixStore: await client.makeDevice('nixStore'),
@@ -639,7 +650,9 @@ test('a bootstrap vat wires a bookmark cache from nix store code; the cache serv
           storeMaker: await addToStore(
             join(here, 'examples', 'store-maker.js'),
           ),
-          cache: await addToStore(join(here, 'examples', 'bookmark-cache.js')),
+          cache: await addToStore(
+            join(here, 'examples', 'bookmarks', 'cache.js'),
+          ),
         },
         fetch: await client.makeDevice('fetch'),
         ingress: await client.makeIngress({ app: 'bookmarks' }),

@@ -4,7 +4,7 @@
  *
  * Usage: ./build.js (from any directory)
  *
- * Writes dist/supervisor.js and dist/kvat-runtime.js, which config.capnp
+ * Writes dist/supervisor.js and dist/vat-runtime.js, which config.capnp
  * embeds.
  */
 import { fileURLToPath } from 'node:url';
@@ -38,12 +38,12 @@ export const main = async ({ build } = { build: esbuild.build }) => {
     ...common,
     entryPoints: ['src/supervisor.js'],
     outfile: 'dist/supervisor.js',
-    external: [...external, 'kvat-runtime.txt'],
+    external: [...external, 'vat-runtime.txt'],
   });
   await build({
     ...common,
-    entryPoints: ['src/kvat-runtime.js'],
-    outfile: 'dist/kvat-runtime.js',
+    entryPoints: ['src/vat-runtime.js'],
+    outfile: 'dist/vat-runtime.js',
     external: [...external, './vat.js'],
   });
 };

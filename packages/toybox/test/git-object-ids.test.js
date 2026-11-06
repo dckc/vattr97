@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
-import { blobId, parseLsTree, treeId } from '../src/devices/git/git-tree.js';
+import { blobId, parseLsTree, treeId } from '../src/devices/git/object-ids.js';
 import { makeGit } from './git.js';
 import { here } from '../src/workerd-process.js';
 

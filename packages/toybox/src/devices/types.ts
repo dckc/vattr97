@@ -14,7 +14,7 @@ export type FetchAnswer = {
   body: string;
 };
 
-/** A regular file in a git tree, as `git ls-tree -r` lists it (git/git-tree.js). */
+/** A regular file in a git tree, as `git ls-tree -r` lists it (git/object-ids.js). */
 export type TreeFile = {
   mode: '100644' | '100755';
   path: string;

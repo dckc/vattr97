@@ -31,7 +31,7 @@ declare namespace Cloudflare {
 }
 
 /** the kernel vat runtime, bundled by build.js and embedded as text */
-declare module 'kvat-runtime.txt' {
+declare module 'vat-runtime.txt' {
   const src: string;
   export default src;
 }

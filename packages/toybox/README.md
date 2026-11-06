@@ -61,7 +61,7 @@ The bookmark cache in [examples/](examples/) splits one job (keep a copy of a bo
 +-------------------------+
 ```
 
-The cache, the part that runs most often, holds the least: one WebApp, narrowed to one site, a place to serve its page, and read-only templates. Boot is a [bootstrap vat](examples/cache-boot.js) that makes the others and introduces them by passing references; [the test](test/kernel.test.js) wires it up, restarts every vat, and finds everything still in place.
+The cache, the part that runs most often, holds the least: one WebApp, narrowed to one site, a place to serve its page, and read-only templates. Boot is a [bootstrap vat](examples/bookmarks/boot.js) that makes the others and introduces them by passing references; [the test](test/kernel.test.js) wires it up, restarts every vat, and finds everything still in place.
 
 ## Devices: how a vat reaches the world
 

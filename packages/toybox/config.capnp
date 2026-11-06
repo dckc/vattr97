@@ -46,7 +46,7 @@ const compatibilityDate :Text = "2026-10-01";
 # bundled by build.js
 const modules :List(Workerd.Worker.Module) = [
   (name = "supervisor.js", esModule = embed "dist/supervisor.js"),
-  (name = "kvat-runtime.txt", text = embed "dist/kvat-runtime.js"),
+  (name = "vat-runtime.txt", text = embed "dist/vat-runtime.js"),
 ];
 
 const durableObjectNamespaces :List(Workerd.Worker.DurableObjectNamespace) = [
