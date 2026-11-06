@@ -1,23 +1,39 @@
 /** @file The kernel: vats as facets of one Durable Object, references through kernel-held c-lists. */
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import {
+  appendFile,
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { connect, createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
 import { E } from '@endo/far';
 import workerdPackage from 'workerd';
 import WebSocket from 'ws';
 import { connectKernel } from '../src/kernel-client.js';
 import { lendMower, makeNeighbors } from '../examples/neighbor/boot/lend.js';
+import { makeGit } from './git.js';
+import { makeNix } from './nix.js';
 import { makeToyboxes } from './toybox.js';
 import { here, makeWorkerd } from '../src/workerd-process.js';
 
+const { values } = Object;
+
 // this test is the edge: it holds Node's I/O, and gives each helper what it uses
-const { freePort, startWorkerd } = makeWorkerd({
+const run = promisify(execFile);
+const { freePort, listenLocal, startWorkerd } = makeWorkerd({
   workerd: workerdPackage.default,
   spawn,
   rm,
@@ -27,6 +43,12 @@ const { freePort, startWorkerd } = makeWorkerd({
   // WORKERD_LOG=1 echoes workerd's stderr, for debugging
   log: process.env.WORKERD_LOG ? c => void process.stderr.write(c) : undefined,
 });
+const { makeRepo } = makeGit({
+  run,
+  cp,
+  makeScratchDir: () => mkdtemp(join(tmpdir(), 'git-tree-')),
+});
+const { addToStore } = makeNix({ run });
 const { startToybox } = makeToyboxes({ startWorkerd, freePort, mkdir });
 /** A client of the kernel `name` on the admin socket `sock`. @param {string} sock @param {string} name */
 const connectTo = (sock, name) =>
@@ -272,7 +294,7 @@ test("upgrading a vat's code keeps its durable objects, and others' references t
   );
   assert.equal(await E(holder).bump('c'), 31);
   await assert.rejects(
-    E(admin).upgrade(await k.makeVatAdmin()),
+    E(admin).upgrade(await k.makeDevice('fetch')),
     /not a bundleCap/,
   );
 });
@@ -358,7 +380,7 @@ test('a vatAdmin creates vats only from bundleCaps; a bundle has one bundleCap',
     /Must be a remotable BundleCap/,
   );
   await assert.rejects(
-    E(vatAdmin).createVat(await k.makeVatAdmin(), {}),
+    E(vatAdmin).createVat(await k.makeDevice('fetch'), {}),
     /not a bundleCap/,
   );
   await assert.rejects(
@@ -370,6 +392,134 @@ test('a vatAdmin creates vats only from bundleCaps; a bundle has one bundleCap',
 test('a session makes only the devices there are', async () => {
   await assert.rejects(k.makeDevice('nope'), /no device nope/);
   await assert.rejects(k.makeDevice('__proto__'), /no device __proto__/);
+});
+
+test('a nixStore makes a bundleCap for a file in the store, and refuses anything else', async () => {
+  const vatAdmin = await k.makeVatAdmin();
+  const nixStore = await k.makeDevice('nixStore');
+  const storePath = await addToStore(join(here, 'examples', 'counter.js'));
+  const bundleCap = await E(nixStore).getBundleCap(storePath);
+  assert.equal(await E(nixStore).getBundleCap(storePath), bundleCap);
+  const { root } = await E(vatAdmin).createVat(bundleCap, {});
+  assert.equal(await E(E(root).getCounter()).incr(), 1);
+
+  await assert.rejects(
+    E(nixStore).getBundleCap(join(here, 'examples', 'counter.js')),
+    /not a store path/,
+  );
+  await assert.rejects(
+    E(nixStore).getBundleCap('/nix/store/../../etc/passwd'),
+    /not a store path/,
+  );
+  await assert.rejects(
+    E(nixStore).getBundleCap(
+      '/nix/store/00000000000000000000000000000000-nothing.js',
+    ),
+    /is not in the nix store/,
+  );
+  await assert.rejects(
+    E(nixStore).getBundleCap(await addToStore(join(here, 'examples'))),
+    /has no worker.json/,
+  );
+});
+
+test('a nixStore bundle can be a directory of modules, its main one named by worker.json', async () => {
+  const vatAdmin = await k.makeVatAdmin();
+  const nixStore = await k.makeDevice('nixStore');
+  const bundleCap = await E(nixStore).getBundleCap(
+    await addToStore(join(here, 'test', 'greeter')),
+  );
+  const { adminNode: admin, root } = await E(vatAdmin).createVat(bundleCap, {});
+  assert.equal(await E(root).greet('Fred'), 'Hello, Fred (#1)');
+  await E(admin).restart();
+  assert.equal(await E(root).greet('Fred'), 'Hello, Fred (#2)');
+
+  const withLink = await mkdtemp(join(tmpdir(), 'toybox-symlink-'));
+  await cp(join(here, 'test', 'greeter'), withLink, { recursive: true });
+  await symlink('main.js', join(withLink, 'alias.js'));
+  await assert.rejects(
+    E(nixStore).getBundleCap(await addToStore(withLink)),
+    /alias.js is a symlink/,
+  );
+  await rm(withLink, { recursive: true });
+});
+
+test("git trees read only the files a git tree lists, and only while they're what it says", async () => {
+  const checkout = join(dir, 'checkout');
+  // more than one chunk's worth, with a multi-byte character to cut around
+  const big = Array.from({ length: 5000 }, (_, i) =>
+    JSON.stringify([i, 'Café Ñandú', 'x'.repeat(i % 50)]),
+  ).join('\n');
+  await writeFile(join(checkout, 'big.ndjson'), big);
+  const { tree, listing } = await makeRepo(
+    join(here, 'test', 'greeter'),
+    'greeter',
+    checkout,
+  );
+  await writeFile(
+    join(checkout, 'elsewhere.txt'),
+    'in the checkout, not the tree',
+  );
+  const gitTrees = await k.makeDevice('gitTrees');
+  const greeter = await E(gitTrees).getTree(tree, listing);
+  assert.deepEqual(await E(greeter).list(), [
+    'big.ndjson',
+    'greeter/greeting.txt',
+    'greeter/lib/count.js',
+    'greeter/main.js',
+    'greeter/worker.json',
+  ]);
+
+  await assert.rejects(
+    E(gitTrees).getTree('0'.repeat(40), listing),
+    new RegExp(`listing is of tree ${tree}, not 0{40}`),
+  );
+  // no id given: the listing, -z or not, names the tree
+  assert.equal(
+    await E(E(gitTrees).getTree(null, listing.replaceAll('\0', '\n'))).id(),
+    tree,
+  );
+  assert.equal(await E(greeter).id(), tree);
+  await assert.rejects(
+    E(greeter).read('elsewhere.txt'),
+    /has no file "elsewhere.txt"/,
+  );
+  await assert.rejects(
+    E(greeter).read('greeter/../elsewhere.txt'),
+    /has no file/,
+  );
+  assert.match(await E(greeter).read('greeter/greeting.txt'), /Hello/);
+  await appendFile(
+    join(checkout, 'greeter', 'greeting.txt'),
+    'a forged line\n',
+  );
+  await assert.rejects(
+    E(greeter).read('greeter/greeting.txt'),
+    /is not what tree [0-9a-f]{40} has; it changed since/,
+  );
+
+  const reader = await E(greeter).open('big.ndjson');
+  const chunks = [];
+  for (let r = await E(reader).next(); !r.done; r = await E(reader).next())
+    chunks.push(r.value);
+  assert.ok(chunks.length > 1);
+  assert.ok(chunks.slice(0, -1).every(c => c.endsWith('\n')));
+  assert.equal(chunks.join(''), big);
+  assert.deepEqual(await E(reader).next(), { done: true, value: undefined });
+  await assert.rejects(
+    E(greeter).open('greeter/greeting.txt'),
+    /changed since/,
+  );
+
+  // a file that changes while it's read: what was given out can't be done
+  const midway = await E(greeter).open('big.ndjson');
+  assert.equal((await E(midway).next()).done, false);
+  await writeFile(join(checkout, 'big.ndjson'), big.replaceAll('a', 'b'));
+  const draining = async () => {
+    for (let r = await E(midway).next(); !r.done; r = await E(midway).next());
+  };
+  await assert.rejects(draining(), /changed since/);
+  await assert.rejects(E(midway).next(), /changed since/);
 });
 
 test("a vat's db is its own SQLite, and outlasts a restart", async () => {
@@ -456,4 +606,97 @@ test('an ingress answers a status that has no body, and a 502 when its handler t
   const failed = await get('/throw?site=answers&status=200');
   assert.equal(failed.status, 502);
   assert.doesNotMatch(await failed.text(), /asked to throw/);
+});
+
+test("a LAN device reaches only what config.capnp's lan service allows: private addresses, not loopback", async () => {
+  const site = createServer((req, res) => res.end('hi'));
+  const port = await listenLocal(site);
+  try {
+    const url = `http://127.0.0.1:${port}/`;
+    for (const device of [
+      await k.makeDevice('lan'),
+      await k.makeDevice('fetch'),
+    ])
+      await assert.rejects(E(device).fetch(url), /internal error/);
+  } finally {
+    await new Promise(resolve => site.close(resolve));
+  }
+});
+
+test('a bootstrap vat wires a bookmark cache from nix store code; the cache serves its page through an ingress, from a git-tree template; the cookie rotates', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'toybox-kernel-cache-'));
+  await mkdir(join(home, 'state'));
+  const site = createServer((req, res) =>
+    res.end(`${req.method} ${req.url} cookie=${req.headers.cookie ?? 'none'}`),
+  );
+  const host = `127.0.0.1:${await listenLocal(site)}`;
+  /** @type {Awaited<ReturnType<typeof startToybox>> | undefined} */
+  let box;
+  try {
+    box = await startToybox(home, { config: 'test/config-local.capnp' });
+    const { port } = box;
+    const client = await connectTo(box.sock, 'cache');
+    // the site's templates, as a git tree of the toybox's checkout
+    const { tree, listing } = await makeRepo(
+      join(here, 'examples', 'bookmarks', 'templates'),
+      'templates',
+      join(home, 'checkout'),
+    );
+    const { root: boot, adminNode: bootAdmin } = await client.createVat(
+      await kvat('bookmarks/boot.js'),
+      {
+        vatAdmin: await client.makeVatAdmin(),
+        nixStore: await client.makeDevice('nixStore'),
+        paths: {
+          webApp: await addToStore(join(here, 'examples', 'webapp.js')),
+          storeMaker: await addToStore(
+            join(here, 'examples', 'store-maker.js'),
+          ),
+          cache: await addToStore(
+            join(here, 'examples', 'bookmarks', 'cache.js'),
+          ),
+        },
+        fetch: await client.makeDevice('fetch'),
+        ingress: await client.makeIngress({ app: 'bookmarks' }),
+        templates: await E(await client.makeDevice('gitTrees')).getTree(
+          tree,
+          listing,
+        ),
+      },
+    );
+    const { cache, admins } = await E(boot).bootstrap(
+      `http://${host}/bookmarks/`,
+    );
+    const page = async () =>
+      (await fetch(`http://127.0.0.1:${port}/?app=bookmarks`)).text();
+    assert.match(await page(), /<pre>\(none yet\)<\/pre>/);
+    assert.equal(await E(cache).refresh(), 'GET /bookmarks/ cookie=none');
+    await E(boot).setCookie('session=1');
+    assert.equal(await E(cache).refresh(), 'GET /bookmarks/ cookie=session=1');
+
+    for (const admin of [bootAdmin, ...values(admins)])
+      await E(admin).restart();
+    assert.equal(await E(cache).latest(), 'GET /bookmarks/ cookie=session=1');
+    assert.match(
+      await page(),
+      /<pre>GET \/bookmarks\/ cookie=session=1<\/pre>/,
+    );
+    await E(boot).setCookie('session=2');
+    assert.equal(await E(cache).refresh(), 'GET /bookmarks/ cookie=session=2');
+
+    // here the lan service allows loopback, where this test's site is
+    const lan = await client.makeDevice('lan');
+    assert.deepEqual(
+      (({ status, body }) => ({ status, body }))(
+        await E(lan).fetch(`http://${host}/models`),
+      ),
+      { status: 200, body: 'GET /models cookie=none' },
+    );
+
+    client.close();
+  } finally {
+    await box?.server.stop();
+    await new Promise(resolve => site.close(resolve));
+    await rm(home, { recursive: true, force: true });
+  }
 });
