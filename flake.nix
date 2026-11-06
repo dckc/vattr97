@@ -81,7 +81,7 @@
           mkdir -p $share $out/bin
           cp -r packages/toybox/dist packages/toybox/config.capnp $share/
           # the boot directory the units use by default
-          cp -r packages/toybox/kvats/wallet $share/boot
+          cp -r packages/toybox/examples/wallet $share/boot
           cat > $out/bin/toybox-serve <<SH
           #!${pkgs.runtimeShell}
           exec ${workerd}/bin/workerd serve --experimental $share/config.capnp "\$@"

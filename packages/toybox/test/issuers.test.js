@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { E, Far } from '@endo/far';
 import { M } from '@endo/patterns';
 import { makeLiveslots } from '../liveslots.js';
-import { buildRootObject } from '../kvats/wallet/issuers.js';
+import { buildRootObject } from '../examples/wallet/issuers.js';
 import { makeMemoryVatstore } from './memory-vatstore.js';
 
 /** @import { Remote, SqlDatabase } from '../types.js' */

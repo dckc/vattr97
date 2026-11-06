@@ -19,8 +19,8 @@ The nixStore tests put files in the nix store (`nix store add-path`), and the gi
 - [labels.js](labels.js): [Flower](https://github.com/NuxiNL/flower)'s label rule for mounts.
 - [config.capnp](config.capnp): workerd's config. Its sockets have no addresses; whoever starts workerd hands them in, so holding a socket is the authority it grants.
 - [types.ts](types.ts) and [worker-env.d.ts](worker-env.d.ts): the types the modules share, and workerd's bindings.
-- [kvats/](kvats/): vats the tests exercise: counters, a mint and purses, lend-the-mower, hello, a WebApp maker, a store maker, a bookmark cache, and a bootstrap vat that wires them.
-- [kvats/wallet/](kvats/wallet/): a boot directory: a boot vat, counters, issuer kits, and a gateway that keeps a NameHub per client and serves the app socket. [scripts/serve.js](scripts/serve.js) runs a toybox from any boot directory, and prints the boot vat's `ownerLink()` if it answers one; [scripts/service.sh](scripts/service.sh) runs that as a transient systemd user service, and `yarn wallet` runs the wallet that way.
+- [examples/](examples/): vats built on toybox rather than part of it; the tests exercise them: counters, a mint and purses, lend-the-mower, hello, a WebApp maker, a store maker, a bookmark cache, and a bootstrap vat that wires them.
+- [examples/wallet/](examples/wallet/): a boot directory: a boot vat, counters, issuer kits, and a gateway that keeps a NameHub per client and serves the app socket. [scripts/serve.js](scripts/serve.js) runs a toybox from any boot directory, and prints the boot vat's `ownerLink()` if it answers one; [scripts/service.sh](scripts/service.sh) runs that as a transient systemd user service, and `yarn wallet` runs the wallet that way.
 
 | socket  | reaches  | what its holder can do                                                                                   |
 | ------- | -------- | -------------------------------------------------------------------------------------------------------- |
@@ -73,7 +73,7 @@ Each kind is a module in devices/, given only the kernel powers it uses, and an 
 - **Git worktree, tree, and reader** ([git.js](devices/git.js)): for files that must stay out of the world-readable nix store. `getTree(tree, listing)` takes what `git ls-tree -r` lists ([git-tree.js](git-tree.js)); a tree reads a file from config.capnp's `git-worktree` directory only if it lists it, and only while it hashes to the blob id listed. `open(path)` streams a big file, checked before any chunk is given out and again as they are; a reader says done only if what it gave out matches, and doesn't outlive a kernel restart. Text only: our marshal can't carry bytes yet.
 - **Boot bundles** ([boot.js](devices/boot.js)): the boot vat's `getBundleCap(name)` for a name in the boot directory, a file or a directory, read as a nix store path is.
 - **Entropy** ([entropy.js](devices/entropy.js)): `swiss()` answers 128 random bits in hex. Vats have no randomness of their own.
-- **Fetch and LAN devices** ([fetch.js](devices/fetch.js)), after SwingSet's devices: `fetch(url, { method, headers, body })` answers `{ status, headers, body }`. A fetch device reaches config.capnp's `internet` service (public addresses); a LAN device, its `lan` service (private addresses, a tailnet's included, not loopback). Neither attenuates; a WebApp vat ([kvats/webapp.js](kvats/webapp.js)) does.
+- **Fetch and LAN devices** ([fetch.js](devices/fetch.js)), after SwingSet's devices: `fetch(url, { method, headers, body })` answers `{ status, headers, body }`. A fetch device reaches config.capnp's `internet` service (public addresses); a LAN device, its `lan` service (private addresses, a tailnet's included, not loopback). Neither attenuates; a WebApp vat ([examples/webapp.js](examples/webapp.js)) does.
 
 ## Ingress routing
 

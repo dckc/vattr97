@@ -35,7 +35,7 @@ export const makeFetchDevice = fetch =>
  * requests and answers can cross the kernel. A fetch device reaches what
  * config.capnp's `internet` service allows; a LAN device, what its `lan`
  * service allows. Neither attenuates anything: a WebApp vat
- * (kvats/webapp.js) does that.
+ * (examples/webapp.js) does that.
  *
  * The kernel's fetch devices over the network service `net`: every one
  * reaches the same addresses, so they differ only by who holds them.

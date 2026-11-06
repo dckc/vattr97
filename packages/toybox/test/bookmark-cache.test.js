@@ -1,7 +1,7 @@
 /** @file The bookmark cache's template rendering. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { render } from '../kvats/bookmark-cache.js';
+import { render } from '../examples/bookmark-cache.js';
 
 test("a template gets each value HTML-escaped, and refuses a name it isn't given", () => {
   assert.equal(

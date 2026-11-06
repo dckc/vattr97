@@ -70,7 +70,7 @@ const walletAt = port => {
 test('alice makes an issuer kit; once introduced, she pays into the purse bob made from the issuer she sent him', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'toybox-wallet-'));
   const boot = join(dir, 'wallet');
-  await cp(join(here, 'kvats', 'wallet'), boot, { recursive: true });
+  await cp(join(here, 'examples', 'wallet'), boot, { recursive: true });
   let box = await startToybox(dir, { boot });
   const wallet = walletAt(() => box.appPort);
   try {

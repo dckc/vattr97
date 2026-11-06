@@ -38,7 +38,7 @@ test('tree ids from git ls-tree listings, and blob ids, are the ones git reports
   try {
     for (const dir of [
       join(here, 'test', 'greeter'),
-      join(here, 'kvats'),
+      join(here, 'examples'),
       odd,
     ]) {
       const { repo, tree, listing } = await makeRepo(dir, 'sub');

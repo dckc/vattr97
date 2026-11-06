@@ -38,7 +38,7 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
   await mkdir(boot);
   const fixture = await readFile(join(here, 'test', 'boot', 'boot.js'), 'utf8');
   await writeFile(join(boot, 'boot.js'), fixture);
-  await copyFile(join(here, 'kvats', 'counter.js'), join(boot, 'child.js'));
+  await copyFile(join(here, 'examples', 'counter.js'), join(boot, 'child.js'));
   let box = await startToybox(dir, { boot });
   /** @param {string} path */
   const app = path => fetch(`http://127.0.0.1:${box.appPort}${path}`);
@@ -112,7 +112,7 @@ test('a boot directory may hold its boot vat as `boot/`, a bundle of several mod
     join(boot, 'boot', 'version.js'),
     "export const VERSION = 'from a module beside it';\n",
   );
-  await copyFile(join(here, 'kvats', 'counter.js'), join(boot, 'child.js'));
+  await copyFile(join(here, 'examples', 'counter.js'), join(boot, 'child.js'));
   const box = await startToybox(dir, { boot });
   try {
     const page = await fetch(`http://127.0.0.1:${box.appPort}/`);

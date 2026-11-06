@@ -5,7 +5,7 @@ import { E, Far } from '@endo/far';
 import { makeLiveslots } from '../liveslots.js';
 import { makeFetchDevice } from '../devices/fetch.js';
 import { M } from '@endo/patterns';
-import { buildRootObject as buildWebApp } from '../kvats/webapp.js';
+import { buildRootObject as buildWebApp } from '../examples/webapp.js';
 import { makeMemoryVatstore as makeKv } from './memory-vatstore.js';
 
 /** @import { MapStore, Remote, SqlDatabase, Vatstore } from '../types.js' */

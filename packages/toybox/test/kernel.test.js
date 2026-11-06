@@ -56,7 +56,7 @@ const connectTo = (sock, name) =>
 /** @import { Remote } from '../types.js' */
 
 /** @param {string} name */
-const kvat = name => readFile(join(here, 'kvats', name), 'utf8');
+const kvat = name => readFile(join(here, 'examples', name), 'utf8');
 
 /** Upgrade the vat whose admin node is `adminNode` to `src`. @param {Remote} adminNode @param {string} src */
 const upgrade = async (adminNode, src) =>
@@ -384,14 +384,14 @@ test('a session makes only the devices there are', async () => {
 test('a nixStore makes a bundleCap for a file in the store, and refuses anything else', async () => {
   const vatAdmin = await k.makeVatAdmin();
   const nixStore = await k.makeDevice('nixStore');
-  const storePath = await addToStore(join(here, 'kvats', 'counter.js'));
+  const storePath = await addToStore(join(here, 'examples', 'counter.js'));
   const bundleCap = await E(nixStore).getBundleCap(storePath);
   assert.equal(await E(nixStore).getBundleCap(storePath), bundleCap);
   const { root } = await E(vatAdmin).createVat(bundleCap, {});
   assert.equal(await E(E(root).getCounter()).incr(), 1);
 
   await assert.rejects(
-    E(nixStore).getBundleCap(join(here, 'kvats', 'counter.js')),
+    E(nixStore).getBundleCap(join(here, 'examples', 'counter.js')),
     /not a store path/,
   );
   await assert.rejects(
@@ -405,7 +405,7 @@ test('a nixStore makes a bundleCap for a file in the store, and refuses anything
     /is not in the nix store/,
   );
   await assert.rejects(
-    E(nixStore).getBundleCap(await addToStore(join(here, 'kvats'))),
+    E(nixStore).getBundleCap(await addToStore(join(here, 'examples'))),
     /has no worker.json/,
   );
 });
@@ -625,7 +625,7 @@ test('a bootstrap vat wires a bookmark cache from nix store code; the cache serv
     const client = await connectTo(box.sock, 'cache');
     // the site's templates, as a git tree of the toybox's worktree
     const { tree, listing } = await makeRepo(
-      join(here, 'kvats', 'bookmark-templates'),
+      join(here, 'examples', 'bookmark-templates'),
       'templates',
       join(home, 'worktree'),
     );
@@ -635,9 +635,11 @@ test('a bootstrap vat wires a bookmark cache from nix store code; the cache serv
         vatAdmin: await client.makeVatAdmin(),
         nixStore: await client.makeDevice('nixStore'),
         paths: {
-          webApp: await addToStore(join(here, 'kvats', 'webapp.js')),
-          storeMaker: await addToStore(join(here, 'kvats', 'store-maker.js')),
-          cache: await addToStore(join(here, 'kvats', 'bookmark-cache.js')),
+          webApp: await addToStore(join(here, 'examples', 'webapp.js')),
+          storeMaker: await addToStore(
+            join(here, 'examples', 'store-maker.js'),
+          ),
+          cache: await addToStore(join(here, 'examples', 'bookmark-cache.js')),
         },
         fetch: await client.makeDevice('fetch'),
         ingress: await client.makeIngress({ app: 'bookmarks' }),

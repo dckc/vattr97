@@ -40,7 +40,7 @@
     "config.capnp",
     "devices",
     "dist",
-    "kvats",
+    "examples",
     "scripts",
     "test"
   ],

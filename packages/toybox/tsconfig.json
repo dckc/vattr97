@@ -9,7 +9,7 @@
     "*.js",
     "*.ts",
     "devices/**/*.js",
-    "kvats/**/*.js",
+    "examples/**/*.js",
     "test/**/*.js",
     "test/**/*.ts",
     "../../globals.d.ts"

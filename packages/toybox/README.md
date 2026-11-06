@@ -14,7 +14,7 @@ yarn build
 ./scripts/hello.js
 ```
 
-It prints a URL; open it to see a page served by a vat ([kvats/hello.js](kvats/hello.js)). Ctrl-C stops it.
+It prints a URL; open it to see a page served by a vat ([examples/hello.js](examples/hello.js)). Ctrl-C stops it.
 
 ## A wallet, from one secret
 
@@ -22,13 +22,13 @@ It prints a URL; open it to see a page served by a vat ([kvats/hello.js](kvats/h
 yarn wallet
 ```
 
-That starts it as a systemd user service, `toybox-wallet`, keeping its state in `~/.local/state/toybox-wallet` ([scripts/wallet-service.sh](scripts/wallet-service.sh)); `systemctl --user stop toybox-wallet` stops it. It prints a link to your hub, a NameHub in the wallet's gateway vat. Your browser keeps the hub's secret, and nothing else: everything you hold has a name in your hub. It starts with a counter maker and an issuer-kit maker, so `makeIssuerKit` gives you a mint. Invite someone with a one-time link, and each of you gets a mailbox to the other; send them your issuer, and they can send back a purse's deposit facet for you to pay into. Use a browser profile per person: each profile keeps one hub. The wallet is a boot directory ([kvats/wallet/](kvats/wallet/)), so its state survives restarts, and changing its code upgrades its vats on the next start.
+That starts it as a systemd user service, `toybox-wallet`, keeping its state in `~/.local/state/toybox-wallet` ([scripts/wallet-service.sh](scripts/wallet-service.sh)); `systemctl --user stop toybox-wallet` stops it. It prints a link to your hub, a NameHub in the wallet's gateway vat. Your browser keeps the hub's secret, and nothing else: everything you hold has a name in your hub. It starts with a counter maker and an issuer-kit maker, so `makeIssuerKit` gives you a mint. Invite someone with a one-time link, and each of you gets a mailbox to the other; send them your issuer, and they can send back a purse's deposit facet for you to pay into. Use a browser profile per person: each profile keeps one hub. The wallet is a boot directory ([examples/wallet/](examples/wallet/)), so its state survives restarts, and changing its code upgrades its vats on the next start.
 
 ## Separation of powers, wired by reference
 
 A vat is a [brain in a vat](https://en.wikipedia.org/wiki/Brain_in_a_vat): all it knows of the world is what the kernel feeds it, and all it can do is send messages to the references it holds. It can't forge one, and its global `fetch` reaches nothing. So who can do what is a matter of who handed whom which reference.
 
-The bookmark cache in [kvats/](kvats/) splits one job (keep a copy of a bookmark site that needs a login cookie, and serve it as a page) across four vats:
+The bookmark cache in [examples/](examples/) splits one job (keep a copy of a bookmark site that needs a login cookie, and serve it as a page) across four vats:
 
 ```
 +----------------------------------------------+
@@ -61,7 +61,7 @@ The bookmark cache in [kvats/](kvats/) splits one job (keep a copy of a bookmark
 +-------------------------+
 ```
 
-The cache, the part that runs most often, holds the least: one WebApp, narrowed to one site, a place to serve its page, and read-only templates. Boot is a [bootstrap vat](kvats/cache-boot.js) that makes the others and introduces them by passing references; [the test](test/kernel.test.js) wires it up, restarts every vat, and finds everything still in place.
+The cache, the part that runs most often, holds the least: one WebApp, narrowed to one site, a place to serve its page, and read-only templates. Boot is a [bootstrap vat](examples/cache-boot.js) that makes the others and introduces them by passing references; [the test](test/kernel.test.js) wires it up, restarts every vat, and finds everything still in place.
 
 ## Devices: how a vat reaches the world
 

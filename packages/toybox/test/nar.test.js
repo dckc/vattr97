@@ -42,7 +42,7 @@ test('NAR hashes of a file and a directory are the ones nix path-info reports', 
   const odd = await mkdtemp(join(tmpdir(), 'nar-odd-'));
   await Promise.all(
     ['\uFF5E', '\u{1F600}'].map(f =>
-      cp(join(here, 'kvats', 'counter.js'), join(odd, f)),
+      cp(join(here, 'examples', 'counter.js'), join(odd, f)),
     ),
   );
   // padding: contents of 0, 8, and 9 bytes; an empty directory; nesting
@@ -58,7 +58,7 @@ test('NAR hashes of a file and a directory are the ones nix path-info reports', 
   );
   try {
     for (const path of [
-      join(here, 'kvats', 'counter.js'),
+      join(here, 'examples', 'counter.js'),
       join(here, 'test', 'greeter'),
       odd,
     ]) {
@@ -86,8 +86,8 @@ test('a NAR hash refuses a name no store path has', async () => {
 
 test('a store directory may have a file named __proto__', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'nar-proto-'));
-  await cp(join(here, 'kvats', 'counter.js'), join(dir, '__proto__'));
-  await cp(join(here, 'kvats', 'counter.js'), join(dir, 'main.js'));
+  await cp(join(here, 'examples', 'counter.js'), join(dir, '__proto__'));
+  await cp(join(here, 'examples', 'counter.js'), join(dir, 'main.js'));
   try {
     const storePath = await addToStore(dir);
     const name = storePath.slice('/nix/store/'.length);
