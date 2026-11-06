@@ -13,28 +13,36 @@ export const makeToyboxes = ({ startWorkerd, freePort, mkdir }) =>
   harden({
     /**
      * A toybox in `dir`, its state kept there across restarts: its http
-     * port, and its admin socket.
+     * and app ports, and its admin socket.
      *
      * @param {string} dir
      * @param {object} [opts]
      * @param {string} [opts.config] config.capnp, or one of a test's own
+     * @param {string} [opts.boot] the boot directory; by default, an empty one in `dir`
      * @param {string[]} [opts.args] more of workerd's arguments, for what `config` adds
      */
-    startToybox: async (dir, { config = 'config.capnp', args = [] } = {}) => {
-      await mkdir(join(dir, 'state'), { recursive: true });
+    startToybox: async (
+      dir,
+      { config = 'config.capnp', boot = join(dir, 'boot'), args = [] } = {},
+    ) => {
+      for (const sub of ['state', 'boot'])
+        await mkdir(join(dir, sub), { recursive: true });
       const port = await freePort();
+      const appPort = await freePort();
       const sock = join(dir, 'admin.sock');
       const server = await startWorkerd(
         config,
         [
           ...['-s', `http=127.0.0.1:${port}`],
+          ...['-s', `app=127.0.0.1:${appPort}`],
           ...['-s', `admin=unix:${sock}`],
           ...['-d', `state=${join(dir, 'state')}`],
+          ...['-d', `boot=${boot}`],
           ...args,
         ],
         { port, host: '127.0.0.1' },
         [sock],
       );
-      return { server, sock, port };
+      return { server, sock, port, appPort };
     },
   });

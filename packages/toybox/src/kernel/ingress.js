@@ -67,6 +67,28 @@ export const makeIngresses = (
       return kernelObject(key);
     },
     /**
+     * The ingress for the socket `name`, which no Directory mount leads to:
+     * the socket's entrypoint goes to this kernel directly.
+     *
+     * @param {string} name
+     */
+    socket(name) {
+      const key = this.socketKey(name);
+      db.insertOrIgnore('kingress', { key, handler: null });
+      return kernelObject(key);
+    },
+    /**
+     * The key of the socket `name`'s ingress. A socket's name is letters,
+     * so its key can't be a numbered ingress's.
+     *
+     * @param {string} name
+     * @returns {IngressKey}
+     */
+    socketKey: name => {
+      if (!/^[a-z]+$/.test(name)) throw Error(`not a socket name: ${name}`);
+      return `kernel:${kernel}:${name}`;
+    },
+    /**
      * The kref that serves the ingress `key`, if any.
      *
      * @param {IngressKey} key

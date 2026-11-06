@@ -5,6 +5,7 @@ import { Fail, q } from '@endo/errors';
 import { makeMarshal } from '@endo/marshal';
 import { Far } from '@endo/pass-style';
 import VAT_RUNTIME from 'vat-runtime.txt';
+import { makeBootBundles } from './kernel/boot.js';
 import { TABLES as BUNDLE_TABLES, makeBundles } from './kernel/bundles.js';
 import { TABLES as INGRESS_TABLES, makeIngresses } from './kernel/ingress.js';
 import { makeVatAdmins } from './kernel/vat-admin.js';
@@ -26,6 +27,8 @@ const TABLES = {
     'CREATE TABLE IF NOT EXISTS clist (vat TEXT NOT NULL, vref TEXT NOT NULL, kref TEXT NOT NULL, PRIMARY KEY (vat, vref), UNIQUE (vat, kref))',
   kcounter:
     'CREATE TABLE IF NOT EXISTS kcounter (name TEXT PRIMARY KEY, n INTEGER NOT NULL)',
+  // the boot vat, if this kernel has one
+  kboot: 'CREATE TABLE IF NOT EXISTS kboot (vat TEXT NOT NULL)',
 };
 
 /**
@@ -34,6 +37,7 @@ const TABLES = {
  * @property {{ kref: Kref, owner: typeof KERNEL, vref: KernelKey } | { kref: Kref, owner: VatId, vref: Vref }} kobject an object of the kernel's goes by its key, and a vat's by its vref
  * @property {{ vat: VatId, vref: Vref, kref: Kref }} clist
  * @property {{ name: string, n: number }} kcounter
+ * @property {{ vat: VatId }} kboot
  */
 
 const { entries, fromEntries, hasOwn, keys, values } = Object;
@@ -154,8 +158,11 @@ export const makeKernelClass = ({ makeDevices }) =>
     #bundles;
     #ingresses;
     #vatAdmins;
+    #bootBundles;
     /** @type {Record<string, Device>} */
     #devices;
+    /** @type {Promise<void> | undefined} this incarnation's {@link boot} */
+    #booted;
 
     /** @param {DurableObjectState} ctx @param {Env} env */
     constructor(ctx, env) {
@@ -191,6 +198,10 @@ export const makeKernelClass = ({ makeDevices }) =>
           restart: vat => this.ctx.facets.abort(vat, Error('restarted')),
         },
       });
+      this.#bootBundles = makeBootBundles(powers, {
+        boot: env.BOOT,
+        bundles: this.#bundles,
+      });
       this.#devices = makeDevices(powers, {
         env,
         bundles: this.#bundles,
@@ -201,6 +212,7 @@ export const makeKernelClass = ({ makeDevices }) =>
         vatAdmin: this.#vatAdmins.vatAdmins,
         adminNode: this.#vatAdmins.adminNodes,
         bundle: this.#bundles,
+        bootBundles: this.#bootBundles,
         ...fromEntries(
           values(this.#devices).flatMap(({ kinds }) => entries(kinds)),
         ),
@@ -391,21 +403,25 @@ export const makeKernelClass = ({ makeDevices }) =>
 
     /**
      * Start a new vat on the bundle `hash`. If building its root fails, the
-     * kernel forgets the vat.
+     * kernel forgets the vat, `made`'s record of it included.
      *
      * @param {string} hash
      * @param {CapData<Kref>} kparams
+     * @param {(vat: VatId) => void} [made] records the new vat along with the kernel's own record of it, both or neither
+     * @param {(vat: VatId) => void} [unmade] forgets what `made` recorded
      * @returns {Promise<{ vat: VatId, root: Kref }>}
      */
-    async #startVat(hash, kparams) {
+    async #startVat(hash, kparams, made, unmade) {
       /** @type {VatId} */
       const vat = `v${this.#next('vat')}`;
       this.#db.insert('kvat', { vat, hash, params: JSON.stringify(kparams) });
+      made?.(vat);
       const root = this.#clist(vat).toKernel('o+0');
       try {
         await this.#vat(vat).ready();
       } catch (e) {
         this.ctx.facets.abort(vat, Error('failed to start'));
+        unmade?.(vat);
         this.#db.lookup('kobject', { owner: vat }).delete();
         this.#db.lookup('clist', { vat }).delete();
         this.#db.lookup('kvat', { vat }).delete();
@@ -435,6 +451,78 @@ export const makeKernelClass = ({ makeDevices }) =>
         this.ctx.facets.abort(vat, Error('upgrade failed'));
         throw e;
       }
+    }
+
+    /**
+     * Start this kernel's boot vat, after SwingSet's bootstrap vat, on
+     * `boot.js` in config.capnp's `boot` directory (or `boot`, a directory
+     * bundle of several modules), or upgrade it if that changed since; then
+     * send it `start()`, which makes or upgrades the vats it keeps. Once per
+     * incarnation of the kernel; a kernel whose boot directory has neither
+     * has no boot vat.
+     *
+     * The boot vat is the service's root of authority: it gets the boot
+     * directory's bundles, a vatAdmin, the ingress for the `app` socket, and
+     * one of each I/O device, to hand on as it sees fit.
+     */
+    boot() {
+      this.#booted ??= this.#boot().catch(e => {
+        this.#booted = undefined;
+        throw e;
+      });
+      return this.#booted;
+    }
+
+    async #boot() {
+      const [name] = (
+        await Promise.all(
+          ['boot.js', 'boot'].map(async n =>
+            (await this.#bootBundles.has(n)) ? [n] : [],
+          ),
+        )
+      ).flat();
+      if (!name) return;
+      const hash = this.#bundles.hashOf(await this.#bootBundles.install(name));
+      let vat = this.#db.query('kboot')[0]?.vat;
+      if (!vat) {
+        const { standIn } = this.#krefs;
+        const params = harden({
+          vatAdmin: standIn(this.#vatAdmins.make()),
+          bundles: standIn(this.#bootBundles.make()),
+          ingress: standIn(this.#ingresses.socket('app')),
+          ...fromEntries(
+            entries(this.#devices).map(([name, { make }]) => [
+              name,
+              standIn(make()),
+            ]),
+          ),
+        });
+        ({ vat } = await this.#startVat(
+          hash,
+          this.#krefs.toCapData(params),
+          made => this.#db.insert('kboot', { vat: made }),
+          unmade => this.#db.lookup('kboot', { vat: unmade }).delete(),
+        ));
+      } else {
+        const old = this.#db.lookup('kvat', { vat }).one();
+        if (old.hash !== hash) await this.#upgradeVat(vat, hash);
+      }
+      await this.#deliver(
+        this.#clist(vat).toKernel('o+0'),
+        'start',
+        this.#krefs.toCapData(harden([])),
+      );
+    }
+
+    /**
+     * A request to the `app` socket, once the boot vat is up, for whoever it
+     * has serve that socket's ingress; `null` when nobody does.
+     *
+     * @param {HttpRequest} request
+     */
+    async serveApp(request) {
+      await this.boot();
+      return this.serveHttp(this.#ingresses.socketKey('app'), request);
     }
 
     /**
