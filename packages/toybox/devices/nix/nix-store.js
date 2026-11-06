@@ -1,12 +1,12 @@
 /** @file nixStores: bundleCaps for nix store paths, keyed by their NAR hashes. */
 import { M } from '@endo/patterns';
 import { narHash } from './nar.js';
-import { COMPATIBILITY_DATE, decode } from '../bundles.js';
-import { kzone } from '../objects.js';
+import { COMPATIBILITY_DATE, decode } from '../../kernel/bundles.js';
+import { kzone } from '../../kernel/objects.js';
 
 /**
  * @import { Device, KernelPowers, Manifest, NarNode } from '../../types.js';
- * @import { makeBundles } from '../bundles.js';
+ * @import { makeBundles } from '../../kernel/bundles.js';
  */
 
 /** A store path: a nix base-32 hash, then a name. */

@@ -2,7 +2,7 @@
 import { encodeHex } from '@endo/hex';
 import { M } from '@endo/patterns';
 import { blobId, parseLsTree, treeId } from './git-tree.js';
-import { kzone } from '../objects.js';
+import { kzone } from '../../kernel/objects.js';
 
 /** @import { Device, KernelKey, TablePowers } from '../../types.js' */
 

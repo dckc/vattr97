@@ -1,6 +1,6 @@
 /** @file The boot directory: bundleCaps for what config.capnp's `boot` directory holds, for the boot vat to make vats from. */
 import { M } from '@endo/patterns';
-import { installTree, makeTreeReader } from './nix/nix-store.js';
+import { installTree, makeTreeReader } from '../devices/nix/nix-store.js';
 import { kzone } from './objects.js';
 
 /**

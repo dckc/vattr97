@@ -12,7 +12,8 @@ The nixStore tests put files in the nix store (`nix store add-path`), and the gi
 ## Layout of the code
 
 - [kernel.js](kernel.js): the `Kernel` Durable Object, which hosts many vats, and `Syscall`, a vat's only way out.
-- [devices/](devices/): each kind of the kernel's own objects, one module apiece. [devices/index.js](devices/index.js) makes the I/O devices, and [supervisor.js](supervisor.js) hands them to the kernel (`makeKernelClass`); the kernel knows those only as a `Device`, `{ kinds, make }` ([types.ts](types.ts)), and names just what it runs vats with: bundles, the boot directory, vatAdmin, ingress, and endowments.
+- [kernel/](kernel/): the kernel's own objects, one module per kind: what it runs vats with (bundles, the boot directory, vatAdmin, ingress, and endowments).
+- [devices/](devices/): toybox's I/O devices: networks, the nix store, git trees, and entropy. [devices/index.js](devices/index.js) makes them, and [supervisor.js](supervisor.js) hands them to the kernel (`makeKernelClass`), which knows each only as a `Device`, `{ kinds, make }` ([types.ts](types.ts)).
 - [liveslots.js](liveslots.js) and [kvat-runtime.js](kvat-runtime.js): a vat's side: vrefs, presences, its durable zone, and its SQLite.
 - [supervisor.js](supervisor.js): workerd's entrypoints, `Public` (the ingress), `App` (the boot vat's socket), and `Admin`, and the `Directory` of ingress mounts.
 - [orm.js](orm.js): rows as records, for single-table statements on the kernel's SQLite. A module exports its `TABLES`, and the kernel gives it a `db` limited to those; no kind of kernel object holds `sql`.
@@ -63,15 +64,18 @@ A client reaches a kernel with a WebSocket to `/kernel/<name>` on the admin sock
 
 ## The kernel's own objects
 
-Each kind is a module in devices/, given only the kernel powers it uses, and an `@endo/exo` class whose interface guard checks each message ([devices/objects.js](devices/objects.js)). A kernel object's key, `<prefix>:<rest>`, names its kind.
+Each kind is a module, given only the kernel powers it uses, and an `@endo/exo` class whose interface guard checks each message ([kernel/objects.js](kernel/objects.js)). A kernel object's key, `<prefix>:<rest>`, names its kind. The kernel runs vats with the kinds in [kernel/](kernel/):
 
-- **Ingress** ([ingress.js](devices/ingress.js)): `serve(handler)` records the handler's kref, so the next request starts its vat if need be.
-- **vatAdmin and admin node** ([vat-admin.js](devices/vat-admin.js)), after SwingSet's: `createVat(bundleCap, params, { endowments })` answers `{ root, adminNode }`; the admin node's `upgrade(bundleCap)` keeps the vat's durable objects, params, and endowments, and `restart()` stops it as an eviction would. There are no vat ids to hold.
-- **Endowments and endowment** ([endowments.js](devices/endowments.js)): a binding in `GRANTABLE`, as a reference a vatAdmin's `createVat` can grant. An endowment has no methods; what it reaches is the granted vat's to attenuate.
-- **bundleCap** ([bundles.js](devices/bundles.js)): one per bundle hash, so knowing a hash grants nothing.
+- **Ingress** ([ingress.js](kernel/ingress.js)): `serve(handler)` records the handler's kref, so the next request starts its vat if need be.
+- **vatAdmin and admin node** ([vat-admin.js](kernel/vat-admin.js)), after SwingSet's: `createVat(bundleCap, params, { endowments })` answers `{ root, adminNode }`; the admin node's `upgrade(bundleCap)` keeps the vat's durable objects, params, and endowments, and `restart()` stops it as an eviction would. There are no vat ids to hold.
+- **Endowments and endowment** ([endowments.js](kernel/endowments.js)): a binding in `GRANTABLE`, as a reference a vatAdmin's `createVat` can grant. An endowment has no methods; what it reaches is the granted vat's to attenuate.
+- **bundleCap** ([bundles.js](kernel/bundles.js)): one per bundle hash, so knowing a hash grants nothing.
+- **Boot bundles** ([boot.js](kernel/boot.js)): the boot vat's `getBundleCap(name)` for a name in the boot directory, a file or a directory, read as a nix store path is.
+
+The I/O devices in [devices/](devices/) are toybox's own, built into the kernel by the worker's entry module; a project built on toybox adds its own as device vats ([adding a device](#adding-a-device)):
+
 - **nixStore** ([nix-store.js](devices/nix/nix-store.js)): `getBundleCap(path)` reads a store path through config.capnp's read-only `nix-store` service and keys its bundle by NAR hash ([nar.js](devices/nix/nar.js)). A file is a bundle of one module; a directory's files are its modules, its `worker.json` naming the main one ([test/greeter/](test/greeter/)). Symlinks, and anything not in the store, are refused.
 - **Git worktree, tree, and reader** ([git.js](devices/git/git.js)): for files that must stay out of the world-readable nix store. `getTree(tree, listing)` takes what `git ls-tree -r` lists ([git-tree.js](devices/git/git-tree.js)); a tree reads a file from config.capnp's `git-worktree` directory only if it lists it, and only while it hashes to the blob id listed. `open(path)` streams a big file, checked before any chunk is given out and again as they are; a reader says done only if what it gave out matches, and doesn't outlive a kernel restart. Text only: our marshal can't carry bytes yet.
-- **Boot bundles** ([boot.js](devices/boot.js)): the boot vat's `getBundleCap(name)` for a name in the boot directory, a file or a directory, read as a nix store path is.
 - **Entropy** ([entropy.js](devices/entropy.js)): `swiss()` answers 128 random bits in hex. Vats have no randomness of their own.
 - **Fetch and LAN devices** ([fetch.js](devices/fetch.js)), after SwingSet's devices: `fetch(url, { method, headers, body })` answers `{ status, headers, body }`. A fetch device reaches config.capnp's `internet` service (public addresses); a LAN device, its `lan` service (private addresses, a tailnet's included, not loopback). Neither attenuates; a WebApp vat ([examples/webapp.js](examples/webapp.js)) does.
 

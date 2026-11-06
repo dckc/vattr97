@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { M } from '@endo/patterns';
-import { kzone } from '../devices/objects.js';
+import { kzone } from '../kernel/objects.js';
 
 test("a kernel object's message reaches only its kind's own methods, through the guard", () => {
   const greeters = kzone.exoClass(

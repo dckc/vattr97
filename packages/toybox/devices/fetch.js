@@ -1,7 +1,7 @@
 /** @file Fetch and LAN devices, after SwingSet's devices: HTTP for vats, as data. */
 
 import { M } from '@endo/patterns';
-import { kzone } from './objects.js';
+import { kzone } from '../kernel/objects.js';
 
 /** @import { Device, FetchAnswer, FetchInit, KernelPowers } from '../types.js' */
 

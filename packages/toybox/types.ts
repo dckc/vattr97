@@ -261,7 +261,7 @@ export type MakeDevices = (
   powers: KernelPowers,
   io: {
     env: Env;
-    bundles: ReturnType<typeof import('./devices/bundles.js').makeBundles>;
+    bundles: ReturnType<typeof import('./kernel/bundles.js').makeBundles>;
     /** `n` random bytes */
     random: (n: number) => Uint8Array;
     withTables: WithTables;

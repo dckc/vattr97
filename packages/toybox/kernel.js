@@ -5,14 +5,14 @@ import { Fail, q } from '@endo/errors';
 import { makeMarshal } from '@endo/marshal';
 import { Far } from '@endo/pass-style';
 import KVAT_RUNTIME from 'kvat-runtime.txt';
-import { makeBootBundles } from './devices/boot.js';
-import { TABLES as BUNDLE_TABLES, makeBundles } from './devices/bundles.js';
+import { makeBootBundles } from './kernel/boot.js';
+import { TABLES as BUNDLE_TABLES, makeBundles } from './kernel/bundles.js';
 import {
   TABLES as ENDOWMENT_TABLES,
   makeEndowments,
-} from './devices/endowments.js';
-import { TABLES as INGRESS_TABLES, makeIngresses } from './devices/ingress.js';
-import { makeVatAdmins } from './devices/vat-admin.js';
+} from './kernel/endowments.js';
+import { TABLES as INGRESS_TABLES, makeIngresses } from './kernel/ingress.js';
+import { makeVatAdmins } from './kernel/vat-admin.js';
 import { makeORM } from './orm.js';
 
 /**
@@ -21,7 +21,7 @@ import { makeORM } from './orm.js';
  */
 
 const TABLES = {
-  // hash: of a bundle (devices/bundles.js); params: CapData whose slots are krefs
+  // hash: of a bundle (kernel/bundles.js); params: CapData whose slots are krefs
   kvat: 'CREATE TABLE IF NOT EXISTS kvat (vat TEXT PRIMARY KEY, hash TEXT NOT NULL, params TEXT NOT NULL)',
   kobject:
     'CREATE TABLE IF NOT EXISTS kobject (kref TEXT PRIMARY KEY, owner TEXT NOT NULL, vref TEXT NOT NULL, UNIQUE (owner, vref))',
@@ -140,7 +140,8 @@ const makeKrefMarshal = () => {
  * vat's, so references between vats survive the eviction of a vat or of
  * the kernel. Parties outside (a client on the admin socket) get a c-list
  * that lasts as long as their session. The kernel's own objects are in
- * devices/: an object's key, `<prefix>:<rest>`, says which kind handles it.
+ * kernel/, and its I/O devices' in devices/: an object's key,
+ * `<prefix>:<rest>`, says which kind handles it.
  *
  * The kernel's I/O devices are whatever `makeDevices` makes: the worker's
  * entry module chooses them, and the kernel knows each only as a `Device`.

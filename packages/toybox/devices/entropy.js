@@ -1,7 +1,7 @@
 /** @file Entropy: unguessable numbers, for vats, which have no randomness of their own. */
 import { encodeHex } from '@endo/hex';
 import { M } from '@endo/patterns';
-import { kzone } from './objects.js';
+import { kzone } from '../kernel/objects.js';
 
 /** @import { Device, KernelPowers } from '../types.js' */
 
