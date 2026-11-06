@@ -12,6 +12,7 @@ import { E } from '@endo/far';
 import workerdPackage from 'workerd';
 import WebSocket from 'ws';
 import { connectKernel } from '../src/kernel-client.js';
+import { lendMower, makeNeighbors } from '../examples/neighbor/boot/lend.js';
 import { makeToyboxes } from './toybox.js';
 import { here, makeWorkerd } from '../src/workerd-process.js';
 
@@ -185,6 +186,38 @@ test('payments move between vats through a deposit facet, which cannot withdraw;
   assert.equal(await E(alice).pay(await E(mint).mintPayment(5)), 5);
   assert.equal(await E(bobPurse).getBalance(), 15);
   await assert.rejects(E(bobPurse).withdraw(16), /insufficient funds/);
+});
+
+test('lend the mower: the tenant holds only the governed mower; the fence holds across restarts', async () => {
+  /** @type {Record<string, Remote>} each vat's admin node, by role */
+  const admins = {};
+  const neighbors = await makeNeighbors(async (role, name) => {
+    const { root, adminNode } = await k.createVat(
+      await kvat(`neighbor/${name}`),
+    );
+    admins[role] = adminNode;
+    return root;
+  });
+  const { mower, governed, tenant } = await lendMower(E, neighbors, 2);
+
+  assert.deepEqual(await E(tenant).run(governed, 5), [
+    'cut (4, 4)',
+    'cut (4, 3)',
+    'cut (4, 2)',
+    'fence: 2 cells from start',
+  ]);
+  await E(admins.mowers).restart();
+  await E(admins.governor).restart();
+  assert.deepEqual(await E(tenant).run(governed, 1), [
+    'cut (4, 2)',
+    'fence: 2 cells from start',
+  ]);
+  assert.deepEqual(await E(mower).getCut(), [
+    '(4, 4)',
+    '(4, 3)',
+    '(4, 2)',
+    '(4, 2)',
+  ]);
 });
 
 test("after the whole toybox crashes, vats' references to each other still work", async () => {
