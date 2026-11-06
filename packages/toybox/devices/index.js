@@ -1,8 +1,8 @@
 /** @file The kernel's I/O devices: which there are, and which of workerd's bindings each reaches. */
 import { makeEntropy } from './entropy.js';
 import { makeFetchDevices } from './fetch.js';
-import { TABLES as GIT_TABLES, makeGit } from './git.js';
-import { makeNixStores } from './nix-store.js';
+import { TABLES as GIT_TABLES, makeGit } from './git/git.js';
+import { makeNixStores } from './nix/nix-store.js';
 
 /** @import { MakeDevices } from '../types.js' */
 

@@ -14,8 +14,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
-import { narHash } from '../nar.js';
-import { installTree, makeTreeReader } from '../devices/nix-store.js';
+import { narHash } from '../devices/nix/nar.js';
+import { installTree, makeTreeReader } from '../devices/nix/nix-store.js';
 import { makeNix } from './nix.js';
 import { here } from '../workerd-process.js';
 

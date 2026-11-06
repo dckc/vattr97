@@ -5,9 +5,9 @@
  */
 
 import { decodeHex, encodeHex } from '@endo/hex';
-import { compareUtf8 } from './byte-order.js';
+import { compareUtf8 } from '../byte-order.js';
 
-/** @import { TreeFile } from './types.js' */
+/** @import { TreeFile } from '../../types.js' */
 
 const encoder = new TextEncoder();
 

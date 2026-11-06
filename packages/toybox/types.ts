@@ -300,7 +300,7 @@ export type WithTables = (tables: Record<string, string>) => TablePowers<any>;
  */
 export type Remote = any;
 
-/** A store path's contents, without executable bits or symlinks (nar.js). */
+/** A store path's contents, without executable bits or symlinks (devices/nix/nar.js). */
 export type NarNode =
   | { type: 'regular'; contents: Uint8Array }
   | { type: 'directory'; entries: Record<string, NarNode> };
@@ -322,7 +322,7 @@ export type BundleCode = {
   modules: Record<string, unknown>;
 };
 
-/** A regular file in a git tree, as `git ls-tree -r` lists it (git-tree.js). */
+/** A regular file in a git tree, as `git ls-tree -r` lists it (devices/git/git-tree.js). */
 export type TreeFile = {
   mode: '100644' | '100755';
   path: string;
