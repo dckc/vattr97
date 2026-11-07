@@ -1378,6 +1378,7 @@ __metadata:
   dependencies:
     "@agoric/ertp": "npm:0.16.3-dev-dc67c18.0.dc67c18"
     "@types/better-sqlite3": "npm:^7.6.1"
+    "@vattr/toybox": "workspace:*"
     ava: "npm:^7.0.0"
     better-sqlite3: "npm:12.10.0"
   languageName: unknown
@@ -1389,7 +1390,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@vattr/toybox@workspace:packages/toybox":
+"@vattr/toybox@workspace:*, @vattr/toybox@workspace:packages/toybox":
   version: 0.0.0-use.local
   resolution: "@vattr/toybox@workspace:packages/toybox"
   dependencies:
