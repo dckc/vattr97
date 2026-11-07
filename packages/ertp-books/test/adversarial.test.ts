@@ -16,6 +16,7 @@ import {
 import { mockMakeGuid } from '../src/guids.js';
 import type { SqlDatabase } from '../src/sql-db.js';
 import { makeTestClock } from './mock-io.js';
+import { makeHeapZone } from '@vattr/toybox/src/vat/heap-zone.js';
 
 const seedAccountBalance = (
   db: SqlDatabase,
@@ -74,12 +75,15 @@ test('rejects negative withdraw amounts', t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
   const nowMs = makeTestClock();
-  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const issuedKit = createIssuerKit(
+    freeze({ db, commodity, makeGuid, nowMs, zone }),
+  );
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
   const alicePurse = issuedKit.issuer.makeEmptyPurse();
@@ -103,12 +107,15 @@ test('makeEmptyPurse rejects account GUID collisions', t => {
     if (!guid) throw new Error('no more guids');
     return guid;
   };
+  const zone = makeHeapZone();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
   const nowMs = makeTestClock();
-  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const issuedKit = createIssuerKit(
+    freeze({ db, commodity, makeGuid, nowMs, zone }),
+  );
 
   seedAccountBalance(db, victimAccountGuid, issuedKit.commodityGuid, 25n);
 
@@ -132,15 +139,19 @@ test('createIssuerKit rejects commodity GUID collisions', t => {
   ).run(existingGuid, 'COMMODITY', 'BUCKS', 'BUCKS', 1, 0);
 
   const makeGuid = () => existingGuid;
+  const zone = makeHeapZone();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
   const nowMs = makeTestClock();
 
-  t.throws(() => createIssuerKit(freeze({ db, commodity, makeGuid, nowMs })), {
-    message: /commodity/i,
-  });
+  t.throws(
+    () => createIssuerKit(freeze({ db, commodity, makeGuid, nowMs, zone })),
+    {
+      message: /commodity/i,
+    },
+  );
 });
 
 test('withdraw rejects wrong-brand amounts', t => {
@@ -151,15 +162,16 @@ test('withdraw rejects wrong-brand amounts', t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const nowMs = makeTestClock();
   const bucks = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const credits = freeze({ namespace: 'COMMODITY', mnemonic: 'CREDITS' });
 
   const bucksKit = createIssuerKit(
-    freeze({ db, commodity: bucks, makeGuid, nowMs }),
+    freeze({ db, commodity: bucks, makeGuid, nowMs, zone }),
   );
   const creditsKit = createIssuerKit(
-    freeze({ db, commodity: credits, makeGuid, nowMs }),
+    freeze({ db, commodity: credits, makeGuid, nowMs, zone }),
   );
 
   const bucksBrand = bucksKit.brand as Brand<'nat'>;
@@ -184,15 +196,16 @@ test('openAccountPurse rejects wrong-commodity accounts', t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const nowMs = makeTestClock();
   const bucks = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
   const credits = freeze({ namespace: 'COMMODITY', mnemonic: 'CREDITS' });
 
   const bucksKit = createIssuerKit(
-    freeze({ db, commodity: bucks, makeGuid, nowMs }),
+    freeze({ db, commodity: bucks, makeGuid, nowMs, zone }),
   );
   const creditsKit = createIssuerKit(
-    freeze({ db, commodity: credits, makeGuid, nowMs }),
+    freeze({ db, commodity: credits, makeGuid, nowMs, zone }),
   );
   const accountGuid = (() => {
     const purse = bucksKit.issuer.makeEmptyPurse();
@@ -200,7 +213,13 @@ test('openAccountPurse rejects wrong-commodity accounts', t => {
   })();
 
   const creditsAccess = openIssuerKit(
-    freeze({ db, commodityGuid: creditsKit.commodityGuid, makeGuid, nowMs }),
+    freeze({
+      db,
+      commodityGuid: creditsKit.commodityGuid,
+      makeGuid,
+      nowMs,
+      zone: makeHeapZone(),
+    }),
   );
 
   t.throws(() => creditsAccess.accounts.openAccountPurse(accountGuid), {
@@ -216,11 +235,20 @@ test('openAccountPurse rejects the holding account', t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const nowMs = makeTestClock();
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const created = createIssuerKit(
+    freeze({ db, commodity, makeGuid, nowMs, zone }),
+  );
   const reopened = openIssuerKit(
-    freeze({ db, commodityGuid: created.commodityGuid, makeGuid, nowMs }),
+    freeze({
+      db,
+      commodityGuid: created.commodityGuid,
+      makeGuid,
+      nowMs,
+      zone: makeHeapZone(),
+    }),
   );
 
   const row = db

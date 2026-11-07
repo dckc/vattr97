@@ -1,5 +1,4 @@
-import { defaultZone } from './jessie-tools.js';
-import type { Zone } from './jessie-tools.js';
+import type { Zone } from '@vattr/toybox/src/types.js';
 import type { SqlDatabase } from './sql-db.js';
 import type { ChartFacet, Guid } from './types.js';
 import { requireAccountCommodity } from './db-helpers.js';
@@ -15,14 +14,14 @@ export const makeChartFacet = ({
   db,
   commodityGuid,
   getGuidFromSealed,
-  zone = defaultZone,
+  zone,
 }: {
   db: SqlDatabase;
   commodityGuid: Guid;
   getGuidFromSealed: (sealedPurse: unknown) => Guid;
-  zone?: Zone;
+  /** the zone of the commodity's issuer kit */
+  zone: Zone;
 }): ChartFacet => {
-  const { exo } = zone;
   const updateAccount = ({
     accountGuid,
     name,
@@ -64,7 +63,7 @@ export const makeChartFacet = ({
     );
   };
 
-  return exo('ChartFacet', {
+  return zone.subZone(commodityGuid).exo('ChartFacet', undefined, {
     placePurse: ({
       sealedPurse,
       name,

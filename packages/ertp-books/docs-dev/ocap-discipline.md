@@ -70,7 +70,7 @@ return freeze({
 
 ### Zone Pattern
 
-The `zone` parameter provides controlled object creation with built-in hardening:
+The `zone` parameter is a [toybox](../../toybox) zone: where the kit defines its kinds and keeps its stores, each commodity in a sub-zone of its own (`zone.subZone(commodityGuid)`).
 
 ```js
 const kit = createIssuerKit({
@@ -78,11 +78,13 @@ const kit = createIssuerKit({
   commodity,
   makeGuid,
   nowMs,
-  zone, // Controls how objects are created (exo, etc.)
+  zone, // a heap zone in tests; a vat's durable zone in toybox
 });
 ```
 
-`zone.exo()` creates frozen objects with method-only interfaces. This enables future integration with durable storage or virtual objects while enforcing encapsulation.
+A purse is a kind whose durable state is its account guid; a payment's hold (transaction and split guids) is in a store keyed by the payment. Balances stay in the GnuCash ledger. In a durable zone, a purse or payment kept by reference is the same object after a restart, once `openIssuerKit` has defined the commodity's kinds again. A payment is live while its holding split is unreconciled, so two payments reified from one check can't both deposit.
+
+The kinds are @endo/exo objects, so ertp-books runs under SES `lockdown()`, as its tests do.
 
 ### Actors
 

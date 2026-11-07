@@ -1,5 +1,5 @@
-import { defaultZone, Nat } from './jessie-tools.js';
-import type { Zone } from './jessie-tools.js';
+import type { Zone } from '@vattr/toybox/src/types.js';
+import { Nat } from './jessie-tools.js';
 import type { AmountLike, EscrowFacet, Guid } from './types.js';
 import type { SqlDatabase } from './sql-db.js';
 import { requireAccountCommodity } from './db-helpers.js';
@@ -37,19 +37,19 @@ export const makeEscrow = ({
   brand,
   makeGuid,
   nowMs,
-  zone = defaultZone,
+  zone: parentZone,
 }: {
   db: SqlDatabase;
   commodityGuid: Guid;
   holdingAccountGuid: Guid;
-  getPurseGuid: (purse: unknown) => Guid;
+  getPurseGuid: (purse: object) => Guid;
   brand: unknown;
   makeGuid: () => Guid;
   nowMs: () => number;
-  zone?: Zone;
+  /** the zone of the commodity's issuer kit */
+  zone: Zone;
 }): EscrowFacet => {
-  const { exo } = zone;
-  const offers = new WeakMap<object, EscrowRecord>();
+  const zone = parentZone.subZone(commodityGuid);
   const assertAmount = (amount: AmountLike) => {
     if (amount.brand !== brand) {
       throw new Error('amount brand mismatch');
@@ -108,7 +108,33 @@ export const makeEscrow = ({
       txGuid,
     );
   };
-  return exo('Escrow', {
+  const makeOffer = zone.exoClass(
+    'EscrowOffer',
+    undefined,
+    (record: EscrowRecord) => ({ ...record }),
+    {
+      accept(): void {
+        const { state } = this;
+        if (!state.live) throw new Error('escrow offer not live');
+        state.live = false;
+        retargetSplit(state.leftHoldingSplitGuid, state.leftToAccountGuid);
+        retargetSplit(state.rightHoldingSplitGuid, state.rightToAccountGuid);
+        markCleared(state.txGuid);
+      },
+      cancel(): void {
+        const { state } = this;
+        if (!state.live) throw new Error('escrow offer not live');
+        state.live = false;
+        retargetSplit(state.leftHoldingSplitGuid, state.leftAccountGuid);
+        retargetSplit(state.rightHoldingSplitGuid, state.rightAccountGuid);
+        markCleared(state.txGuid);
+      },
+      getOfferId(): string {
+        return this.state.txGuid;
+      },
+    },
+  );
+  return zone.exo('Escrow', undefined, {
     makeOffer: (left, right, checkNumber, description = 'escrow') => {
       assertCheckNumberAvailable(checkNumber);
       const leftAmount = assertAmount(left.amount);
@@ -159,29 +185,7 @@ export const makeEscrow = ({
       );
       recordSplit(txGuid, leftAccountGuid, -leftAmount, 'n');
       recordSplit(txGuid, rightAccountGuid, -rightAmount, 'n');
-      const offer = exo('EscrowOffer', {
-        accept: () => {
-          const record = offers.get(offer);
-          if (!record?.live) throw new Error('escrow offer not live');
-          record.live = false;
-          retargetSplit(record.leftHoldingSplitGuid, record.leftToAccountGuid);
-          retargetSplit(
-            record.rightHoldingSplitGuid,
-            record.rightToAccountGuid,
-          );
-          markCleared(record.txGuid);
-        },
-        cancel: () => {
-          const record = offers.get(offer);
-          if (!record?.live) throw new Error('escrow offer not live');
-          record.live = false;
-          retargetSplit(record.leftHoldingSplitGuid, record.leftAccountGuid);
-          retargetSplit(record.rightHoldingSplitGuid, record.rightAccountGuid);
-          markCleared(record.txGuid);
-        },
-        getOfferId: () => txGuid,
-      });
-      offers.set(offer, {
+      return makeOffer({
         txGuid,
         leftHoldingSplitGuid,
         rightHoldingSplitGuid,
@@ -191,7 +195,6 @@ export const makeEscrow = ({
         rightToAccountGuid,
         live: true,
       });
-      return offer;
     },
   });
 };

@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@agoric/ertp": "0.16.3-dev-dc67c18.0.dc67c18",
+    "@vattr/toybox": "workspace:*",
     "better-sqlite3": "12.10.0"
   },
   "devDependencies": {
@@ -24,6 +25,7 @@
       "test/**/*.test.*"
     ],
     "nodeArguments": [
+      "--import=@vattr/toybox/src/node-lockdown.js",
       "--import=ts-blank-space/register",
       "--no-warnings"
     ],

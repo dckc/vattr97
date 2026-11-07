@@ -6,6 +6,9 @@
 
 import test, { type ExecutionContext } from 'ava';
 import Database from 'better-sqlite3';
+import { makeLiveslots } from '@vattr/toybox/src/vat/liveslots.js';
+import { makeMemoryVatstore } from '@vattr/toybox/test/memory-vatstore.js';
+import type { MapStore, Zone } from '@vattr/toybox/src/types.js';
 import type { Brand, NatAmount, Payment } from '../src/ertp-types.js';
 import {
   createIssuerKit,
@@ -15,31 +18,43 @@ import {
   type SqlDatabase,
 } from '../src/index.js';
 import { mockMakeGuid } from '../src/guids.js';
-import { defaultZone } from '../src/jessie-tools.js';
 import { wrapBetterSqlite3Database } from '../src/sqlite-shim.js';
 import type { Guid, IssuerKitForCommodity } from '../src/types.js';
 import { makeTestClock } from './mock-io.js';
 
-const { freeze } = Object;
-
 type Kind = 'usdc' | 'stock';
 const otherKind = (kind: Kind): Kind => (kind === 'usdc' ? 'stock' : 'usdc');
+
+/** The vat's root zone in one incarnation, over `kv`. */
+const startVat = (kv: ReturnType<typeof makeMemoryVatstore>): Zone => {
+  const send = () => Promise.reject(Error('no kernel here'));
+  const { zone } = makeLiveslots({ send, kv });
+  if (!zone) throw Error('liveslots made no zone');
+  return zone;
+};
 
 /**
  * One incarnation of the books: kits and escrows over `db`, as the
  * ledger in ertp-clerk wires them.
  */
-const openBooks = (
-  db: SqlDatabase,
-  commodities: Record<Kind, Guid>,
-  makeGuid: () => Guid,
-  nowMs: () => number,
-) => {
+const openBooks = ({
+  db,
+  zone,
+  commodities,
+  makeGuid,
+  nowMs,
+}: {
+  db: SqlDatabase;
+  zone: Zone;
+  commodities: Record<Kind, Guid>;
+  makeGuid: () => Guid;
+  nowMs: () => number;
+}) => {
   const kitsByGuid = new Map<Guid, IssuerKitForCommodity>();
   const provideKit = (commodityGuid: Guid) => {
     let kit = kitsByGuid.get(commodityGuid);
     if (!kit) {
-      kit = openIssuerKit({ db, commodityGuid, makeGuid, nowMs });
+      kit = openIssuerKit({ db, commodityGuid, makeGuid, nowMs, zone });
       kitsByGuid.set(commodityGuid, kit);
     }
     return kit;
@@ -58,7 +73,7 @@ const openBooks = (
     provideKit(commodityGuid).accounts.openAccountPurse(accountGuid);
   const escrows = makeEscrows({
     db,
-    zone: defaultZone,
+    zone: zone.subZone('escrows'),
     makeGuid,
     commodityOfBrand,
     issuerOf: commodityGuid => {
@@ -74,41 +89,52 @@ const openBooks = (
     depositFacetOf: (commodityGuid, accountGuid) =>
       openPurse(commodityGuid, accountGuid).getDepositFacet(),
     accountOfDepositFacet: (depositFacet, commodityGuid) => {
-      const accountGuid =
-        provideKit(commodityGuid).depositFacetGuids.get(depositFacet);
-      if (!accountGuid) throw Error('not a deposit facet of that brand');
-      return accountGuid;
+      const { depositFacetGuids } = provideKit(commodityGuid);
+      if (!depositFacetGuids.has(depositFacet)) {
+        throw Error('not a deposit facet of that brand');
+      }
+      return depositFacetGuids.get(depositFacet);
     },
   });
   const issuers = { usdc: kits.usdc.kit.issuer, stock: kits.stock.kit.issuer };
   const amount = (kind: Kind, value: bigint): NatAmount =>
-    freeze({ brand: kits[kind].kit.brand, value });
+    harden({ brand: kits[kind].kit.brand, value });
   return { kits, escrows, issuers, amount };
 };
 type Books = ReturnType<typeof openBooks>;
 type Issuers = Books['issuers'];
 type Seat = ReturnType<Books['escrows']['makeEscrow']>['a'];
 
+/**
+ * The books in a vat whose zone is durable over `kv`: `restart` starts
+ * the vat's next incarnation, over the same ledger and the same `kv`.
+ */
 const makeScenario = (t: ExecutionContext) => {
   const rawDb = new Database(':memory:');
   t.teardown(() => rawDb.close());
   const db = wrapBetterSqlite3Database(rawDb);
   initGnuCashSchema(db);
+  const kv = makeMemoryVatstore();
   const makeGuid = mockMakeGuid();
   const nowMs = makeTestClock();
-  const createCommodity = (mnemonic: string) =>
-    createIssuerKit({
-      db,
-      commodity: { namespace: 'COMMODITY', mnemonic },
-      makeGuid,
-      nowMs,
-    }).commodityGuid;
-  const commodities = {
-    usdc: createCommodity('USDC'),
-    stock: createCommodity('STOCK'),
+  const commodities = (() => {
+    const zone = startVat(kv);
+    const createCommodity = (mnemonic: string) =>
+      createIssuerKit({
+        db,
+        commodity: { namespace: 'COMMODITY', mnemonic },
+        makeGuid,
+        nowMs,
+        zone,
+      }).commodityGuid;
+    return { usdc: createCommodity('USDC'), stock: createCommodity('STOCK') };
+  })();
+  const restart = () => {
+    const zone = startVat(kv);
+    const books = openBooks({ db, zone, commodities, makeGuid, nowMs });
+    return { zone, books };
   };
-  const restart = () => openBooks(db, commodities, makeGuid, nowMs);
-  return { books: restart(), restart };
+  return { ...restart(), restart };
 };
 
 /**
@@ -119,6 +145,7 @@ const makeScenario = (t: ExecutionContext) => {
  * @param endowment - what it starts with, of `kind`
  */
 const makeTrader = (
+  zone: Zone,
   kind: Kind,
   issuers: Issuers,
   endowment: Payment<'nat'>,
@@ -129,12 +156,12 @@ const makeTrader = (
   };
   purses[kind].deposit(endowment);
   const payout = purses[otherKind(kind)].getDepositFacet();
-  return freeze({
+  return zone.exo('Trader', undefined, {
     /** @param shortBy - how much less than the terms it gives; a cheat */
-    trade: async (seat: Seat, shortBy = 0n) => {
+    async trade(seat: Seat, shortBy = 0n) {
       const { give } = seat.getTerms();
       const payment = purses[kind].withdraw(
-        freeze({ ...give, value: give.value - shortBy }),
+        harden({ ...give, value: give.value - shortBy }),
       );
       try {
         return await seat.offer(
@@ -148,7 +175,7 @@ const makeTrader = (
       }
     },
     /** a purse where a deposit facet belongs */
-    offerPurseAsRefund: async (seat: Seat) => {
+    async offerPurseAsRefund(seat: Seat) {
       const payment = purses[kind].withdraw(seat.getTerms().give);
       try {
         // @ts-expect-error a purse where a deposit facet belongs
@@ -158,26 +185,36 @@ const makeTrader = (
         throw err;
       }
     },
-    payout,
-    getBalances: () =>
-      [purses.usdc, purses.stock].map(p => p.getCurrentAmount().value),
+    getPayout() {
+      return payout;
+    },
+    getBalances() {
+      return harden(
+        [purses.usdc, purses.stock].map(p => p.getCurrentAmount().value),
+      );
+    },
   });
 };
 
-const startTraders = ({ kits, issuers }: Books) => {
+const startTraders = (zone: Zone, { kits, issuers }: Books) => {
   const mint = (kind: Kind, value: bigint) =>
     kits[kind].kit.mint.mintPayment(
-      freeze({ brand: kits[kind].kit.brand, value }),
+      harden({ brand: kits[kind].kit.brand, value }),
     );
   return {
-    alice: makeTrader('usdc', issuers, mint('usdc', 1000n)),
-    bob: makeTrader('stock', issuers, mint('stock', 10n)),
+    alice: makeTrader(
+      zone.subZone('alice'),
+      'usdc',
+      issuers,
+      mint('usdc', 1000n),
+    ),
+    bob: makeTrader(zone.subZone('bob'), 'stock', issuers, mint('stock', 10n)),
   };
 };
 
 test('escrow swaps USDC for stock', async t => {
-  const { books } = makeScenario(t);
-  const { alice, bob } = startTraders(books);
+  const { zone, books } = makeScenario(t);
+  const { alice, bob } = startTraders(zone, books);
   const { a, b } = books.escrows.makeEscrow(
     books.amount('usdc', 300n),
     books.amount('stock', 3n),
@@ -190,8 +227,8 @@ test('escrow swaps USDC for stock', async t => {
 });
 
 test('a short offer is refused and the escrow stays open', async t => {
-  const { books } = makeScenario(t);
-  const { alice, bob } = startTraders(books);
+  const { zone, books } = makeScenario(t);
+  const { alice, bob } = startTraders(zone, books);
   const { a, b } = books.escrows.makeEscrow(
     books.amount('usdc', 300n),
     books.amount('stock', 3n),
@@ -205,8 +242,8 @@ test('a short offer is refused and the escrow stays open', async t => {
 });
 
 test('cancel refunds what was offered; later offers are refused', async t => {
-  const { books } = makeScenario(t);
-  const { alice, bob } = startTraders(books);
+  const { zone, books } = makeScenario(t);
+  const { alice, bob } = startTraders(zone, books);
   const { a, b } = books.escrows.makeEscrow(
     books.amount('usdc', 300n),
     books.amount('stock', 3n),
@@ -220,8 +257,8 @@ test('cancel refunds what was offered; later offers are refused', async t => {
 });
 
 test('a settled escrow refuses offers and cancels', async t => {
-  const { books } = makeScenario(t);
-  const { alice, bob } = startTraders(books);
+  const { zone, books } = makeScenario(t);
+  const { alice, bob } = startTraders(zone, books);
   const { a, b } = books.escrows.makeEscrow(
     books.amount('usdc', 300n),
     books.amount('stock', 3n),
@@ -233,8 +270,8 @@ test('a settled escrow refuses offers and cancels', async t => {
 });
 
 test('a purse in place of a deposit facet is refused', async t => {
-  const { books } = makeScenario(t);
-  const { alice } = startTraders(books);
+  const { zone, books } = makeScenario(t);
+  const { alice } = startTraders(zone, books);
   const { a } = books.escrows.makeEscrow(
     books.amount('usdc', 300n),
     books.amount('stock', 3n),
@@ -246,22 +283,25 @@ test('a purse in place of a deposit facet is refused', async t => {
   t.is(a.getState(), 'open');
 });
 
-test('an escrow outlives a restart between the two offers', async t => {
-  const { books: one, restart } = makeScenario(t);
-  const { alice } = startTraders(one);
+test('an escrow seat outlives a restart between the two offers', async t => {
+  const { zone, books: one, restart } = makeScenario(t);
+  const { alice } = startTraders(zone, one);
   const { a, b } = one.escrows.makeEscrow(
     one.amount('usdc', 300n),
     one.amount('stock', 3n),
   );
   await alice.trade(a);
+  const kept: MapStore<string, Seat> = zone.mapStore('kept');
+  kept.init('b', b);
   const seatB = one.escrows.describeSeat(b);
-  const alicePayout = one.kits.stock.depositFacetGuids.get(alice.payout);
-  if (!seatB || !alicePayout) throw Error('the books lost the seat or facet');
+  const alicePayout = one.kits.stock.depositFacetGuids.get(alice.getPayout());
+  if (!seatB) throw Error('the books lost the seat');
 
-  const two = restart();
-  const b2 = two.escrows.provideSeat(seatB.escrowGuid, seatB.side);
+  const { zone: zone2, books: two } = restart();
+  const b2: Seat = zone2.mapStore<string, Seat>('kept').get('b');
+  t.is(two.escrows.provideSeat(seatB.escrowGuid, seatB.side), b2);
   t.is(b2.getState(), 'open');
-  const { bob } = startTraders(two);
+  const { bob } = startTraders(zone2, two);
   t.is(await bob.trade(b2), 'settled');
   t.deepEqual(bob.getBalances(), [300n, 7n]);
   const aliceStock = two.kits.stock.accounts.openAccountPurse(alicePayout);

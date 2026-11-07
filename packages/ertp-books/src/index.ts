@@ -9,8 +9,8 @@
 
 import type { SqlDatabase } from './sql-db.js';
 import { gcEmptySql } from './sql/gc_empty.js';
-import { defaultZone, Nat } from './jessie-tools.js';
-import type { Zone } from './jessie-tools.js';
+import type { MapStore, Zone } from '@vattr/toybox/src/types.js';
+import { Nat } from './jessie-tools.js';
 import { makeDeterministicGuid } from './guids.js';
 import type {
   AccountPurse,
@@ -54,7 +54,7 @@ export { makeSettlementFacet } from './settlement.js';
 export type { SettlementFacet, SettlementResult } from './settlement.js';
 export { wrapBetterSqlite3Database } from './sqlite-shim.js';
 export type { SqlDatabase, SqlStatement } from './sql-db.js';
-export type { Zone } from './jessie-tools.js';
+export type { Zone } from '@vattr/toybox/src/types.js';
 export type { SlotRow } from './gnucash-schema.js';
 export { SLOT_TYPE_GUID, SLOT_TYPE_STRING } from './gnucash-schema.js';
 
@@ -89,12 +89,25 @@ export const ensureGnuCashSchema = (
   }
 };
 
+/** A payment's hold: the transaction and split that hold its value until it's deposited or burned. */
+type HoldRecord = {
+  amount: bigint;
+  sourceAccountGuid: Guid;
+  txGuid: Guid;
+  holdingSplitGuid: Guid;
+  checkNumber: string;
+};
+
+/**
+ * The issuer kit of one commodity, its kinds defined in the commodity's own
+ * sub-zone of `zone`.
+ */
 const makeIssuerKitForCommodity = ({
   db,
   commodityGuid,
   makeGuid,
   nowMs,
-  zone,
+  zone: parentZone,
   unsealer, // <<< ADDED
 }: {
   db: SqlDatabase;
@@ -103,31 +116,41 @@ const makeIssuerKitForCommodity = ({
   nowMs: () => number;
   zone: Zone;
   unsealer: Unsealer; // <<< ADDED
-}): IssuerKitForCommodity => {
-  const { exo } = zone;
-  const { freeze } = Object;
+}): IssuerKitForCommodity & Pick<IssuerKitWithPurseGuids, 'purses'> => {
+  const zone = parentZone.subZone(commodityGuid);
   // TODO: consider validation of DB capability and schema.
-  const displayInfo = freeze({ assetKind: 'nat' as const });
-  const amountShape = freeze({});
-  const paymentRecords = new WeakMap<
-    object,
-    {
-      amount: bigint;
-      live: boolean;
-      sourceAccountGuid: Guid;
-      txGuid: Guid;
-      holdingSplitGuid: Guid;
-      checkNumber: string;
-    }
-  >();
-  const livePayments = new Set<object>();
+  const displayInfo = harden({ assetKind: 'nat' as const });
+  const amountShape = harden({});
+  const holds: MapStore<object, HoldRecord> = zone.mapStore('holds');
   const assertAmount = (amount: AmountLike) => {
     if (amount.brand !== brand) {
       throw new Error('amount brand mismatch');
     }
     return Nat(amount.value);
   };
-  const makeAmount = (value: bigint) => freeze({ brand, value: Nat(value) });
+  const makeAmount = (value: bigint) => harden({ brand, value: Nat(value) });
+  const getAllegedName = () => getCommodityAllegedName(db, commodityGuid);
+  const commodityLabel = getAllegedName();
+  const balanceAccountGuid = makeDeterministicGuid(
+    `ertp-books-balance:${commodityGuid}`,
+  );
+  /** Whether `payment`'s hold is still in the holding account, not yet deposited or burned. */
+  const isLive = (payment: object) => {
+    if (!holds.has(payment)) return false;
+    const { holdingSplitGuid } = holds.get(payment);
+    const row = db
+      .prepare<[string, string], { reconcile_state: string }>(
+        'SELECT reconcile_state FROM splits WHERE guid = ? AND account_guid = ?',
+      )
+      .get(holdingSplitGuid, balanceAccountGuid);
+    return row?.reconcile_state === 'n';
+  };
+  const makePaymentObject = zone.exoClass(
+    `${commodityLabel} Payment`,
+    undefined,
+    () => ({}),
+    {},
+  );
   const makePayment = (
     amount: AmountLike,
     sourceAccountGuid: Guid,
@@ -136,36 +159,19 @@ const makeIssuerKitForCommodity = ({
     checkNumber: string,
   ) => {
     const amountValue = assertAmount(amount);
-    const payment = exo(`${commodityLabel} Payment`, {
-      __getAllegedInterface__: () => {
-        // TODO: return ERTP interface metadata once defined.
-        throw new Error('not implemented');
-      },
-      [Symbol.dispose]: () => {
-        const record = paymentRecords.get(payment as object);
-        if (record?.live) {
-          console.warn('ertp-books payment disposed while live', {
-            checkNumber: record.checkNumber,
-          });
-        }
-      },
-    });
-    paymentRecords.set(payment, {
-      amount: amountValue,
-      live: true,
-      sourceAccountGuid,
-      txGuid,
-      holdingSplitGuid,
-      checkNumber,
-    });
-    livePayments.add(payment as object);
+    const payment = makePaymentObject();
+    holds.init(
+      payment,
+      harden({
+        amount: amountValue,
+        sourceAccountGuid,
+        txGuid,
+        holdingSplitGuid,
+        checkNumber,
+      }),
+    );
     return payment;
   };
-  const getAllegedName = () => getCommodityAllegedName(db, commodityGuid);
-  const commodityLabel = getAllegedName();
-  const balanceAccountGuid = makeDeterministicGuid(
-    `ertp-books-balance:${commodityGuid}`,
-  );
   ensureAccountRow({
     db,
     accountGuid: balanceAccountGuid,
@@ -181,31 +187,31 @@ const makeIssuerKitForCommodity = ({
     makeGuid,
     nowMs,
   });
-  const {
-    ensurePurse,
-    makeNewPurse,
-    openPurse,
-    purseGuids,
-    depositFacetGuids,
-  } = makePurseFactory({
-    db,
-    commodityGuid,
-    commodityLabel,
-    makeAmount,
-    makePayment,
-    livePayments,
-    paymentRecords,
-    transferRecorder,
-    getBrand: () => brand,
-    zone,
-  });
-  const brand = exo(`${commodityLabel} Brand`, {
+  const consumePayment = (payment: object, toAccountGuid: Guid) => {
+    if (!isLive(payment)) throw new Error('payment not live');
+    const { amount, txGuid, holdingSplitGuid } = holds.get(payment);
+    transferRecorder.finalizeHold({ txGuid, holdingSplitGuid, toAccountGuid });
+    return amount;
+  };
+  const { makeNewPurse, openPurse, purseGuids, depositFacetGuids } =
+    makePurseFactory({
+      zone,
+      db,
+      commodityGuid,
+      commodityLabel,
+      makeAmount,
+      makePayment,
+      consumePayment,
+      transferRecorder,
+      getBrand: () => brand,
+    });
+  const brand = zone.exo(`${commodityLabel} Brand`, undefined, {
     isMyIssuer: async (allegedIssuer: object) => allegedIssuer === issuer,
     getAllegedName: () => getAllegedName(),
     getDisplayInfo: () => displayInfo,
     getAmountShape: () => amountShape,
   });
-  const issuer = exo(`${commodityLabel} Issuer`, {
+  const issuer = zone.exo(`${commodityLabel} Issuer`, undefined, {
     getBrand: () => brand,
     getAllegedName: () => getAllegedName(),
     getAssetKind: () => 'nat' as const,
@@ -214,22 +220,11 @@ const makeIssuerKitForCommodity = ({
       const accountGuid = makeGuid();
       return makeNewPurse(accountGuid, accountGuid);
     },
-    isLive: async (payment: object) =>
-      paymentRecords.get(payment)?.live ?? false,
+    isLive: async (payment: object) => isLive(payment),
     getAmountOf: async (payment: object) =>
-      makeAmount(paymentRecords.get(payment)?.amount ?? 0n),
-    burn: async (payment: object) => {
-      const record = paymentRecords.get(payment);
-      if (!record?.live) throw new Error('payment not live');
-      record.live = false;
-      livePayments.delete(payment as object);
-      transferRecorder.finalizeHold({
-        txGuid: record.txGuid,
-        holdingSplitGuid: record.holdingSplitGuid,
-        toAccountGuid: balanceAccountGuid,
-      });
-      return makeAmount(record.amount);
-    },
+      makeAmount(isLive(payment) ? holds.get(payment).amount : 0n),
+    burn: async (payment: object) =>
+      makeAmount(consumePayment(payment, balanceAccountGuid)),
   });
   const mintRecoveryGuid = makeDeterministicGuid(
     `ertp-books:recovery:${commodityGuid}`,
@@ -241,7 +236,7 @@ const makeIssuerKitForCommodity = ({
     commodityGuid,
     accountType: 'STOCK',
   });
-  const mint = exo(`${commodityLabel} Mint`, {
+  const mint = zone.exo(`${commodityLabel} Mint`, undefined, {
     getIssuer: () => issuer,
     mintPayment: (amount: AmountLike) => {
       const amountValue = assertAmount(amount);
@@ -259,28 +254,25 @@ const makeIssuerKitForCommodity = ({
       );
     },
   });
-  const mintRecoveryPurse = openPurse(
-    mintRecoveryGuid,
-    `${commodityLabel} Mint Recovery`,
-  );
-  const kit = freeze({
+  const mintRecoveryPurse = openPurse(mintRecoveryGuid);
+  const kit = harden({
     brand,
     issuer,
     mint,
     mintRecoveryPurse,
     displayInfo,
   }) as unknown as NatIssuerKit;
-  const mintInfo = exo('MintInfoAccess', {
-    getMintInfo: () => ({
-      holdingAccountGuid: balanceAccountGuid,
-      recoveryPurseGuid: mintRecoveryGuid,
-    }),
+  const mintInfo = zone.exo(`${commodityLabel} MintInfoAccess`, undefined, {
+    getMintInfo: () =>
+      harden({
+        holdingAccountGuid: balanceAccountGuid,
+        recoveryPurseGuid: mintRecoveryGuid,
+      }),
   });
-  const payments = exo('PaymentAccess', {
-    getCheckNumber: (payment: unknown) => {
-      const record = paymentRecords.get(payment as object);
-      if (!record) throw new Error('unknown payment');
-      return record.checkNumber;
+  const payments = zone.exo(`${commodityLabel} PaymentAccess`, undefined, {
+    getCheckNumber: (payment: object) => {
+      if (!holds.has(payment)) throw new Error('unknown payment');
+      return holds.get(payment).checkNumber;
     },
     openPayment: (checkNumber: string) => {
       const rows = db
@@ -341,7 +333,7 @@ const makeIssuerKitForCommodity = ({
       );
     },
   });
-  const accounts = exo('AccountAccess', {
+  const accounts = zone.exo(`${commodityLabel} AccountAccess`, undefined, {
     makeAccountPurse: (accountGuid: Guid) => {
       if (accountGuid === balanceAccountGuid) {
         throw new Error('holding account is not externally accessible');
@@ -352,14 +344,27 @@ const makeIssuerKitForCommodity = ({
       if (accountGuid === balanceAccountGuid) {
         throw new Error('holding account is not externally accessible');
       }
-      return openPurse(accountGuid, accountGuid);
+      return openPurse(accountGuid);
     },
   });
-  return freeze({
+  // only createIssuerKit hands it out, but every incarnation defines it
+  const purses = zone.exo(`${commodityLabel} PurseGuids`, undefined, {
+    getGuid: (purse: object) => {
+      if (!purseGuids.has(purse)) throw new Error('unknown purse');
+      return purseGuids.get(purse);
+    },
+    getGuidFromSealed: (sealedPurse: unknown) => {
+      const purse = unsealer.unseal(sealedPurse);
+      if (!purseGuids.has(purse)) throw new Error('unknown sealed purse');
+      return purseGuids.get(purse);
+    },
+  });
+  return harden({
     kit,
     accounts,
-    purseGuids,
-    depositFacetGuids,
+    purseGuids: purseGuids.readOnly(),
+    depositFacetGuids: depositFacetGuids.readOnly(),
+    purses,
     payments,
     mintInfo,
   });
@@ -386,12 +391,12 @@ export const createIssuerKit = (
   config: CreateIssuerConfig,
 ): IssuerKitWithPurseGuids => {
   const { db, commodity, makeGuid, nowMs } = config;
-  const zone = config.zone ?? defaultZone;
+  const { zone } = config;
   // TODO: consider validation of DB capability and schema.
   const commodityGuid = makeGuid();
   createCommodityRow({ db, guid: commodityGuid, commodity });
   const { sealer, unsealer } = makeSealerUnsealerPair();
-  const { kit, purseGuids, payments, mintInfo } = makeIssuerKitForCommodity({
+  const { kit, purses, payments, mintInfo } = makeIssuerKitForCommodity({
     db,
     commodityGuid,
     makeGuid,
@@ -399,20 +404,7 @@ export const createIssuerKit = (
     zone,
     unsealer, // <<< ADDED
   });
-  const purses = zone.exo('PurseGuids', {
-    getGuid: (purse: unknown) => {
-      const guid = purseGuids.get(purse as AccountPurse);
-      if (!guid) throw new Error('unknown purse');
-      return guid;
-    },
-    getGuidFromSealed: (sealedPurse: unknown) => {
-      const purse = unsealer.unseal(sealedPurse) as AccountPurse;
-      const guid = purseGuids.get(purse);
-      if (!guid) throw new Error('unknown sealed purse');
-      return guid;
-    },
-  });
-  return Object.freeze({
+  return harden({
     ...kit,
     commodityGuid,
     purses,
@@ -434,13 +426,12 @@ export const createIssuerKit = (
 export const openIssuerKit = (
   config: OpenIssuerConfig,
 ): IssuerKitForCommodity => {
-  const { db, commodityGuid, makeGuid, nowMs } = config;
-  const zone = config.zone ?? defaultZone;
+  const { db, commodityGuid, makeGuid, nowMs, zone } = config;
   // TODO: consider validation of DB capability and schema.
   // TODO: verify commodity record matches expected issuer/brand metadata.
   // TODO: add a commodity-vs-currency option (namespace, fraction defaults, and naming rules).
   const { unsealer } = makeSealerUnsealerPair();
-  return makeIssuerKitForCommodity({
+  const { purses: _purses, ...opened } = makeIssuerKitForCommodity({
     db,
     commodityGuid,
     makeGuid,
@@ -448,4 +439,5 @@ export const openIssuerKit = (
     zone,
     unsealer,
   });
+  return harden(opened);
 };

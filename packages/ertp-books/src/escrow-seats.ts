@@ -3,11 +3,9 @@
  * @see {@link makeEscrows}
  */
 import type { Brand, DepositFacet, NatAmount, Payment } from './ertp-types.js';
-import type { Zone } from './jessie-tools.js';
+import type { MapStore, Zone } from '@vattr/toybox/src/types.js';
 import type { SqlDatabase } from './sql-db.js';
 import type { AccountPurse, Guid, IssuerKitForCommodity } from './types.js';
-
-const { freeze } = Object;
 
 export type Side = 'a' | 'b';
 const other = (side: Side): Side => (side === 'a' ? 'b' : 'a');
@@ -66,7 +64,7 @@ const ensureEscrowTable = (db: SqlDatabase) =>
  * `await` is synchronous, so in a Durable Object its writes commit
  * together.
  *
- * @param zone - makes the seats
+ * @param zone - the escrows' own zone, which keeps the seats
  * @param commodityOfBrand - which of the ledger's commodities a brand
  *   is; throws for a foreign brand
  * @param issuerOf - the issuer and brand of a commodity; no mint
@@ -110,8 +108,10 @@ export const makeEscrows = ({
 }) => {
   ensureEscrowTable(db);
 
-  const seats = new Map<string, EscrowSeat>();
-  const seatIds = new WeakMap<object, { escrowGuid: Guid; side: Side }>();
+  /** by `${escrowGuid}:${side}` */
+  const seats: MapStore<string, EscrowSeat> = zone.mapStore('seats');
+  const seatIds: MapStore<object, { escrowGuid: Guid; side: Side }> =
+    zone.mapStore('seatIds');
 
   const getState = (escrowGuid: Guid) => {
     const row = db
@@ -137,7 +137,7 @@ export const makeEscrows = ({
   };
 
   const amountOf = ({ commodity, value }: SideRow): NatAmount =>
-    freeze({ brand: issuerOf(commodity).brand, value: BigInt(value) });
+    harden({ brand: issuerOf(commodity).brand, value: BigInt(value) });
 
   const setState = (escrowGuid: Guid, state: EscrowState) =>
     db
@@ -164,19 +164,22 @@ export const makeEscrows = ({
     setState(escrowGuid, 'settled');
   };
 
-  const provideSeat = (escrowGuid: Guid, side: Side): EscrowSeat => {
-    const key = `${escrowGuid}:${side}`;
-    const existing = seats.get(key);
-    if (existing) return existing;
-    getState(escrowGuid); // throws for an unknown escrow
-    const seat = zone.exo('EscrowSeat', {
-      getState: () => getState(escrowGuid),
+  const makeSeat = zone.exoClass(
+    'EscrowSeat',
+    undefined,
+    (escrowGuid: Guid, side: Side) => ({ escrowGuid, side }),
+    {
+      getState(): EscrowState {
+        return getState(this.state.escrowGuid);
+      },
       /** @returns what this side gives and what it wants */
-      getTerms: () =>
-        freeze({
+      getTerms(): { give: NatAmount; want: NatAmount } {
+        const { escrowGuid, side } = this.state;
+        return harden({
           give: amountOf(getSide(escrowGuid, side)),
           want: amountOf(getSide(escrowGuid, other(side))),
-        }),
+        });
+      },
       /**
        * @param payment - exactly what this side gives
        * @param refund - deposit facet for the given commodity
@@ -185,11 +188,12 @@ export const makeEscrows = ({
        * A remote caller can pass anything, whatever these types say, so
        * the deposit facets and the payment are checked at run time.
        */
-      offer: async (
+      async offer(
         payment: Payment<'nat'>,
         refund: DepositFacet<'nat'>,
         payout: DepositFacet<'nat'>,
-      ) => {
+      ): Promise<EscrowState> {
+        const { escrowGuid, side } = this.state;
         assertOpen(escrowGuid);
         const mine = getSide(escrowGuid, side);
         const theirs = getSide(escrowGuid, other(side));
@@ -212,7 +216,8 @@ export const makeEscrows = ({
         return getState(escrowGuid);
       },
       /** refund whatever was offered; only while the escrow is open */
-      cancel: () => {
+      cancel(): 'cancelled' {
+        const { escrowGuid } = this.state;
         assertOpen(escrowGuid);
         for (const s of ['a', 'b'] as const) {
           const row = getSide(escrowGuid, s);
@@ -221,9 +226,17 @@ export const makeEscrows = ({
         setState(escrowGuid, 'cancelled');
         return 'cancelled';
       },
-    });
-    seats.set(key, seat);
-    seatIds.set(seat, { escrowGuid, side });
+    },
+  );
+
+  /** The seat for `side` of escrow `escrowGuid`: the same one each time. */
+  const provideSeat = (escrowGuid: Guid, side: Side): EscrowSeat => {
+    const key = `${escrowGuid}:${side}`;
+    if (seats.has(key)) return seats.get(key);
+    getState(escrowGuid); // throws for an unknown escrow
+    const seat = makeSeat(escrowGuid, side);
+    seats.init(key, seat);
+    seatIds.init(seat, harden({ escrowGuid, side }));
     return seat;
   };
 
@@ -263,7 +276,7 @@ export const makeEscrows = ({
       row.b_value,
       row.b_holding,
     );
-    return freeze({
+    return harden({
       a: provideSeat(escrowGuid, 'a'),
       b: provideSeat(escrowGuid, 'b'),
     });
@@ -275,10 +288,10 @@ export const makeEscrows = ({
    *   the commodity it gives; `undefined` if `obj` is not a seat
    */
   const describeSeat = (obj: object) => {
+    if (!seatIds.has(obj)) return undefined;
     const id = seatIds.get(obj);
-    if (!id) return undefined;
     const { commodity } = getSide(id.escrowGuid, id.side);
-    return freeze({ ...id, commodityGuid: commodity });
+    return harden({ ...id, commodityGuid: commodity });
   };
 
   return { makeEscrow, provideSeat, describeSeat };
