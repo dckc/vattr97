@@ -175,7 +175,7 @@ test('a vat that calls its syscall directly reaches only what it holds', async (
   assert.equal(await E(counter).read(), 1);
 });
 
-test('payments move between vats into a purse; spent and counterfeit ones are refused; balances survive restarts', async () => {
+test('payments move between vats through a deposit facet, which cannot withdraw; spent and counterfeit ones are refused; balances survive restarts', async () => {
   const { adminNode: mintAdmin, root: mintRoot } = await k.createVat(
     await kvat('rights-transfer/mint.js'),
   );
@@ -186,7 +186,10 @@ test('payments move between vats into a purse; spent and counterfeit ones are re
   const issuer = await E(mintRoot).getIssuer();
   const mint = await E(mintRoot).getMint();
   const bobPurse = await E(issuer).makeEmptyPurse();
-  await E(alice).setPayee(bobPurse);
+  const bobDeposit = await E(bobPurse).getDepositFacet();
+  assert.equal(await E(bobPurse).getDepositFacet(), bobDeposit);
+  await assert.rejects(E(bobDeposit).withdraw(1), /withdraw/);
+  await E(alice).setPayee(bobDeposit);
 
   const ten = await E(mint).mintPayment(10);
   assert.equal(await E(alice).pay(ten), 10);
@@ -254,7 +257,7 @@ test("after the whole toybox crashes, vats' references to each other still work"
     );
     const { root: holder } = await client.createVat(await kvat('holder.js'));
     const purse = await E(await E(mintRoot).getIssuer()).makeEmptyPurse();
-    await E(alice).setPayee(purse);
+    await E(alice).setPayee(await E(purse).getDepositFacet());
     await E(holder).keep('purse', purse);
     await E(holder).keep('mint', await E(mintRoot).getMint());
     client.close();

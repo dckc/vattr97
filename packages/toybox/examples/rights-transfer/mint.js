@@ -1,6 +1,7 @@
 /**
  * One issuer kit, after ERTP with natural-number amounts: a mint, an
- * issuer, purses, and single-use payments, all durable. A payment is live
+ * issuer, purses, each with a deposit facet that can only receive, and
+ * single-use payments, all durable. A payment is live
  * while the ledger holds it; depositing it takes it out. Each kind's
  * interface guard checks what its methods take; the methods check amounts.
  */
@@ -27,33 +28,50 @@ export const buildRootObject = ({ Far, M, zone }) => {
     ledger.init(payment, value);
     return payment;
   };
-  const makePurse = zone.exoClass(
+  const makePurse = zone.exoClassKit(
     'Purse',
-    M.interface('Purse', {
-      getBalance: M.call().returns(M.number()),
-      deposit: M.call(Payment).returns(M.number()),
-      withdraw: M.call(M.number()).returns(Payment),
-    }),
+    {
+      purse: M.interface('Purse', {
+        getBalance: M.call().returns(M.number()),
+        deposit: M.call(Payment).returns(M.number()),
+        withdraw: M.call(M.number()).returns(Payment),
+        getDepositFacet: M.call().returns(M.remotable('DepositFacet')),
+      }),
+      depositFacet: M.interface('DepositFacet', {
+        receive: M.call(Payment).returns(M.number()),
+      }),
+    },
     () => ({ balance: 0 }),
     {
-      getBalance() {
-        return this.state.balance;
+      purse: {
+        getBalance() {
+          return this.state.balance;
+        },
+        /** @param {object} payment */
+        deposit(payment) {
+          if (!ledger.has(payment))
+            throw Error('not a live payment of this mint');
+          const value = ledger.get(payment);
+          ledger.delete(payment);
+          this.state.balance += value;
+          return value;
+        },
+        /** @param {number} value */
+        withdraw(value) {
+          if (!isAmount(value) || value > this.state.balance)
+            throw Error('insufficient funds');
+          this.state.balance -= value;
+          return pay(value);
+        },
+        getDepositFacet() {
+          return this.facets.depositFacet;
+        },
       },
-      /** @param {object} payment */
-      deposit(payment) {
-        if (!ledger.has(payment))
-          throw Error('not a live payment of this mint');
-        const value = ledger.get(payment);
-        ledger.delete(payment);
-        this.state.balance += value;
-        return value;
-      },
-      /** @param {number} value */
-      withdraw(value) {
-        if (!isAmount(value) || value > this.state.balance)
-          throw Error('insufficient funds');
-        this.state.balance -= value;
-        return pay(value);
+      depositFacet: {
+        /** @param {object} payment */
+        receive(payment) {
+          return this.facets.purse.deposit(payment);
+        },
       },
     },
   );
@@ -66,7 +84,7 @@ export const buildRootObject = ({ Far, M, zone }) => {
     }),
     () => ({}),
     {
-      makeEmptyPurse: () => makePurse(),
+      makeEmptyPurse: () => makePurse().purse,
       /** @param {object} payment */
       isLive: payment => ledger.has(payment),
     },
