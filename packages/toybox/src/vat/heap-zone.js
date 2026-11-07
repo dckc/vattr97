@@ -5,6 +5,7 @@
  */
 import { defineExoClass, defineExoClassKit } from '@endo/exo';
 import { Far } from '@endo/pass-style';
+import { withSubZones } from './sub-zones.js';
 
 /** @import { Key, MapStore, Methods, State, Zone } from '../types.js' */
 
@@ -82,12 +83,13 @@ export const makeHeapZone = () => {
   };
 
   /**
+   * @param {string} _key
    * @param {string} tag
    * @param {unknown} interfaceGuard
    * @param {(...args: any[]) => State} init
    * @param {Methods} methods
    */
-  const exoClass = (tag, interfaceGuard, init, methods) =>
+  const exoClass = (_key, tag, interfaceGuard, init, methods) =>
     defineExoClass(
       tag,
       /** @type {any} a guard is any of M.interface's */ (interfaceGuard),
@@ -95,45 +97,44 @@ export const makeHeapZone = () => {
       methods,
     );
 
-  // The makers are typed as generally as any kind's; Zone (types.ts) types
-  // each in terms of the kind it makes.
-  return /** @type {Zone} */ (
-    /** @type {unknown} */ (
-      harden({
-        exoClass,
-        /**
-         * @param {string} tag
-         * @param {unknown} interfaceGuard
-         * @param {Methods} methods
-         */
-        exo: (tag, interfaceGuard, methods) =>
-          makeOnce(`exo.${tag}`, () =>
-            exoClass(tag, interfaceGuard, () => ({}), methods)(),
+  return withSubZones(
+    harden({
+      exoClass,
+      /**
+       * @param {string} key
+       * @param {string} tag
+       * @param {unknown} interfaceGuard
+       * @param {Methods} methods
+       */
+      exo: (key, tag, interfaceGuard, methods) =>
+        makeOnce(`exo.${key}`, () =>
+          exoClass(key, tag, interfaceGuard, () => ({}), methods)(),
+        ),
+      /**
+       * @param {string} _key
+       * @param {string} tag
+       * @param {Record<string, unknown> | undefined} interfaceGuards
+       * @param {(...args: any[]) => State} init
+       * @param {Record<string, Methods>} facets
+       */
+      exoClassKit: (_key, tag, interfaceGuards, init, facets) =>
+        defineExoClassKit(
+          tag,
+          /** @type {any} guards, as above */ (interfaceGuards),
+          init,
+          /** @type {any} @endo/exo types a kit's methods by its context, which these can't name */ (
+            facets
           ),
-        /**
-         * @param {string} tag
-         * @param {Record<string, unknown> | undefined} interfaceGuards
-         * @param {(...args: any[]) => State} init
-         * @param {Record<string, Methods>} facets
-         */
-        exoClassKit: (tag, interfaceGuards, init, facets) =>
-          defineExoClassKit(
-            tag,
-            /** @type {any} guards, as above */ (interfaceGuards),
-            init,
-            /** @type {any} @endo/exo types a kit's methods by its context, which these can't name */ (
-              facets
-            ),
-          ),
-        makeOnce,
-        /** @param {string} name */
-        mapStore: name => makeOnce(`store.${name}`, () => makeStore(name)),
-        detached: () =>
-          harden({
-            /** @param {string} label */
-            mapStore: label => makeStore(label),
-          }),
-      })
-    )
+        ),
+      makeOnce,
+      /** @param {string} key @param {string} name */
+      mapStore: (key, name) => makeOnce(`store.${key}`, () => makeStore(name)),
+      /** @type {Zone['detached']} */
+      detached: () =>
+        harden({
+          /** @param {string} label */
+          mapStore: label => makeStore(label),
+        }),
+    }),
   );
 };

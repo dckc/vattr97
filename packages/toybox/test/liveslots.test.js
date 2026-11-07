@@ -129,3 +129,27 @@ test(
     assert.deepEqual(a.keys(), []);
   },
 );
+
+test("a sub-zone's kind keeps its methods after a restart, though a sibling's has the same tag", () => {
+  const kv = makeKv();
+  /** Mia's and Lena's purses, each in her own sub-zone. @param {Zone} zone */
+  const define = zone =>
+    ['Lena', 'Mia'].map(name => {
+      const sub = zone.subZone(name);
+      const makePurse = sub.exoClass('Purse', undefined, () => ({}), {
+        owner: () => name,
+      });
+      return { purses: sub.mapStore('purses'), makePurse };
+    });
+  {
+    const [lena, mia] = define(zoneOn(kv).zone);
+    mia.purses.init('one', mia.makePurse());
+    lena.purses.init('one', lena.makePurse());
+  }
+  const [lena, mia] = define(zoneOn(kv).zone);
+  assert.deepEqual(
+    [mia.purses.get('one').owner(), lena.purses.get('one').owner()],
+    ['Mia', 'Lena'],
+  );
+  assert.equal(kv.get('kind.Mia/Purse') !== undefined, true);
+});

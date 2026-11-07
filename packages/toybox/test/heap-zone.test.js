@@ -70,6 +70,42 @@ test("a heap zone's kinds keep state, and an async method answers through the de
 });
 
 for (const [name, makeZone] of Object.entries(zones)) {
+  test(`in a ${name} zone, sub-zones keep their names apart`, () => {
+    const zone = makeZone();
+    const mia = zone.subZone('Mia');
+    const lena = zone.subZone('Lena');
+    assert.equal(
+      mia.makeOnce('x', () => 'hers'),
+      'hers',
+    );
+    assert.equal(
+      lena.makeOnce('x', () => 'Lena'),
+      'Lena',
+    );
+    assert.equal(
+      zone.subZone('Mia').makeOnce('x', () => 'again'),
+      'hers',
+    );
+    const stores = [
+      zone.mapStore('s'),
+      mia.mapStore('s'),
+      lena.mapStore('s'),
+      mia.subZone('Lena').mapStore('s'),
+    ];
+    assert.equal(new Set(stores).size, 4);
+    assert.equal(zone.subZone('Mia').mapStore('s'), stores[1]);
+    const who = (/** @type {Zone} */ z, /** @type {string} */ me) =>
+      z.exo('Who', undefined, { who: () => me }).who();
+    assert.deepEqual([who(mia, 'Mia'), who(lena, 'Lena')], ['Mia', 'Lena']);
+    assert.equal(
+      String(mia.exo('Who', undefined, {})),
+      '[object Alleged: Who]',
+      "a kind's objects show its tag, not the sub-zone's path",
+    );
+    assert.throws(() => zone.subZone('Mia/x'), /without '\/'/);
+    assert.throws(() => zone.subZone(''), /non-empty/);
+  });
+
   test(`in a ${name} zone, a kind given no guard takes and answers only passables`, () => {
     const zone = makeZone();
     const echo = zone.exo('Echo', undefined, {

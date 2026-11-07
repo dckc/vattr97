@@ -3,6 +3,7 @@ import { HandledPromise } from '@endo/eventual-send';
 import { makeMarshal } from '@endo/marshal';
 import { defineExoClass, defineExoClassKit } from '@endo/exo';
 import { Remotable, passStyleOf } from '@endo/pass-style';
+import { withSubZones } from './sub-zones.js';
 
 /**
  * @import { MakeMarshalOptions } from '@endo/marshal';
@@ -457,14 +458,15 @@ const makeZone = ({
    * The zone's types (types.ts) say what each maker answers, in terms of
    * the kind's own methods; here they're as general as any kind's.
    *
-   * @param {string} tag
+   * @param {string} key what the kind is stored by
+   * @param {string} tag what its objects are alleged to be
    * @param {Record<string, unknown> | undefined} interfaceGuards one per facet, checked by @endo/exo
    * @param {(...args: any[]) => State} init
    * @param {Record<string, Methods>} facets
    */
-  const exoClassKit = (tag, interfaceGuards, init, facets) => {
-    if (!keys(facets).length) throw Error(`kit ${tag} has no facets`);
-    const kindId = defineKind(tag, keys(facets), () => ({
+  const exoClassKit = (key, tag, interfaceGuards, init, facets) => {
+    if (!keys(facets).length) throw Error(`kit ${key} has no facets`);
+    const kindId = defineKind(key, keys(facets), () => ({
       kit: true,
       facets: keys(facets),
       make: defineExoClassKit(
@@ -491,13 +493,14 @@ const makeZone = ({
    * A durable kind of one facet: `init(...args)` makes the state; each
    * method sees it as `this.state`, and its object as `this.self`.
    *
-   * @param {string} tag
+   * @param {string} key what the kind is stored by
+   * @param {string} tag what its objects are alleged to be
    * @param {unknown} interfaceGuard checked by @endo/exo
    * @param {(...args: any[]) => State} init
    * @param {Methods} methods
    */
-  const exoClass = (tag, interfaceGuard, init, methods) => {
-    const kindId = defineKind(tag, undefined, () =>
+  const exoClass = (key, tag, interfaceGuard, init, methods) => {
+    const kindId = defineKind(key, undefined, () =>
       single(tag, interfaceGuard, methods),
     );
     return (/** @type {any[]} */ ...args) =>
@@ -520,51 +523,50 @@ const makeZone = ({
     return value;
   };
 
-  // The makers above are typed as generally as any kind; Zone (types.ts)
-  // types each in terms of the kind it makes.
-  return /** @type {Zone} */ (
-    /** @type {unknown} */ (
-      harden({
-        exoClassKit,
-        exoClass,
-        /**
-         * One durable object, as `@agoric/zone`'s `exo`: the same one in every
-         * incarnation.
-         *
-         * @param {string} tag
-         * @param {unknown} interfaceGuard
-         * @param {Methods} methods
-         */
-        exo: (tag, interfaceGuard, methods) => {
-          const make = exoClass(tag, interfaceGuard, () => ({}), methods);
-          return makeOnce(`exo.${tag}`, make);
-        },
-        makeOnce,
-        /**
-         * A durable map store, by name: the same name in a later incarnation is
-         * the same store. A store is a remotable, so it can be passed, kept in
-         * durable state, or used as a key; its `readOnly()` facet has the
-         * queries alone.
-         *
-         * @param {string} name
-         */
-        mapStore: name => {
-          if (name.startsWith('#'))
-            throw TypeError("a store name must not start with '#'");
-          const known = kv.get(`storeName.${name}`);
-          if (known !== undefined)
-            return slotToVal(/** @type {Vref} as storeSlot answered */ (known));
-          const store = makeStore(name, name);
-          kv.put(`storeName.${name}`, storeSlot(store));
-          return store;
-        },
-        /** Stores that no name finds again, as `@agoric/zone`'s `detached()`: each `mapStore(label)` is a new one. */
-        detached: () =>
-          harden({
-            /** @param {string} label */
-            mapStore: label => makeStore(`#${nextIn(kv, 'store.next')}`, label),
-          }),
-      })
-    )
+  return withSubZones(
+    harden({
+      exoClassKit,
+      exoClass,
+      /**
+       * One durable object, as `@agoric/zone`'s `exo`: the same one in every
+       * incarnation.
+       *
+       * @param {string} key
+       * @param {string} tag
+       * @param {unknown} interfaceGuard
+       * @param {Methods} methods
+       */
+      exo: (key, tag, interfaceGuard, methods) => {
+        const make = exoClass(key, tag, interfaceGuard, () => ({}), methods);
+        return makeOnce(`exo.${key}`, make);
+      },
+      makeOnce,
+      /**
+       * A durable map store, by name: the same name in a later incarnation is
+       * the same store. A store is a remotable, so it can be passed, kept in
+       * durable state, or used as a key; its `readOnly()` facet has the
+       * queries alone.
+       *
+       * @param {string} key what it's stored by
+       * @param {string} name what errors call it
+       */
+      mapStore: (key, name) => {
+        if (key.startsWith('#'))
+          throw TypeError("a store name must not start with '#'");
+        const known = kv.get(`storeName.${key}`);
+        if (known !== undefined)
+          return slotToVal(/** @type {Vref} as storeSlot answered */ (known));
+        const store = makeStore(key, name);
+        kv.put(`storeName.${key}`, storeSlot(store));
+        return store;
+      },
+      /** Stores that no name finds again, as `@agoric/zone`'s `detached()`: each `mapStore(label)` is a new one. */
+      /** @type {Zone['detached']} */
+      detached: () =>
+        harden({
+          /** @param {string} label */
+          mapStore: label => makeStore(`#${nextIn(kv, 'store.next')}`, label),
+        }),
+    }),
   );
 };

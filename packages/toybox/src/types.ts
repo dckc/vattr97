@@ -165,6 +165,12 @@ export interface Zone {
   mapStore<K extends Key, V>(name: string): MapStore<K, V>;
   /** Stores without names, to keep or hand out as you like. */
   detached(): { mapStore<K extends Key, V>(label: string): MapStore<K, V> };
+  /**
+   * A zone within this one, for code that should keep to its own names:
+   * its keys, store names, and kind tags can't reach this zone's, or
+   * another sub-zone's. The same label after a restart is the same zone.
+   */
+  subZone(label: string): Zone;
 }
 
 /**
