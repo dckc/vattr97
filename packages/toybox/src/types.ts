@@ -7,6 +7,7 @@
  * @see ../CONTRIBUTING.md#conventions for how toybox's JavaScript is typed and checked
  */
 import type { E as EType, Far as FarType } from '@endo/far';
+import type { DataOnly, RemotableBrand } from '@endo/eventual-send';
 import type { InterfaceGuard, M as MType } from '@endo/patterns';
 
 /**
@@ -227,12 +228,16 @@ export type Powers = {
 };
 
 /**
- * A reference to an object elsewhere: another module's, or one of toybox's
- * own, such as a network device. E() reaches its methods, whose types this
- * module can't name. (Its interface guard, where it lives, is what checks
- * the calls.)
+ * A reference to a `Primary`, which may be elsewhere: another module's, or
+ * one of toybox's own, such as a network device. `E(remote)` reaches its
+ * methods, as `Primary` types them; its interface guard, where it lives,
+ * is what checks the calls. A plain `Remote` is a reference whose type
+ * isn't known: `any`.
+ *
+ * @see https://github.com/Agoric/agoric-sdk/blob/master/packages/internal/src/types.ts `@agoric/internal`'s `Remote`, which this follows
  */
-export type Remote = any;
+export type Remote<Primary = any, Local = DataOnly<Primary>> =
+  Primary | RemotableBrand<Local, Primary>;
 
 /** A module's own SQLite database, its statements run synchronously. */
 export type SqlDatabase = {
