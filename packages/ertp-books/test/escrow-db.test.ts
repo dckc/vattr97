@@ -38,14 +38,18 @@ import { mockMakeGuid } from '../src/guids.js';
 import { makeTestClock } from './mock-io.js';
 import { ertpOnly, withAmountUtils } from './ertp-tools.js';
 import { makeErtpEscrow } from '../src/escrow-ertp.js';
+import { makeHeapZone } from '@vattr/toybox/src/vat/heap-zone.js';
+import type { Zone } from '@vattr/toybox/src/types.js';
 
 const makeKit = ({
   db,
   mnemonic,
   makeGuid,
   nowMs,
+  zone,
 }: {
   db: ReturnType<typeof wrapBetterSqlite3Database>;
+  zone: Zone;
   mnemonic: string;
   makeGuid: ReturnType<typeof mockMakeGuid>;
   nowMs: ReturnType<typeof makeTestClock>;
@@ -57,6 +61,7 @@ const makeKit = ({
         commodity: { namespace: 'COMMODITY', mnemonic },
         makeGuid,
         nowMs,
+        zone,
       }),
     ),
   );
@@ -288,9 +293,10 @@ test('escrow for services rendered (mutual consent receipt)', async t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const nowMs = makeTestClock();
-  const money = makeKit({ db, mnemonic: 'BUCKS', makeGuid, nowMs });
-  const stock = makeKit({ db, mnemonic: 'SHARES', makeGuid, nowMs });
+  const money = makeKit({ db, mnemonic: 'BUCKS', makeGuid, nowMs, zone });
+  const stock = makeKit({ db, mnemonic: 'SHARES', makeGuid, nowMs, zone });
   const issues = Promise.withResolvers<{
     escrow: ReturnType<typeof makeErtpEscrow<'nat', 'nat'>>;
     mailbox: EscrowMailbox;
@@ -363,11 +369,12 @@ test('escrow swaps two purses with a single holding account', async t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const nowMs = makeTestClock();
-  const money = makeKit({ db, mnemonic: 'BUCKS', makeGuid, nowMs });
+  const money = makeKit({ db, mnemonic: 'BUCKS', makeGuid, nowMs, zone });
   const { $ } = money;
 
-  const stock = makeKit({ db, mnemonic: 'SHARES', makeGuid, nowMs });
+  const stock = makeKit({ db, mnemonic: 'SHARES', makeGuid, nowMs, zone });
 
   const escrow = makeErtpEscrow({
     issuers: {

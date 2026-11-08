@@ -1,5 +1,4 @@
-import { Nat } from './jessie-tools.js';
-import type { Zone } from './jessie-tools.js';
+import type { MapStore, Zone } from '@vattr/toybox/src/types.js';
 import {
   createAccountRow,
   ensureAccountRow,
@@ -7,10 +6,13 @@ import {
   makeTransferRecorder,
   requireAccountCommodity,
 } from './db-helpers.js';
+import { Nat } from './jessie-tools.js';
 import type { AccountPurse, AmountLike, Guid } from './types.js';
 import type { SqlDatabase } from './sql-db.js';
 
 type PurseFactoryOptions = {
+  /** the commodity's own zone */
+  zone: Zone;
   db: SqlDatabase;
   commodityGuid: Guid;
   commodityLabel: string;
@@ -22,103 +24,105 @@ type PurseFactoryOptions = {
     holdingSplitGuid: Guid,
     checkNumber: string,
   ) => object;
-  livePayments: Set<object>;
-  zone: Zone;
-  paymentRecords: WeakMap<
-    object,
-    {
-      amount: bigint;
-      live: boolean;
-      sourceAccountGuid: Guid;
-      txGuid: Guid;
-      holdingSplitGuid: Guid;
-      checkNumber: string;
-    }
-  >;
+  /** Take a live payment's value into `toAccountGuid`; throws if it isn't live. */
+  consumePayment: (payment: object, toAccountGuid: Guid) => bigint;
   /** @see makeTransferRecorder */
   transferRecorder: ReturnType<typeof makeTransferRecorder>;
   getBrand: () => unknown;
 };
+
+/**
+ * Purses of one commodity, each over a GnuCash account: the account's
+ * guid is all its durable state, and its balance is the account's.
+ */
 export const makePurseFactory = ({
+  zone,
   db,
   commodityGuid,
   commodityLabel,
   makeAmount,
   makePayment,
-  livePayments,
-  paymentRecords,
+  consumePayment,
   transferRecorder,
   getBrand,
-  zone,
 }: PurseFactoryOptions) => {
-  const { exo } = zone;
-  const purseGuids = new WeakMap<AccountPurse, Guid>();
+  const purseGuids: MapStore<object, Guid> = zone.mapStore('purseGuids');
+  /** each purse's deposit facet, to the purse's account */
+  const depositFacetGuids: MapStore<object, Guid> =
+    zone.mapStore('depositFacetGuids');
 
-  const buildPurse = (accountGuid: Guid, name: string): AccountPurse => {
-    const brand = getBrand();
-    const deposit = (payment: object, _optAmountShape?: unknown) => {
-      const record = paymentRecords.get(payment);
-      if (!record?.live) throw new Error('payment not live');
-      Nat(record.amount);
-      record.live = false;
-      livePayments.delete(payment);
-      transferRecorder.finalizeHold({
-        txGuid: record.txGuid,
-        holdingSplitGuid: record.holdingSplitGuid,
-        toAccountGuid: accountGuid,
-      });
-      return makeAmount(record.amount);
-    };
-    const withdraw = (amount: AmountLike) => {
-      if (amount.brand !== brand) {
-        throw new Error('amount brand mismatch');
-      }
-      Nat(amount.value);
-      const balance = getAccountBalance(db, accountGuid);
-      if (amount.value > balance) throw new Error('insufficient funds');
-      const { txGuid, holdingSplitGuid, checkNumber } =
-        transferRecorder.createHold({
-          fromAccountGuid: accountGuid,
-          amount: amount.value,
-        });
-      return makePayment(
-        amount,
-        accountGuid,
-        txGuid,
-        holdingSplitGuid,
-        checkNumber,
-      );
-    };
-    const getCurrentAmount = () =>
-      makeAmount(getAccountBalance(db, accountGuid));
-    const depositFacet = exo(`${commodityLabel} DepositFacet`, {
-      receive: (payment: object, optAmountShape?: unknown) =>
-        deposit(payment, optAmountShape),
-    });
-    const purse = exo(`${commodityLabel} Purse`, {
-      deposit,
-      withdraw,
-      getCurrentAmount,
-      getDepositFacet: () => depositFacet,
-    });
-    purseGuids.set(purse, accountGuid);
+  const makePurseKit = zone.exoClassKit(
+    `${commodityLabel} Purse`,
+    undefined,
+    (accountGuid: Guid) => ({ accountGuid }),
+    {
+      purse: {
+        deposit(payment: object, _optAmountShape?: unknown): AmountLike {
+          return makeAmount(consumePayment(payment, this.state.accountGuid));
+        },
+        withdraw(amount: AmountLike): object {
+          const { accountGuid } = this.state;
+          if (amount.brand !== getBrand()) {
+            throw new Error('amount brand mismatch');
+          }
+          Nat(amount.value);
+          const balance = getAccountBalance(db, accountGuid);
+          if (amount.value > balance) throw new Error('insufficient funds');
+          const { txGuid, holdingSplitGuid, checkNumber } =
+            transferRecorder.createHold({
+              fromAccountGuid: accountGuid,
+              amount: amount.value,
+            });
+          return makePayment(
+            amount,
+            accountGuid,
+            txGuid,
+            holdingSplitGuid,
+            checkNumber,
+          );
+        },
+        getCurrentAmount(): AmountLike {
+          return makeAmount(getAccountBalance(db, this.state.accountGuid));
+        },
+        getDepositFacet(): ReturnType<AccountPurse['getDepositFacet']> {
+          return this.facets.depositFacet;
+        },
+      },
+      depositFacet: {
+        receive(payment: object, optAmountShape?: unknown): AmountLike {
+          return this.facets.purse.deposit(payment, optAmountShape);
+        },
+      },
+    },
+  );
+
+  const buildPurse = (accountGuid: Guid): AccountPurse => {
+    const { purse, depositFacet } = makePurseKit(accountGuid);
+    purseGuids.init(purse, accountGuid);
+    depositFacetGuids.init(depositFacet, accountGuid);
     return purse;
   };
 
   const ensurePurse = (accountGuid: Guid, name: string): AccountPurse => {
     ensureAccountRow({ db, accountGuid, name, commodityGuid });
-    return buildPurse(accountGuid, name);
+    return buildPurse(accountGuid);
   };
 
   const makeNewPurse = (accountGuid: Guid, name: string): AccountPurse => {
     createAccountRow({ db, accountGuid, name, commodityGuid });
-    return buildPurse(accountGuid, name);
+    return buildPurse(accountGuid);
   };
 
-  const openPurse = (accountGuid: Guid, name: string): AccountPurse => {
+  const openPurse = (accountGuid: Guid): AccountPurse => {
     requireAccountCommodity({ db, accountGuid, commodityGuid });
-    return buildPurse(accountGuid, name);
+    return buildPurse(accountGuid);
   };
 
-  return { ensurePurse, makeNewPurse, openPurse, purseGuids };
+  return {
+    ensurePurse,
+    makeNewPurse,
+    openPurse,
+    purseGuids,
+    depositFacetGuids,
+  };
 };

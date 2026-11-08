@@ -38,6 +38,7 @@ import type {
   SplitRow,
   TransactionRow,
 } from '../src/gnucash-schema.js';
+import { makeHeapZone } from '@vattr/toybox/src/vat/heap-zone.js';
 
 type AccountPath = Pick<AccountRow, 'guid' | 'name' | 'parent_guid'>;
 
@@ -48,12 +49,13 @@ const makeDesignContext = () => {
   const { db, close } = makeTestDb();
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const nowMs = makeTestClock(Date.UTC(2026, 0, 24, 0, 0), 1);
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const kit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const kit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs, zone }));
   const purse = kit.issuer.makeEmptyPurse();
 
-  return { db, kit, purse, close };
+  return { db, kit, purse, close, zone };
 };
 
 const serial = test.serial as TestFn<ReturnType<typeof makeDesignContext>>;
@@ -130,7 +132,7 @@ Until we give accounts names, the ledger is correct but opaque to humans.`,
 });
 
 serial('Giving names in the chart of accounts', t => {
-  const { db, kit, purse } = t.context;
+  const { db, kit, purse, zone } = t.context;
   const root = db
     .prepare<[], BooksRow>('SELECT root_account_guid FROM books LIMIT 1')
     .get();
@@ -138,8 +140,9 @@ serial('Giving names in the chart of accounts', t => {
   // Name the purse "Alice" in the chart of accounts
   const chart = makeChartFacet({
     db,
+    zone,
     commodityGuid: kit.commodityGuid,
-    getGuidFromSealed: kit.purses.getGuidFromSealed,
+    getGuidFromSealed: sealed => kit.purses.getGuidFromSealed(sealed),
   });
   chart.placePurse({
     sealedPurse: kit.sealer.seal(purse),
@@ -176,17 +179,19 @@ serial('Building account hierarchies with placeholder parents', t => {
   t.teardown(close);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const now = makeTestClock(Date.UTC(2026, 0, 25, 0, 0), 1);
 
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'USD' });
   const moolaKit = createIssuerKit(
-    freeze({ db, commodity, makeGuid, nowMs: now }),
+    freeze({ db, commodity, makeGuid, nowMs: now, zone }),
   );
 
   const chart = makeChartFacet({
     db,
+    zone,
     commodityGuid: moolaKit.commodityGuid,
-    getGuidFromSealed: moolaKit.purses.getGuidFromSealed,
+    getGuidFromSealed: sealed => moolaKit.purses.getGuidFromSealed(sealed),
   });
   const { sealer } = moolaKit;
 
@@ -494,6 +499,7 @@ serial('Escrow exchange (AMIX-style state machine)', async t => {
   t.teardown(close);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const now = makeTestClock(Date.UTC(2026, 0, 25, 0, 0), 1);
 
   const makeKit = (mnemonic: string, namespace: 'CURRENCY' | 'COMMODITY') =>
@@ -503,6 +509,7 @@ serial('Escrow exchange (AMIX-style state machine)', async t => {
         commodity: freeze({ namespace, mnemonic }),
         makeGuid,
         nowMs: now,
+        zone,
       }),
     );
 
@@ -518,13 +525,15 @@ serial('Escrow exchange (AMIX-style state machine)', async t => {
   const charts = {
     moola: makeChartFacet({
       db,
+      zone,
       commodityGuid: moola.commodityGuid,
-      getGuidFromSealed: moola.purses.getGuidFromSealed,
+      getGuidFromSealed: sealed => moola.purses.getGuidFromSealed(sealed),
     }),
     stock: makeChartFacet({
       db,
+      zone,
       commodityGuid: stock.commodityGuid,
-      getGuidFromSealed: stock.purses.getGuidFromSealed,
+      getGuidFromSealed: sealed => stock.purses.getGuidFromSealed(sealed),
     }),
   };
   const root = db
@@ -673,6 +682,7 @@ serial('Settlement links transactions (SettlementFacet)', async t => {
   t.teardown(close);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const now = makeTestClock(Date.UTC(2026, 0, 26, 0, 0), 1);
 
   const makeKit = (mnemonic: string, namespace: 'CURRENCY' | 'COMMODITY') =>
@@ -682,6 +692,7 @@ serial('Settlement links transactions (SettlementFacet)', async t => {
         commodity: freeze({ namespace, mnemonic }),
         makeGuid,
         nowMs: now,
+        zone,
       }),
     );
 

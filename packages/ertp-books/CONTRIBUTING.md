@@ -67,7 +67,7 @@ These guidelines help AI agents contribute effectively:
     method2,
   });
   ```
-  `freezeProps()` or `zone.exo()` can be handy.
+  Objects other parties hold are a zone's: `zone.exo()`, or a kind from `zone.exoClass()`.
 - Before committing:
   - Review work to see whether atomic commits should be separated
   - Propose commit headings for review

@@ -2,7 +2,7 @@ import type { IssuerKit } from './ertp-types.js';
 import type { Sealer } from './sealer.js';
 import type { SqlDatabase } from './sql-db.js';
 import type { Guid } from './guids.js';
-import type { Zone } from './jessie-tools.js';
+import type { ReadonlyMapStore, Zone } from '@vattr/toybox/src/types.js';
 
 /**
  * GnuCash commodity namespace.
@@ -22,7 +22,8 @@ export type CommoditySpec = {
 export type CreateIssuerConfig = {
   db: SqlDatabase;
   commodity: CommoditySpec;
-  zone?: Zone;
+  /** where the commodity's kinds and stores go, in a sub-zone of their own */
+  zone: Zone;
   /**
    * Injected GUID generator to avoid ambient randomness and preserve ocap discipline.
    */
@@ -36,7 +37,8 @@ export type CreateIssuerConfig = {
 export type OpenIssuerConfig = {
   db: SqlDatabase;
   commodityGuid: Guid;
-  zone?: Zone;
+  /** where the commodity's kinds and stores go, in a sub-zone of their own */
+  zone: Zone;
   /**
    * Injected GUID generator to avoid ambient randomness and preserve ocap discipline.
    */
@@ -55,6 +57,7 @@ export type AccountPurse = {
   deposit: (payment: object) => unknown;
   withdraw: (amount: AmountLike) => object;
   getCurrentAmount: () => AmountLike;
+  getDepositFacet: () => { receive: (payment: object) => unknown };
 };
 
 export type AccountPurseAccess = {
@@ -65,7 +68,9 @@ export type AccountPurseAccess = {
 export type IssuerKitForCommodity = {
   kit: NatIssuerKit;
   accounts: AccountPurseAccess;
-  purseGuids: WeakMap<AccountPurse, Guid>;
+  purseGuids: ReadonlyMapStore<object, Guid>;
+  /** each purse's deposit facet, by the purse's account */
+  depositFacetGuids: ReadonlyMapStore<object, Guid>;
   payments: PaymentAccess;
   mintInfo: MintInfoAccess;
 };
@@ -74,7 +79,7 @@ export type IssuerKitWithGuid = NatIssuerKit & { commodityGuid: Guid };
 
 export type IssuerKitWithPurseGuids = IssuerKitWithGuid & {
   purses: {
-    getGuid: (purse: unknown) => Guid;
+    getGuid: (purse: object) => Guid;
     getGuidFromSealed: (sealedPurse: unknown) => Guid;
   };
   sealer: Sealer;
@@ -83,7 +88,7 @@ export type IssuerKitWithPurseGuids = IssuerKitWithGuid & {
 };
 
 export type PaymentAccess = {
-  getCheckNumber: (payment: unknown) => string;
+  getCheckNumber: (payment: object) => string;
   openPayment: (checkNumber: string) => object;
 };
 
@@ -115,8 +120,8 @@ export type ChartFacet = {
 
 export type EscrowFacet = {
   makeOffer: (
-    left: { fromPurse: unknown; toPurse: unknown; amount: AmountLike },
-    right: { fromPurse: unknown; toPurse: unknown; amount: AmountLike },
+    left: { fromPurse: object; toPurse: object; amount: AmountLike },
+    right: { fromPurse: object; toPurse: object; amount: AmountLike },
     checkNumber: string,
     description?: string,
   ) => {

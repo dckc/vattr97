@@ -12,6 +12,7 @@ import { mockMakeGuid } from '../src/guids.js';
 import { wrapBetterSqlite3Database } from '../src/sqlite-shim.js';
 import { makeTestClock } from './mock-io.js';
 import { withAmountUtils } from './ertp-tools.js';
+import { makeHeapZone } from '@vattr/toybox/src/vat/heap-zone.js';
 
 const onlyERTP = <T extends IssuerKit<'nat'>>(kit: T): IssuerKit<'nat'> => ({
   mint: kit.mint,
@@ -29,6 +30,7 @@ const makeScenario = (t: ExecutionContext) => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const nowMs = makeTestClock();
   const money = withAmountUtils(
     onlyERTP(
@@ -38,6 +40,7 @@ const makeScenario = (t: ExecutionContext) => {
           commodity: { namespace: 'COMMODITY', mnemonic: 'BUCKS' },
           makeGuid,
           nowMs,
+          zone,
         }),
       ),
     ),
@@ -50,6 +53,7 @@ const makeScenario = (t: ExecutionContext) => {
           commodity: { namespace: 'COMMODITY', mnemonic: 'SHARES' },
           makeGuid,
           nowMs,
+          zone,
         }),
       ),
     ),

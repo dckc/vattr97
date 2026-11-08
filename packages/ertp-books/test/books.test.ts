@@ -17,6 +17,7 @@ import {
 } from '../src/index.js';
 import { mockMakeGuid } from '../src/guids.js';
 import { makeTestClock } from './mock-io.js';
+import { makeHeapZone } from '@vattr/toybox/src/vat/heap-zone.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const asset = (spec: string) => readFile(nodeRequire.resolve(spec), 'utf8');
@@ -74,13 +75,16 @@ test('brand.isMyIssuer rejects unrelated issuers', async t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
   const nowMs = makeTestClock();
-  const kit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
-  const other = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const kit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs, zone }));
+  const other = createIssuerKit(
+    freeze({ db, commodity, makeGuid, nowMs, zone }),
+  );
 
   t.true(await kit.brand.isMyIssuer(kit.issuer));
   t.false(await kit.brand.isMyIssuer(other.issuer));
@@ -94,12 +98,15 @@ test('alice sends 10 to bob', t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
   const nowMs = makeTestClock();
-  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const issuedKit = createIssuerKit(
+    freeze({ db, commodity, makeGuid, nowMs, zone }),
+  );
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
   const alicePurse = issuedKit.issuer.makeEmptyPurse();
@@ -121,12 +128,15 @@ test('deposit returns the payment amount', t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
   const nowMs = makeTestClock();
-  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const issuedKit = createIssuerKit(
+    freeze({ db, commodity, makeGuid, nowMs, zone }),
+  );
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
   const purse = issuedKit.issuer.makeEmptyPurse();
@@ -146,6 +156,7 @@ test('fixture: withdraw-deposit matches ledger rows', async t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
@@ -154,7 +165,9 @@ test('fixture: withdraw-deposit matches ledger rows', async t => {
     const fixed = Date.UTC(2026, 0, 24, 0, 0);
     return () => fixed;
   })();
-  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const issuedKit = createIssuerKit(
+    freeze({ db, commodity, makeGuid, nowMs, zone }),
+  );
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
   const purse = issuedKit.issuer.makeEmptyPurse();
@@ -287,12 +300,15 @@ test('alice-to-bob transfer records a single transaction', t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
   const nowMs = makeTestClock();
-  const issuedKit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const issuedKit = createIssuerKit(
+    freeze({ db, commodity, makeGuid, nowMs, zone }),
+  );
   const brand = issuedKit.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
   const alicePurse = issuedKit.issuer.makeEmptyPurse();
@@ -344,12 +360,15 @@ test('payments can be reified by check number', t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
   const nowMs = makeTestClock();
-  const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const created = createIssuerKit(
+    freeze({ db, commodity, makeGuid, nowMs, zone }),
+  );
   const brand = created.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
   const alicePurse = created.issuer.makeEmptyPurse();
@@ -365,6 +384,7 @@ test('payments can be reified by check number', t => {
   const reopened = openIssuerKit(
     freeze({
       db,
+      zone: makeHeapZone(),
       commodityGuid: created.commodityGuid,
       makeGuid,
       nowMs: makeTestClock(),
@@ -387,6 +407,7 @@ test('mint payments can be reified after reopen', async t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
@@ -398,7 +419,9 @@ test('mint payments can be reified after reopen', async t => {
 
   {
     const nowMs = makeTestClock();
-    const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+    const created = createIssuerKit(
+      freeze({ db, commodity, makeGuid, nowMs, zone }),
+    );
     const brand = created.brand as Brand<'nat'>;
     const bucks = (value: bigint): NatAmount => freeze({ brand, value });
     const payment = created.mint.mintPayment(bucks(10n));
@@ -409,7 +432,13 @@ test('mint payments can be reified after reopen', async t => {
   {
     const { commodityGuid, checkNumber } = await infoP.promise;
     const reopened = openIssuerKit(
-      freeze({ db, commodityGuid, makeGuid, nowMs: makeTestClock() }),
+      freeze({
+        db,
+        commodityGuid,
+        makeGuid,
+        nowMs: makeTestClock(),
+        zone: makeHeapZone(),
+      }),
     );
     const reified = reopened.payments.openPayment(checkNumber);
     const live = await reopened.kit.issuer.isLive(reified as never);
@@ -425,6 +454,7 @@ test('check numbers increment on collisions', t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const nowMs = (() => {
     const fixed = Date.UTC(2020, 0, 1, 9, 15);
     return () => fixed;
@@ -433,7 +463,9 @@ test('check numbers increment on collisions', t => {
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
   });
-  const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const created = createIssuerKit(
+    freeze({ db, commodity, makeGuid, nowMs, zone }),
+  );
   const brand = created.brand as Brand<'nat'>;
   const bucks = (value: bigint): NatAmount => freeze({ brand, value });
 
@@ -454,6 +486,7 @@ test('createIssuerKit persists balances across re-open', t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const commodity = freeze({
     namespace: 'COMMODITY',
     mnemonic: 'BUCKS',
@@ -461,7 +494,9 @@ test('createIssuerKit persists balances across re-open', t => {
 
   const [aliceGuid, bobGuid, createdCommodityGuid] = (() => {
     const nowMs = makeTestClock();
-    const created = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+    const created = createIssuerKit(
+      freeze({ db, commodity, makeGuid, nowMs, zone }),
+    );
     t.truthy(created.issuer);
     t.truthy(created.brand);
     t.truthy(created.mint);
@@ -486,6 +521,7 @@ test('createIssuerKit persists balances across re-open', t => {
   const reopened = openIssuerKit(
     freeze({
       db,
+      zone: makeHeapZone(),
       commodityGuid: createdCommodityGuid,
       makeGuid,
       nowMs: makeTestClock(),

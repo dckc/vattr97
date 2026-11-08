@@ -25,6 +25,7 @@ import {
 import { makeEscrow } from '../src/escrow.js';
 import { makeDeterministicGuid, mockMakeGuid } from '../src/guids.js';
 import { makeTestClock } from './mock-io.js';
+import { makeHeapZone } from '@vattr/toybox/src/vat/heap-zone.js';
 
 type CommunityContext = {
   db: SqlDatabase;
@@ -100,22 +101,25 @@ serial.before(t => {
   initGnuCashSchema(db);
 
   const makeGuid = mockMakeGuid();
+  const zone = makeHeapZone();
   const nowMs = makeTestClock(Date.UTC(2020, 0, 1, 9, 15), 1);
   const commodity = freeze({ namespace: 'COMMODITY', mnemonic: 'BUCKS' });
-  const kit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs }));
+  const kit = createIssuerKit(freeze({ db, commodity, makeGuid, nowMs, zone }));
   const chart = makeChartFacet({
     db,
+    zone,
     commodityGuid: kit.commodityGuid,
-    getGuidFromSealed: kit.purses.getGuidFromSealed,
+    getGuidFromSealed: sealed => kit.purses.getGuidFromSealed(sealed),
   });
   const { sealer } = kit;
   const escrow = makeEscrow({
     db,
+    zone,
     commodityGuid: kit.commodityGuid,
     holdingAccountGuid: makeDeterministicGuid(
       `ertp-books-balance:${kit.commodityGuid}`,
     ),
-    getPurseGuid: kit.purses.getGuid,
+    getPurseGuid: purse => kit.purses.getGuid(purse),
     brand: kit.brand,
     makeGuid,
     nowMs,

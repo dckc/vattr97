@@ -8,7 +8,9 @@
     "skipLibCheck": true,
     "lib": ["ESNext"],
     "rootDir": ".",
-    "outDir": "dist"
+    "outDir": "dist",
+    "allowJs": true,
+    "types": ["@cloudflare/workers-types"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }

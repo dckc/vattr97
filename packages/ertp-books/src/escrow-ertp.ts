@@ -11,8 +11,6 @@ import type {
   Purse,
   Amount,
 } from './ertp-types.js';
-import { defaultZone } from './jessie-tools.js';
-import type { Zone } from './jessie-tools.js';
 
 const { freeze } = Object;
 
@@ -45,14 +43,11 @@ export const makeErtpEscrow = <
   KindB extends AssetKind = AssetKind,
 >({
   issuers,
-  zone = defaultZone,
   sealers,
 }: {
   issuers: { A: Issuer<KindA>; B: Issuer<KindB> };
-  zone?: Zone;
   sealers?: { A: Sealer; B: Sealer };
 }) => {
-  const { exo } = zone;
   const escrows: { A: Purse<KindA>; B: Purse<KindB> } = {
     A: issuers.A.makeEmptyPurse(),
     B: issuers.B.makeEmptyPurse(),
