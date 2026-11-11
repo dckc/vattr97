@@ -1,7 +1,8 @@
 /**
  * A WebApp maker: a WebApp is an attenuated handle to one URL. Chain to
- * narrow (`pathjoin`, `query`, `withHeaders`, `withHeaderMap`), then fire
- * (`get`, `post`) through the `egress` this vat was made with.
+ * narrow (`pathjoin`, `query`, `withHeaders`, `withHeaderMap`,
+ * `withFormMap`), then fire (`get`, `post`, `postForm`) through the
+ * `egress` this vat was made with.
  *
  * Unions are flower-style: a shared key with a different value throws, so a
  * later grant cannot quietly contradict an earlier one. Error messages name
@@ -11,7 +12,9 @@
  * Headers that change, such as a session cookie, belong in a map store
  * that someone else keeps (see store-maker.js): give a WebApp the store's
  * `readOnly()` facet, and the keeper rotates the cookie under handles
- * already given out.
+ * already given out. A form map is the same for a form field: a site that
+ * wants the session echoed in the body (a double-submit check) gets it at
+ * send, from a store the WebApp's holder can't read.
  */
 
 const { entries, fromEntries } = Object;
@@ -21,7 +24,13 @@ const { entries, fromEntries } = Object;
  * @import { FetchAnswer } from '../src/devices/types.js';
  */
 
-/** A WebApp's state: its URL, its fixed headers, and the maps it reads more from at each send. @typedef {{ url: string, headers: Record<string, string>, maps: Remote[] }} WebAppState */
+/**
+ * A WebApp's state: its URL, its fixed headers, the maps it reads more
+ * headers from at each send, and the maps it reads form fields from.
+ * (`forms` is newer than the others: a WebApp made before it has none.)
+ *
+ * @typedef {{ url: string, headers: Record<string, string>, maps: Remote[], forms?: Remote[] }} WebAppState
+ */
 
 /** @type {BuildRootObject<{ egress: Remote }>} */
 export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
@@ -33,8 +42,12 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
     ),
     withHeaders: M.call(Headers).returns(M.remotable('WebApp')),
     withHeaderMap: M.call(M.remotable()).returns(M.remotable('WebApp')),
+    withFormMap: M.call(M.remotable()).returns(M.remotable('WebApp')),
     get: M.callWhen().returns(M.string()),
     post: M.callWhen(M.string()).returns(M.string()),
+    postForm: M.callWhen(M.recordOf(M.string(), M.string())).returns(
+      M.string(),
+    ),
   });
 
   /** @param {string} url @param {string} method @param {Record<string, string>} headers @param {string} [body] */
@@ -50,16 +63,16 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
     return text;
   };
 
-  /** @type {(url: string, headers: Record<string, string>, maps: Remote[]) => object} */
+  /** @type {(url: string, headers: Record<string, string>, maps: Remote[], forms: Remote[]) => object} */
   const makeWebApp = zone.exoClass(
     'WebApp',
     WebAppI,
-    /** @param {string} url @param {Record<string, string>} headers @param {Remote[]} maps @returns {WebAppState} */
-    (url, headers, maps) => ({ url, headers, maps }),
+    /** @param {string} url @param {Record<string, string>} headers @param {Remote[]} maps @param {Remote[]} forms @returns {WebAppState} */
+    (url, headers, maps, forms) => ({ url, headers, maps, forms }),
     {
       /** Join a relative path, keeping the query. The new path must stay within the old one. @param {string} ref */
       pathjoin(ref) {
-        const { url, headers, maps } = this.state;
+        const { url, headers, maps, forms = [] } = this.state;
         const here = new URL(url);
         const there = new URL(ref, here);
         if (!within(there, here)) {
@@ -71,17 +84,18 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
           unionQuery(there.href, fromEntries(here.searchParams)),
           headers,
           maps,
+          forms,
         );
       },
       /** @param {Record<string, string | number>} params */
       query(params) {
-        const { url, headers, maps } = this.state;
-        return makeWebApp(unionQuery(url, params), headers, maps);
+        const { url, headers, maps, forms = [] } = this.state;
+        return makeWebApp(unionQuery(url, params), headers, maps, forms);
       },
       /** @param {Record<string, string>} more */
       withHeaders(more) {
-        const { url, headers, maps } = this.state;
-        return makeWebApp(url, unionHeaders(headers, more), maps);
+        const { url, headers, maps, forms = [] } = this.state;
+        return makeWebApp(url, unionHeaders(headers, more), maps, forms);
       },
       /**
        * Add headers read from `map` at each send: anything with `entries()`,
@@ -91,8 +105,19 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
        * @param {Remote} map
        */
       withHeaderMap(map) {
-        const { url, headers, maps } = this.state;
-        return makeWebApp(url, headers, [...maps, map]);
+        const { url, headers, maps, forms = [] } = this.state;
+        return makeWebApp(url, headers, [...maps, map], forms);
+      },
+      /**
+       * Add form fields read from `map` at each `postForm`, as
+       * `withHeaderMap` adds headers: so a holder can send a field it can't
+       * read, such as a session token a site wants echoed in the body.
+       *
+       * @param {Remote} map
+       */
+      withFormMap(map) {
+        const { url, headers, maps, forms = [] } = this.state;
+        return makeWebApp(url, headers, maps, [...forms, map]);
       },
       async get() {
         return send(this.state.url, 'GET', await headersNow(this.state));
@@ -101,8 +126,35 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
       async post(body) {
         return send(this.state.url, 'POST', await headersNow(this.state), body);
       },
+      /**
+       * POST `fields`, and each form map's entries as of now, as
+       * multipart/form-data. A field named twice must have one value.
+       *
+       * @param {Record<string, string>} fields
+       */
+      async postForm(fields) {
+        const all = await fieldsNow(fields, this.state.forms ?? []);
+        const headers = unionHeaders(await headersNow(this.state), {
+          'content-type': `multipart/form-data; boundary=${BOUNDARY}`,
+        });
+        return send(this.state.url, 'POST', headers, multipart(all));
+      },
     },
   );
+
+  /** `fields`, unioned with each form map's entries as of now. @param {Record<string, string>} fields @param {Remote[]} forms */
+  const fieldsNow = async (fields, forms) => {
+    let now = unionFields({}, fields);
+    for (const map of forms) {
+      const pairs = await E(map).entries();
+      for (const [key, value] of pairs) {
+        if (typeof value !== 'string')
+          throw Error(`form: ${key} is not a string`);
+      }
+      now = unionFields(now, fromEntries(pairs));
+    }
+    return now;
+  };
 
   /** The fixed headers, unioned with each map's entries as of now. @param {WebAppState} state */
   const headersNow = async ({ headers, maps }) => {
@@ -136,7 +188,7 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
         throw Error(
           'makeWebApp: a URL has no credentials; send them as a header',
         );
-      return makeWebApp(u.href, harden({ ...headers }), harden([]));
+      return makeWebApp(u.href, harden({ ...headers }), harden([]), harden([]));
     },
   });
 };
@@ -199,6 +251,48 @@ const unionHeaders = (base, more) => {
     merged.set(name, value);
   }
   return harden(fromEntries(merged));
+};
+
+/**
+ * `base` and `more` as one set of form fields; a name in both must have
+ * one value. Names are compared as given: forms, unlike headers, are
+ * case-sensitive.
+ *
+ * @param {Record<string, string>} base
+ * @param {Record<string, string>} more
+ */
+const unionFields = (base, more) => {
+  /** @type {Map<string, string>} */
+  const merged = new Map(entries(base));
+  for (const [name, value] of entries(more)) {
+    if (merged.has(name) && merged.get(name) !== value)
+      throw Error(`form: contradicts on ${name}`);
+    merged.set(name, value);
+  }
+  return harden(fromEntries(merged));
+};
+
+/**
+ * A multipart/form-data boundary. A vat has no randomness, so it's fixed;
+ * a field that holds it is refused rather than sent garbled.
+ */
+const BOUNDARY = '----toybox-webapp-form-7c1e5d0a9b3f';
+
+/**
+ * `fields` as a multipart/form-data body, delimited by {@link BOUNDARY}.
+ * Errors name fields, never values.
+ *
+ * @param {Record<string, string>} fields
+ */
+const multipart = fields => {
+  const parts = entries(fields).map(([name, value]) => {
+    if (/["\r\n]/.test(name))
+      throw Error(`form: ${JSON.stringify(name)} is no field name`);
+    if (name.includes(BOUNDARY) || value.includes(BOUNDARY))
+      throw Error(`form: ${name} holds the boundary`);
+    return `--${BOUNDARY}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`;
+  });
+  return `${parts.join('')}--${BOUNDARY}--\r\n`;
 };
 
 /** @param {string} base @param {Record<string, string | number>} params */
