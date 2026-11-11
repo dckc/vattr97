@@ -16,8 +16,9 @@ const config :Workerd.Config = (
   services = [
     (name = "main", worker = .supervisor),
     (name = "nowhere", network = (allow = [])),
-    # the kernel's fetch device: the public internet
-    (name = "internet", network = (allow = ["public"])),
+    # the kernel's fetch device: the public internet, HTTPS included
+    # (without tlsOptions, workerd's network service speaks plain HTTP only)
+    (name = "internet", network = (allow = ["public"], tlsOptions = (trustBrowserCas = true))),
     # the kernel's LAN device: private addresses, a tailnet's included
     # (workerd counts 100.64.0.0/10 as private), but not loopback, which
     # "private" otherwise includes: this host's own services are not the LAN
