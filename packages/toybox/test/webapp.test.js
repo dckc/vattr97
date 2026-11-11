@@ -176,3 +176,93 @@ test('the egress decides where a WebApp may go', async () => {
     /^Error: makeWebApp: a URL has no credentials; send them as a header$/,
   );
 });
+
+/**
+ * site.example, parsing a multipart/form-data POST as a browser's server
+ * would, and answering with the fields it got, in order.
+ *
+ * @param {Request} request
+ */
+const formSite = async request => {
+  const type = request.headers.get('content-type') ?? '';
+  if (!type.startsWith('multipart/form-data; boundary='))
+    return new Response(`not a form: ${type}`, { status: 415 });
+  const form = await request.formData();
+  return new Response(
+    [...form.entries()].map(([k, v]) => `${k}=${v}`).join('&'),
+  );
+};
+
+test('postForm sends multipart/form-data: its fields, and each form map as of the send', async () => {
+  const kv = makeKv();
+  const ls = makeLiveslots({
+    send: () => Promise.reject(Error('this vat imports nothing')),
+    kv,
+  });
+  const { zone } = ls;
+  assert.ok(zone);
+  const endowment = () => {
+    throw Error('no endowments here');
+  };
+  const powers = harden({ E, Far, M, zone, db: noDb, endowment });
+  /** @type {Remote} */
+  const maker = buildWebApp(powers, { egress: makeFetchDevice(formSite) });
+  /** @type {MapStore<string, string>} */
+  const session = zone.detached().mapStore('session');
+  const app = maker
+    .makeWebApp('http://site.example/export/')
+    .withFormMap(session.readOnly());
+  assert.equal(await E(app).postForm({ fmt: 'ofx' }), 'fmt=ofx');
+  session.init('token', 't-1');
+  // narrowing keeps the form map; a value can hold anything but the boundary
+  const derived = app.pathjoin('42').query({ from: '2026-08-13\x1f' });
+  assert.equal(
+    await E(derived).postForm({ note: 'a "b"\r\nc' }),
+    'note=a "b"\r\nc&token=t-1',
+  );
+  session.set('token', 't-2');
+  assert.equal(await E(derived).postForm({}), 'token=t-2');
+});
+
+test('postForm refuses contradictions and malformed fields, naming keys only', async () => {
+  const kv = makeKv();
+  const ls = makeLiveslots({
+    send: () => Promise.reject(Error('this vat imports nothing')),
+    kv,
+  });
+  const { zone } = ls;
+  assert.ok(zone);
+  const endowment = () => {
+    throw Error('no endowments here');
+  };
+  const powers = harden({ E, Far, M, zone, db: noDb, endowment });
+  /** @type {Remote} */
+  const maker = buildWebApp(powers, { egress: makeFetchDevice(formSite) });
+  /** @type {MapStore<string, string>} */
+  const session = zone.detached().mapStore('session');
+  session.init('token', 'secret-1');
+  const app = maker
+    .makeWebApp('http://site.example/')
+    .withFormMap(session.readOnly());
+  await assert.rejects(
+    E(app).postForm({ token: 'forged' }),
+    /^Error: form: contradicts on token$/,
+  );
+  // the same value twice is no contradiction
+  assert.equal(await E(app).postForm({ token: 'secret-1' }), 'token=secret-1');
+  await assert.rejects(
+    E(app.withHeaders({ 'Content-Type': 'text/plain' })).postForm({}),
+    /^Error: headers: contradicts on content-type$/,
+  );
+  await assert.rejects(E(app).postForm({ 'a"b': 'x' }), /is no field name$/);
+  await assert.rejects(
+    E(app).postForm({ x: '----toybox-webapp-form-7c1e5d0a9b3f' }),
+    /^Error: form: x holds the boundary$/,
+  );
+  // @ts-expect-error a map may hold what isn't a string; the send refuses it
+  session.set('token', 1);
+  await assert.rejects(
+    E(app).postForm({}),
+    /^Error: form: token is not a string$/,
+  );
+});
