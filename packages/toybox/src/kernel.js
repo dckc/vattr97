@@ -218,11 +218,19 @@ export const makeKernelClass = ({ makeDevices }) =>
         endowments: this.#endowments,
         vats: {
           start: (hash, params, grants) =>
-            this.#startVat(hash, this.#krefs.toCapData(params), vat =>
-              this.#endowments.record(vat, grants),
+            this.#startVat(
+              hash,
+              this.#krefs.toCapData(params),
+              vat => this.#endowments.record(vat, grants),
+              vat => this.#endowments.forget(vat),
             ),
           upgrade: (vat, hash) => this.#upgradeVat(vat, hash),
-          restart: vat => this.ctx.facets.abort(vat, Error('restarted')),
+          restart: vat => {
+            this.#db.lookup('kvat', { vat }).get() ||
+              Fail`no such vat ${q(vat)}`;
+            this.ctx.facets.abort(vat, Error('restarted'));
+          },
+          terminate: vat => this.#terminateVat(vat),
         },
       });
       this.#bootBundles = makeBootBundles(powers, {
@@ -456,12 +464,40 @@ export const makeKernelClass = ({ makeDevices }) =>
       } catch (e) {
         this.ctx.facets.abort(vat, Error('failed to start'));
         unmade?.(vat);
-        this.#db.lookup('kobject', { owner: vat }).delete();
-        this.#db.lookup('clist', { vat }).delete();
-        this.#db.lookup('kvat', { vat }).delete();
+        this.#forgetVat(vat);
         throw e;
       }
       return { vat, root };
+    }
+
+    /**
+     * Forget `vat`: its record, its exports, and its c-list. A kref of one of
+     * its objects that another party holds now names no such object.
+     *
+     * @param {VatId} vat
+     */
+    #forgetVat(vat) {
+      this.#db.lookup('kobject', { owner: vat }).delete();
+      this.#db.lookup('clist', { vat }).delete();
+      this.#db.lookup('kvat', { vat }).delete();
+    }
+
+    /**
+     * Stop `vat` for good, after SwingSet's `terminateWithFailure`: abort
+     * its facet, delete its storage, and forget it and its grants. Its
+     * objects go with it, so a message to one is refused. The boot vat,
+     * the service's root of authority, can't be terminated.
+     *
+     * @param {VatId} vat
+     */
+    #terminateVat(vat) {
+      this.#db.lookup('kvat', { vat }).get() || Fail`no such vat ${q(vat)}`;
+      if (this.#db.lookup('kboot', { vat }).get())
+        throw Fail`the boot vat can't be terminated`;
+      this.ctx.facets.abort(vat, Error('terminated'));
+      this.ctx.facets.delete(vat);
+      this.#endowments.forget(vat);
+      this.#forgetVat(vat);
     }
 
     /**

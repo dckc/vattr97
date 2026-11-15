@@ -140,6 +140,26 @@ test('vats in one kernel', async t => {
   );
 
   await t.test(
+    'a terminated vat is gone: its objects refuse messages, from a session or another vat, and its admin node does nothing more',
+    async () => {
+      const { adminNode: admin, root } = await k.createVat(
+        await kvat('counter.js'),
+      );
+      const { root: holder } = await k.createVat(await kvat('holder.js'));
+      const counter = await E(root).getCounter();
+      await E(holder).keep('c', counter);
+      assert.equal(await E(holder).bump('c'), 1);
+      const before = (await k.vats()).length;
+      await E(admin).terminate();
+      assert.equal((await k.vats()).length, before - 1);
+      await assert.rejects(E(counter).incr(), /no such object/);
+      await assert.rejects(E(holder).bump('c'), /no such object/);
+      await assert.rejects(E(admin).restart(), /no such vat/);
+      await assert.rejects(E(admin).terminate(), /no such vat/);
+    },
+  );
+
+  await t.test(
     'a counter passed to another vat reaches its maker; identity holds; both vats restart',
     async () => {
       const { adminNode: a, root: counterRoot } = await k.createVat(

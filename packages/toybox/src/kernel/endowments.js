@@ -96,6 +96,8 @@ export const makeEndowments = (
       for (const [name, binding] of grants)
         db.insert('kgrant', { vat, name, binding });
     },
+    /** Forget what `vat` was granted. @param {VatId} vat */
+    forget: vat => db.lookup('kgrant', { vat }).delete(),
     /**
      * What `vat`'s facet env holds, by the names it was granted them.
      *

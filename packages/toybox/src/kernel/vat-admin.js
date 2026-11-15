@@ -15,6 +15,7 @@ import { kzone } from './objects.js';
  * @property {(hash: string, params: object, grants: Grants) => Promise<{ vat: VatId, root: Kref }>} start a new vat on the bundle `hash`, granted `grants`; `root` is a kref
  * @property {(vat: VatId, hash: string) => Promise<void>} upgrade
  * @property {(vat: VatId) => void} restart
+ * @property {(vat: VatId) => void} terminate
  */
 
 const BundleCap = M.remotable('BundleCap');
@@ -28,7 +29,9 @@ const Endowment = M.remotable('Endowment');
  * will know it by. An admin node's `upgrade(bundleCap)` runs its vat on
  * another bundle, keeping its durable objects, params, and endowments;
  * `restart()` stops it, as an eviction would, and the next message starts it
- * again. There are no vat ids to hold.
+ * again. `terminate()` stops it for good: its state is deleted, and a
+ * message to any of its objects, from whoever still holds one, is refused.
+ * There are no vat ids to hold.
  *
  * @param {KernelPowers} powers
  * @param {object} io
@@ -85,6 +88,7 @@ export const makeVatAdmins = (
       M.interface('AdminNode', {
         upgrade: M.call(BundleCap).returns(M.promise()),
         restart: M.call().returns(M.undefined()),
+        terminate: M.call().returns(M.undefined()),
       }),
       {
         /** @param {object} bundleCap */
@@ -93,6 +97,9 @@ export const makeVatAdmins = (
         },
         restart() {
           vats.restart(vatOf(this.state.rest));
+        },
+        terminate() {
+          vats.terminate(vatOf(this.state.rest));
         },
       },
     ),

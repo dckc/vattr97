@@ -99,6 +99,10 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
     ]);
     const counter = await E(E(bootVat.root).child()).getCounter();
     assert.equal(await E(counter).incr(), 1);
+    await assert.rejects(
+      E(bootVat.adminNode).terminate(),
+      /the boot vat can't be terminated/,
+    );
   });
 
   await t.test('after a crash, and new code in boot.js', async t => {
