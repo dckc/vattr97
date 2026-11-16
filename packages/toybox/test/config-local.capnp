@@ -13,6 +13,7 @@ const config :Workerd.Config = (
     (name = "nix-store", disk = (path = "/nix/store", allowDotfiles = true)),
     (name = "git-checkout", disk = (path = "git-checkout")),
     (name = "boot", disk = (path = "boot")),
+    (name = "source", disk = (path = "source")),
   ],
   sockets = [
     (name = "http", http = (), service = (name = "main", entrypoint = "Public")),

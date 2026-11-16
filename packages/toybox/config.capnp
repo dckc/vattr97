@@ -2,8 +2,9 @@
 #
 # Sockets have no address here: whoever starts workerd hands them in
 # (-S name=fd from systemd, or -s name=addr), so holding a socket is the
-# authority it grants. `state`, `git-checkout`, and `boot` are likewise
-# overridden with -d state=<dir>, -d git-checkout=<dir>, and -d boot=<dir>.
+# authority it grants. `state`, `git-checkout`, `boot`, and `source` are
+# likewise overridden with -d state=<dir>, -d git-checkout=<dir>,
+# -d boot=<dir>, and -d source=<dir>.
 #
 # A dependent adds a device with a config of its own, as
 # test/config-device.capnp does: workerd can't add a binding to a worker it
@@ -29,6 +30,9 @@ const config :Workerd.Config = (
     # read-only; the kernel named `main` starts its boot vat from boot.js
     # here, if there is one, and the boot vat makes vats from the rest
     (name = "boot", disk = (path = "boot")),
+    # read-only; the source device makes bundleCaps from paths in it, for
+    # boot directories to share bundles
+    (name = "source", disk = (path = "source")),
   ],
   sockets = [
     # the ingress: reach the handler mounted at a request's labels
@@ -68,6 +72,7 @@ const supervisor :Workerd.Worker = (
     (name = "NIX_STORE", service = "nix-store"),
     (name = "GIT_CHECKOUT", service = "git-checkout"),
     (name = "BOOT", service = "boot"),
+    (name = "SOURCE", service = "source"),
     # the names of the service bindings the boot vat may grant to vats
     (name = "GRANTABLE", json = "[]"),
   ],

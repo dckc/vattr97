@@ -2,12 +2,13 @@
 import { makeFetchDevices } from './fetch.js';
 import { TABLES as GIT_TABLES, makeGitTrees } from './git/trees.js';
 import { makeNixStores } from './nix/store.js';
+import { makeSourceTrees } from './source.js';
 
 /** @import { MakeDevices } from '../kernel/types.js' */
 
 /**
- * toybox's own I/O devices: networks (`fetch`, `lan`), the nix store, and
- * git trees.
+ * toybox's own I/O devices: networks (`fetch`, `lan`), the nix store, git
+ * trees, and the source directory.
  *
  * @type {MakeDevices}
  */
@@ -27,4 +28,5 @@ export const makeDevices = (powers, { env, bundles, withTables }) =>
       net: env.LAN,
     }),
     nixStore: makeNixStores(powers, { store: env.NIX_STORE, bundles }),
+    source: makeSourceTrees(powers, { source: env.SOURCE, bundles }),
   });

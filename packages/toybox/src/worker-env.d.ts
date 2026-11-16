@@ -20,6 +20,8 @@ interface Env {
   GIT_CHECKOUT: Fetcher;
   /** the boot directory, read-only: the boot vat's code, and the bundles it makes vats from */
   BOOT: Fetcher;
+  /** the source directory, read-only, that the source device makes bundles from by path */
+  SOURCE: Fetcher;
   /** the names of the service bindings the boot vat may grant to vats */
   GRANTABLE: string[];
 }

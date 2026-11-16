@@ -87,6 +87,7 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
       'ingress',
       'lan',
       'nixStore',
+      'source',
       'vatAdmin',
     ]);
     const counter = await E(E(bootVat.root).child()).getCounter();

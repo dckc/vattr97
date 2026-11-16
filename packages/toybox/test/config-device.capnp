@@ -14,6 +14,7 @@ const config :Workerd.Config = (
     (name = "nix-store", disk = (path = "/nix/store", allowDotfiles = true)),
     (name = "git-checkout", disk = (path = "git-checkout")),
     (name = "boot", disk = (path = "boot")),
+    (name = "source", disk = (path = "source")),
     (name = "files", disk = (path = "files")),
   ],
   sockets = [
@@ -37,6 +38,7 @@ const supervisor :Workerd.Worker = (
     (name = "NIX_STORE", service = "nix-store"),
     (name = "GIT_CHECKOUT", service = "git-checkout"),
     (name = "BOOT", service = "boot"),
+    (name = "SOURCE", service = "source"),
     (name = "FILES", service = "files"),
     (name = "GRANTABLE", json = "[\"FILES\"]"),
   ],
