@@ -1,8 +1,12 @@
 /**
- * The wallet's boot vat: it makes the counters, issuers, and gateway vats
- * from the source directory, examples/, and upgrades each when its code
- * there changes. The gateway serves the app socket, with the counters and
- * issuers as what every host starts with.
+ * The wallet's boot vat: it makes the counters, issuers, WebApps, stores,
+ * and gateway vats from the source directory, examples/, and upgrades each
+ * when its code there changes. The gateway serves the app socket, with the counters
+ * and issuers as what every host starts with; the owner's host starts
+ * with the WebApp maker and the store maker too. The gateway runs a
+ * definition a host endows through the definer, which holds the installer
+ * and the vatAdmin, so the gateway can make vats of code it's given and
+ * nothing else of the kernel's.
  */
 /**
  * @import { BuildRootObject, MapStore, Remote, SwissNum } from '../../src/types.js';
@@ -15,6 +19,8 @@
  * @property {Remote<{ getBundleCap(path: string): Promise<Remote> }>} source the source directory's bundles, by path
  * @property {Remote<{ swiss(): SwissNum }>} entropy for the gateway's swiss numbers
  * @property {Remote} ingress the app socket's
+ * @property {Remote} fetch for the WebApp maker's egress
+ * @property {Remote<{ install(modules: Record<string, string>): Promise<Remote> }>} installer for definitions' modules
  */
 
 /** @typedef {{ root: Remote, adminNode: Remote, bundle: Remote }} Kept */
@@ -23,11 +29,35 @@
 
 /** @satisfies {BuildRootObject<Params>} */
 export const buildRootObject = (
-  { E, Far, zone },
-  { vatAdmin, source, entropy, ingress },
+  { E, Far, M, zone },
+  { vatAdmin, source, entropy, ingress, fetch, installer },
 ) => {
   /** @type {MapStore<string, Kept>} each vat this one made, by role */
   const vats = zone.mapStore('vats');
+
+  /**
+   * The definer: `run(modules, params)` makes a vat of `modules`, as an
+   * installer takes them, with `params`, and answers its root. Its admin
+   * node stays here.
+   */
+  const makeDefiner = zone.exoClass(
+    'Definer',
+    M.interface('Definer', {
+      run: M.callWhen(M.recordOf(M.string(), M.string()), M.record()).returns(
+        M.remotable(),
+      ),
+    }),
+    () => ({}),
+    {
+      /** @param {Record<string, string>} modules @param {Record<string, Remote>} params */
+      async run(modules, params) {
+        const bundle = await E(installer).install(modules);
+        const { root } = await E(vatAdmin).createVat(bundle, params);
+        return root;
+      },
+    },
+  );
+  const definer = zone.makeOnce('definer', () => makeDefiner());
 
   /**
    * The root of the vat `role`, made from `path` in the source directory if
@@ -66,11 +96,14 @@ export const buildRootObject = (
     async start() {
       const counters = await ensure('counters', 'wallet/counters.js', {});
       const issuers = await ensure('issuers', 'wallet/issuers.js', {});
+      const webApps = await ensure('webApps', 'webapp.js', { egress: fetch });
+      const stores = await ensure('stores', 'store-maker.js', {});
       await ensure('gateway', 'wallet/gateway', {
         ingress,
         entropy,
         starters: { counters, issuers },
       });
+      await E(gateway()).equip({ definer, ownerStarters: { webApps, stores } });
     },
     /** The first client's link fragment, for the operator to open or give away. */
     provideOwnerLink: () => E(gateway()).provideOwnerLink(),
