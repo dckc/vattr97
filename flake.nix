@@ -66,7 +66,7 @@
         missingHashes = ./missing-hashes.json;
         offlineCache = yarn-berry.fetchYarnBerryDeps {
           inherit (finalAttrs) src missingHashes;
-          hash = "sha256-91+NrjjkHrkwhjjook3gb2JhShMHFRnRJ4zhdixqbzk=";
+          hash = "sha256-gX9fVpG3R9zvx5s/Eyto2ksANHUrzeD/W1CillkYgl0=";
         };
 
         buildPhase = ''
@@ -95,10 +95,60 @@
           runHook postInstall
         '';
       });
+
+      # diigo-cache (packages/diigo-cache) as toybox's serve.js runs it:
+      # node, the workspace's dependencies, toybox, and diigo-cache's boot
+      # directory. `diigo-cache-serve STATE_DIR [--port PORT] [--link-file
+      # FILE]` takes serve.js's options; with --link-file, the owner's link
+      # goes to FILE, and a unit's journal gets only its fingerprint.
+      diigoCache = toybox.overrideAttrs (old: {
+        pname = "diigo-cache";
+        src = lib.fileset.toSource {
+          root = ./.;
+          fileset = lib.fileset.unions [
+            ./package.json
+            ./yarn.lock
+            ./.yarnrc.yml
+            (lib.fileset.fileFilter (f: f.name == "package.json") ./packages)
+            ./packages/toybox
+            ./packages/diigo-cache
+          ];
+        };
+        buildPhase = ''
+          runHook preBuild
+          (cd packages/toybox && node build.js)
+          (cd packages/diigo-cache && node build.js)
+          runHook postBuild
+        '';
+        installPhase = ''
+          runHook preInstall
+          lib=$out/lib/vattr97
+          mkdir -p $lib/packages $out/bin
+          cp -r package.json node_modules $lib/
+          cp -r packages/toybox packages/diigo-cache $lib/packages/
+          # the other workspaces' links lead to packages not here
+          find $lib/node_modules/@vattr -maxdepth 1 -type l ! -name toybox ! -name diigo-cache -delete
+          # the workerd above, the same version as the package's
+          bin=$lib/node_modules/@cloudflare/workerd-linux-64/bin/workerd
+          test -e $bin
+          ln -sf ${workerd}/bin/workerd $bin
+          cat > $out/bin/diigo-cache-serve <<SH
+          #!${pkgs.runtimeShell}
+          # usage: diigo-cache-serve STATE_DIR [--port PORT] [--link-file FILE]
+          state=\$1
+          shift
+          exec ${pkgs.nodejs}/bin/node --import $lib/packages/toybox/src/node-lockdown.js \\
+            $lib/packages/toybox/scripts/serve.js "\$state" $lib/packages/diigo-cache/dist/boot "\$@"
+          SH
+          chmod +x $out/bin/diigo-cache-serve
+          runHook postInstall
+        '';
+      });
     in
     {
       packages.${system} = {
         default = toybox;
+        diigo-cache = diigoCache;
         inherit toybox workerd;
       };
 
