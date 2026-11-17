@@ -13,6 +13,11 @@
  * - `fill(at)`: the next pages of a walk through every page, a few per call
  * - `onSession()`: a facet for the session keeper, which calls
  *   `sessionSet(at)` after each new session: a refresh, then a fill step
+ * - `pace(note)`: the pacer (pacer.js) says when it steps next, and why
+ *   its last step failed, if it did, for `status()` to say
+ *
+ * Fetches run one at a time, so the pacer's steps and the owner's clicks
+ * don't walk the same pages at once.
  */
 /**
  * @import { BuildRootObject, MapStore, Remote } from '../../../toybox/src/types.js';
@@ -46,6 +51,7 @@ export const PER_PAGE = 50;
  * @property {number} total diigo's count of bookmarks
  * @property {number} newest the newest `updated_at` kept, in epoch seconds
  * @property {string} user whose bookmarks they are
+ * @property {{ next?: string, failed?: string }} pace what the pacer last said
  */
 
 /**
@@ -189,9 +195,28 @@ export const buildRootObject = ({ E, Far, M, zone }, { source }) => {
     return harden({ ...walk, added, changed });
   };
 
-  /** What's kept, and how far the walk has gone; no bookmark. */
+  /** @type {Promise<void>} the fetch before, settled */
+  let last = Promise.resolve();
+  /**
+   * Run fetches one at a time: each waits for the one before, failed or not.
+   *
+   * @template T
+   * @param {() => Promise<T>} f
+   * @returns {Promise<T>}
+   */
+  const serially = f => {
+    const p = last.then(f);
+    last = p.then(
+      () => undefined,
+      () => undefined,
+    );
+    return p;
+  };
+
+  /** What's kept, how far the walk has gone, and what the pacer said; no bookmark. */
   const status = () =>
     harden({
+      pace: got('pace', {}),
       shared: shared.getSize(),
       private: hidden.getSize(),
       total: got('total', undefined),
@@ -216,24 +241,29 @@ export const buildRootObject = ({ E, Far, M, zone }, { source }) => {
        *
        * @param {string} at
        */
-      async sessionSet(at) {
-        const r = await refresh(at);
-        const parts = [
-          `refreshed ${r.pages} page${r.pages === 1 ? '' : 's'}: ${counted(r)}`,
-        ];
-        if (!got('walk', { done: false }).done) {
-          const f = await fill(at);
-          parts.push(
-            f.done
-              ? `filled through page ${f.pages}: ${counted(f)}`
-              : `filled to page ${f.nextPage - 1} of ${f.pages}: ${counted(f)}`,
-          );
-        }
-        return parts.join('; ');
+      sessionSet(at) {
+        return serially(() => sessionSet(at));
       },
     },
   );
   const onSession = zone.makeOnce('onSession', () => makeOnSession());
+
+  /** @param {string} at */
+  const sessionSet = async at => {
+    const r = await refresh(at);
+    const parts = [
+      `refreshed ${r.pages} page${r.pages === 1 ? '' : 's'}: ${counted(r)}`,
+    ];
+    if (!got('walk', { done: false }).done) {
+      const f = await fill(at);
+      parts.push(
+        f.done
+          ? `filled through page ${f.pages}: ${counted(f)}`
+          : `filled to page ${f.nextPage - 1} of ${f.pages}: ${counted(f)}`,
+      );
+    }
+    return parts.join('; ');
+  };
 
   const makeViewer = zone.exoClass(
     'DiigoViewer',
@@ -284,9 +314,19 @@ export const buildRootObject = ({ E, Far, M, zone }, { source }) => {
   const viewer = zone.makeOnce('viewer', () => makeViewer());
 
   return Far('diigoCache', {
-    refresh,
-    fill,
+    /** @param {string} at @param {number} [pages] */
+    refresh: (at, pages) => serially(() => refresh(at, pages)),
+    /** @param {string} at @param {number} [pages] */
+    fill: (at, pages) => serially(() => fill(at, pages)),
     status,
+    /**
+     * The pacer's note: when it steps next, and why its last step failed.
+     *
+     * @param {{ next?: string, failed?: string }} note
+     */
+    pace: note => {
+      put('pace', harden({ ...note }));
+    },
     /** The public view: shared bookmarks only, read-only. */
     viewer: () => viewer,
     /** The session keeper's hook: `sessionSet(at)` alone. */
