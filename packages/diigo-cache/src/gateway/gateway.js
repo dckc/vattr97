@@ -210,6 +210,7 @@ body { font: 15px/1.45 system-ui, sans-serif; color: var(--fg); background: var(
 button { font: inherit; padding: 6px 12px; margin: 0 8px 8px 0; }
 code { word-break: break-all; }
 #icon svg { vertical-align: middle; margin-right: 8px; border-radius: 4px; }
+#copy svg { vertical-align: middle; }
 </style>
 </head><body>
 <h1>diigo-cache</h1>
@@ -221,7 +222,7 @@ code { word-break: break-all; }
 cache your diigo session after you log in. Paste the proposal link into the
 extension's Proposals page; it can set the session, not read the cache.</p>
 <p><button id="proposal">Proposal link for the extension</button><button id="revoke">Revoke the session</button></p>
-<p><span id="icon"></span><code id="link"></code></p>
+<p id="out" hidden><span id="icon"></span><button id="copy" title="Copy the proposal link" aria-label="Copy the proposal link"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button></p>
 <p id="msg"></p>
 <p><a id="public" hidden>Your shared bookmarks</a></p>
 <script src="/page.js"></script>
@@ -256,6 +257,10 @@ if (!key) $('status').textContent = 'no owner key in this link';
 else load();
 $('refresh').onclick = () => call('refresh', { at: new Date().toISOString() }).then(b => { say('refreshed ' + b.refreshed.pages + ' pages: ' + counts(b.refreshed)); load(); }, err => say(err.message, true));
 $('fill').onclick = () => call('fill', { at: new Date().toISOString() }).then(b => { say((b.filled.done ? 'filled every page: ' : 'filled to page ' + (b.filled.nextPage - 1) + ': ') + counts(b.filled)); load(); }, err => say(err.message, true));
-$('proposal').onclick = () => call('proposal').then(async b => { $('link').textContent = location.origin + '/api/session' + b.fragment; $('icon').replaceChildren(await keyIcon(new URLSearchParams(b.fragment.slice(1)).get('key'))); say('paste this into the extension; keep it to yourself; its picture there should match this one'); load(); }, err => say(err.message, true));
-$('revoke').onclick = () => call('revoke').then(() => { $('link').textContent = ''; $('icon').replaceChildren(); say('revoked: the proposal out no longer works, and the session is cleared'); load(); }, err => say(err.message, true));
+// the proposal link holds the door's key: copied, never shown, so no one reads it over your shoulder
+let link = '';
+const copy = () => navigator.clipboard.writeText(link).then(() => say('copied: paste it into the extension; the robot there should match this one'), err => say('copy failed: ' + err.message, true));
+$('copy').onclick = copy;
+$('proposal').onclick = () => call('proposal').then(async b => { link = location.origin + '/api/session' + b.fragment; $('icon').replaceChildren(await keyIcon(new URLSearchParams(b.fragment.slice(1)).get('key'))); $('out').hidden = false; copy(); load(); }, err => say(err.message, true));
+$('revoke').onclick = () => call('revoke').then(() => { link = ''; $('out').hidden = true; $('icon').replaceChildren(); say('revoked: the proposal out no longer works, and the session is cleared'); load(); }, err => say(err.message, true));
 `;
