@@ -3,30 +3,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeORM } from '../src/orm.js';
+import { makeSql } from './memory-sql.js';
 
 /** @import { ORM } from '../src/orm.js' */
-
-/**
- * What the ORM uses of a Durable Object's SqlStorage, over `db`.
- *
- * @param {DatabaseSync} db
- */
-const makeSql = db => ({
-  /** @param {string} text @param {any[]} bindings as SqlStorage's exec takes them */
-  exec: (text, ...bindings) => {
-    const statement = db.prepare(text);
-    const rows = text.startsWith('SELECT')
-      ? statement.all(...bindings).map(row => ({ ...row }))
-      : (statement.run(...bindings), []);
-    return {
-      toArray: () => rows,
-      one: () => {
-        if (rows.length !== 1) throw Error('Expected exactly one result');
-        return rows[0];
-      },
-    };
-  },
-});
 
 /** @typedef {{ pet: { name: string, legs: number | null } }} Tables */
 
@@ -34,7 +13,7 @@ const makeDb = () => {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE pet (name TEXT PRIMARY KEY, legs INTEGER)');
   db.exec('CREATE TABLE secret (name TEXT PRIMARY KEY)');
-  const sql = /** @type {any} stands in for SqlStorage */ (makeSql(db));
+  const sql = makeSql(db);
   /** @type {ORM<Tables>} */
   const orm = makeORM(sql, ['pet']);
   return orm;
@@ -88,4 +67,32 @@ test('every statement stays within its own tables', () => {
   assert.throws(() => db.insert('secret', { name: 'x' }), refused);
   // @ts-expect-error not one of its tables
   assert.throws(() => db.insertOrIgnore('secret', { name: 'x' }), refused);
+  // @ts-expect-error not one of its tables
+  assert.throws(() => db.atMost('secret', 'name', 'x'), refused);
+  // @ts-expect-error not one of its tables
+  assert.throws(() => db.least('secret', 'name'), refused);
+});
+
+test('atMost answers the rows at or below a value, in order; least, the row with the least', () => {
+  const db = makeDb();
+  assert.equal(db.least('pet', 'legs'), undefined);
+  for (const [name, legs] of /** @type {const} */ ([
+    ['spider', 8],
+    ['rex', 4],
+    ['tweety', 2],
+    ['fish', 0],
+  ]))
+    db.insert('pet', { name, legs });
+  assert.deepEqual(
+    db.atMost('pet', 'legs', 4).map(({ name }) => name),
+    ['fish', 'tweety', 'rex'],
+  );
+  assert.deepEqual(db.atMost('pet', 'legs', -1), []);
+  assert.equal(db.least('pet', 'legs')?.name, 'fish');
+  // a column name goes into the SQL as it is, so it must be a plain name
+  assert.throws(
+    // @ts-expect-error not a column
+    () => db.least('pet', 'legs; DROP TABLE pet'),
+    /not a column name/,
+  );
 });
