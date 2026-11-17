@@ -13,7 +13,7 @@ import { makeWorkerd } from './workerd-process.js';
  * @import { FsIO } from './dir-tree.js';
  */
 
-const HELP = `usage: scripts/serve.js STATE_DIR BOOT_DIR [--source DIR] [--checkout DIR] [--port PORT]
+const HELP = `usage: scripts/serve.js STATE_DIR BOOT_DIR [--source DIR] [--checkout DIR] [--port PORT] [--link-file FILE]
 
 Runs toybox (workerd, on this package's config.capnp) with its state in
 STATE_DIR, made if need be and kept across runs, and BOOT_DIR as its boot
@@ -25,8 +25,27 @@ git trees, from the git checkout DIR (STATE_DIR/checkout by default).
 
 If the boot vat answers provideOwnerLink(), prints "open: " and the app socket's
 URL with that link appended: whoever opens it holds what it designates.
-Runs until interrupted or terminated; workerd's log goes to stderr.
+With --link-file, writes that URL to FILE instead, readable by its owner
+alone, and prints only where it is and its fingerprint, so a log that
+keeps what's printed (such as a systemd unit's journal) doesn't keep the
+link. Runs until interrupted or terminated; workerd's log goes to stderr.
 `;
+
+/**
+ * A secret's fingerprint, for a log to say which one without holding it:
+ * the first 6 bytes of its SHA-256, in hex.
+ *
+ * @param {string} secret
+ */
+export const fingerprint = async secret => {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(secret),
+  );
+  return [...new Uint8Array(digest).slice(0, 6)]
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+};
 
 /**
  * @param {object} io what the script hands on
@@ -60,6 +79,7 @@ export const main = async ({
         source: { type: 'string' },
         checkout: { type: 'string' },
         port: { type: 'string' },
+        'link-file': { type: 'string' },
       },
     });
   } catch {
@@ -97,7 +117,16 @@ export const main = async ({
           .catch(() => '')
       : '';
     kernel.close();
-    print(`open: ${box.appOrigin}/${link}\n`);
+    const url = `${box.appOrigin}/${link}`;
+    const file = values['link-file'];
+    if (file === undefined) print(`open: ${url}\n`);
+    else {
+      const path = resolve(cwd, file);
+      await fs.writeFile(path, `${url}\n`, { mode: 0o600 });
+      // writeFile's mode applies only to a new file
+      await fs.chmod(path, 0o600);
+      print(`open: the link in ${path} (sha256 ${await fingerprint(url)}…)\n`);
+    }
     await stopped;
   } finally {
     await box.stop();
