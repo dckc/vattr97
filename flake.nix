@@ -112,6 +112,7 @@
             (lib.fileset.fileFilter (f: f.name == "package.json") ./packages)
             ./packages/toybox
             ./packages/diigo-cache
+            ./nix
           ];
         };
         buildPhase = ''
@@ -141,6 +142,19 @@
             $lib/packages/toybox/scripts/serve.js "\$state" $lib/packages/diigo-cache/dist/boot "\$@"
           SH
           chmod +x $out/bin/diigo-cache-serve
+          # as installed in the nix profile /nix/var/nix/profiles/diigo-cache,
+          # a path that survives upgrades
+          mkdir -p $out/lib/systemd/system
+          ${lib.concatStrings (
+            lib.mapAttrsToList (name: file: "cp ${file} $out/lib/systemd/system/${name}\n") (
+              import ./nix/render-units.nix { inherit lib pkgs; } (
+                import ./nix/diigo-cache-units.nix {
+                  inherit lib;
+                  bin = "/nix/var/nix/profiles/diigo-cache/bin";
+                }
+              )
+            )
+          )}
           runHook postInstall
         '';
       });
