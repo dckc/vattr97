@@ -32,9 +32,21 @@
       ProtectSystem = "strict";
       ProtectHome = true;
       PrivateTmp = true;
+      PrivateDevices = true;
+      ProtectKernelTunables = true;
+      ProtectKernelModules = true;
+      ProtectControlGroups = true;
+      RestrictNamespaces = true;
+      LockPersonality = true;
+      CapabilityBoundingSet = "";
       NoNewPrivileges = true;
+      # it fetches diigo; it serves on loopback; node talks to workerd
       RestrictAddressFamilies = "AF_UNIX AF_INET AF_INET6";
-      SystemCallFilter = "@system-service";
+      SystemCallFilter = [
+        "@system-service"
+        # V8 uses memory protection keys; without these, SIGSYS at startup
+        "pkey_alloc pkey_mprotect pkey_free"
+      ];
       # not MemoryDenyWriteExecute: V8's JIT needs W+X
       Restart = "on-failure";
       RestartSec = 10;
