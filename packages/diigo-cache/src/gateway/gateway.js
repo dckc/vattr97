@@ -21,6 +21,7 @@
  * @import { SessionDoor, SessionSite } from '../../../toybox/examples/session-keeper.js';
  * @import { DiigoCache, DiigoViewer } from '../cache/cache.js';
  */
+import { hashicon } from './hashicon.js';
 import { publicPage } from './render.js';
 
 /**
@@ -208,6 +209,7 @@ body { font: 15px/1.45 system-ui, sans-serif; color: var(--fg); background: var(
 .failed { color: var(--bad); }
 button { font: inherit; padding: 6px 12px; margin: 0 8px 8px 0; }
 code { word-break: break-all; }
+#icon svg { vertical-align: middle; margin-right: 8px; border-radius: 4px; }
 </style>
 </head><body>
 <h1>diigo-cache</h1>
@@ -219,15 +221,21 @@ code { word-break: break-all; }
 cache your diigo session after you log in. Paste the proposal link into the
 extension's Proposals page; it can set the session, not read the cache.</p>
 <p><button id="proposal">Proposal link for the extension</button><button id="revoke">Revoke the session</button></p>
-<p><code id="link"></code></p>
+<p><span id="icon"></span><code id="link"></code></p>
 <p id="msg"></p>
 <p><a id="public" hidden>Your shared bookmarks</a></p>
 <script src="/page.js"></script>
 </body></html>
 `;
 
-/** The owner page's script: reads the key from the fragment, and asks /api/owner. */
-const SCRIPT = `const key = new URLSearchParams(location.hash.slice(1)).get('owner');
+/**
+ * The owner page's script: reads the key from the fragment, and asks
+ * /api/owner. Beside a proposal link, the hashicon of its key, as the
+ * extension draws it (hashicon.js, embedded as source).
+ */
+const SCRIPT = `const hashicon = ${hashicon};
+const keyIcon = async k => hashicon(document, new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(k))));
+const key = new URLSearchParams(location.hash.slice(1)).get('owner');
 const $ = id => document.getElementById(id);
 const say = (text, failed) => { $('msg').textContent = text; $('msg').className = failed ? 'failed' : 'muted'; };
 const call = async (op, more = {}) => {
@@ -248,6 +256,6 @@ if (!key) $('status').textContent = 'no owner key in this link';
 else load();
 $('refresh').onclick = () => call('refresh', { at: new Date().toISOString() }).then(b => { say('refreshed ' + b.refreshed.pages + ' pages: ' + counts(b.refreshed)); load(); }, err => say(err.message, true));
 $('fill').onclick = () => call('fill', { at: new Date().toISOString() }).then(b => { say((b.filled.done ? 'filled every page: ' : 'filled to page ' + (b.filled.nextPage - 1) + ': ') + counts(b.filled)); load(); }, err => say(err.message, true));
-$('proposal').onclick = () => call('proposal').then(b => { $('link').textContent = location.origin + '/api/session' + b.fragment; say('paste this into the extension; keep it to yourself'); load(); }, err => say(err.message, true));
-$('revoke').onclick = () => call('revoke').then(() => { $('link').textContent = ''; say('revoked: the proposal out no longer works, and the session is cleared'); load(); }, err => say(err.message, true));
+$('proposal').onclick = () => call('proposal').then(async b => { $('link').textContent = location.origin + '/api/session' + b.fragment; $('icon').replaceChildren(await keyIcon(new URLSearchParams(b.fragment.slice(1)).get('key'))); say('paste this into the extension; keep it to yourself; its picture there should match this one'); load(); }, err => say(err.message, true));
+$('revoke').onclick = () => call('revoke').then(() => { $('link').textContent = ''; $('icon').replaceChildren(); say('revoked: the proposal out no longer works, and the session is cleared'); load(); }, err => say(err.message, true));
 `;

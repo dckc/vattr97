@@ -6,6 +6,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { Script } from 'node:vm';
 import { E, Far } from '@endo/far';
 import { M } from '@endo/patterns';
 import { makeLiveslots } from '../../toybox/src/vat/liveslots.js';
@@ -377,6 +379,18 @@ test('the pages are static shells that keep to their own origin', async () => {
   const script = await s.ask('GET', '/page.js');
   assert.match(script.headers['content-type'], /^text\/javascript/);
   assert.equal((await s.ask('GET', '/elsewhere')).status, 404);
+  // a script the browser can parse, with the hashicon embedded
+  assert.doesNotThrow(() => new Script(script.body));
+  assert.match(script.body, /const hashicon = \(doc, bytes\) =>/);
+});
+
+test("the owner page's hashicon is the extension's, so the two pictures match", async () => {
+  const [ours, theirs] = await Promise.all(
+    ['../src/gateway/hashicon.js', '../../session-ext/hashicon.js'].map(f =>
+      readFile(new URL(f, import.meta.url), 'utf8'),
+    ),
+  );
+  assert.equal(ours, theirs, 'copy session-ext/hashicon.js to src/gateway/');
 });
 
 test('filters, as the public page parses them', () => {
