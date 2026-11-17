@@ -127,15 +127,18 @@ export const buildRootObject = ({ E, Far, M, zone }, { timer, cache }) => {
 
   return Far('diigoPacer', {
     /**
-     * On each start: a wakeup that should have come and didn't (a wake
-     * that failed is not tried again) is set again. Before the first
-     * session there's none: nothing to step yet.
+     * On each start: step, if there's no wakeup to wait for. That's a
+     * cache that has fetched before but was never paced (made before this
+     * vat was), or one whose wakeup should have come and didn't (a wake
+     * that failed is not tried again). A cache that has never fetched has
+     * no session yet: nothing to step.
      */
     async start() {
       const now = await E(timer).now();
       const { due, failed } = kept.get('pace');
-      if (due !== undefined && due < now - LOST_MS)
-        await wakeIn(now, STEP_MS, failed);
+      const lost = due !== undefined && due < now - LOST_MS;
+      const unpaced = due === undefined && (await E(cache).status()).at;
+      if (lost || unpaced) await wakeIn(now, STEP_MS, failed);
     },
     /** The session keeper's hook: `sessionSet(at)` alone. */
     onSession: () => onSession,

@@ -179,7 +179,7 @@ const setup = (count = 250) => {
       json: isJson ? JSON.parse(text) : undefined,
     };
   };
-  return { diigo, store, gateway, ask, pacer, tick, wakes: () => wakes };
+  return { diigo, store, gateway, ask, cache, pacer, tick, wakes: () => wakes };
 };
 
 /** @param {string} fragment @param {string} name */
@@ -295,6 +295,22 @@ test('before the first session, the pacer sets no wakeup: nothing to step yet', 
   const s = setup();
   await E(s.pacer).start();
   assert.equal(s.wakes().length, 0);
+});
+
+test('a cache that fetched before the pacer came starts stepping when the pacer starts', async () => {
+  const s = setup(2600);
+  // as a session set before the upgrade left it: stored, fetched, never paced
+  s.store.init(
+    'cookie',
+    'diigoandlogincookie=GOOD-login; _smasher_session=GOOD-sess',
+  );
+  await E(s.cache).refresh(AT);
+  assert.equal(s.wakes().length, 0);
+  await E(s.pacer).start();
+  assert.equal(s.wakes().length, 1);
+  assert.equal(await s.tick(), STEP_MS);
+  await E(s.pacer).start();
+  assert.equal(s.wakes().length, 1, 'one wakeup at a time');
 });
 
 test('a session diigo refuses is stored anyway, and the refusal says why', async () => {
