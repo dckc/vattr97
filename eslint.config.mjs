@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import typedRefs from './eslint-typed-refs.mjs';
 
 /**
  * Where authority starts in toybox: the tests themselves, and any script
@@ -98,5 +99,19 @@ export default [
         },
       ],
     },
+  },
+  {
+    // JSDoc types say what a reference is: no bare Remote, no any
+    // (eslint-typed-refs.mjs). On where it holds today; widen as more
+    // code is typed.
+    files: [
+      'packages/diigo-cache/**/*.js',
+      'packages/session-ext/**/*.js',
+      'packages/toybox/examples/session-keeper.js',
+      'packages/toybox/test/session-keeper.test.js',
+      'eslint-typed-refs.mjs',
+    ],
+    plugins: { local: typedRefs },
+    rules: { 'local/typed-refs': 'error' },
   },
 ];
