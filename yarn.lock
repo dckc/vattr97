@@ -1372,6 +1372,12 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@vattr/diigo-cache@workspace:packages/diigo-cache":
+  version: 0.0.0-use.local
+  resolution: "@vattr/diigo-cache@workspace:packages/diigo-cache"
+  languageName: unknown
+  linkType: soft
+
 "@vattr/ertp-books@workspace:packages/ertp-books":
   version: 0.0.0-use.local
   resolution: "@vattr/ertp-books@workspace:packages/ertp-books"
@@ -1380,6 +1386,12 @@ __metadata:
     "@types/better-sqlite3": "npm:^7.6.1"
     ava: "npm:^7.0.0"
     better-sqlite3: "npm:12.10.0"
+  languageName: unknown
+  linkType: soft
+
+"@vattr/session-ext@workspace:packages/session-ext":
+  version: 0.0.0-use.local
+  resolution: "@vattr/session-ext@workspace:packages/session-ext"
   languageName: unknown
   linkType: soft
 
