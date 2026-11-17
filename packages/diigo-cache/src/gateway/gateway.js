@@ -17,10 +17,9 @@
  * Errors say what failed, never a key or cookie.
  */
 /**
- * @import { BuildRootObject, HttpResponse, MapStore, Remote } from '../../../toybox/src/types.js';
+ * @import { BuildRootObject, Entropy, HttpResponse, Ingress, MapStore, Remote } from '../../../toybox/src/types.js';
  * @import { SessionDoor, SessionSite } from '../../../toybox/examples/session-keeper.js';
  * @import { DiigoCache, DiigoViewer } from '../cache/cache.js';
- * @import { Entropy, Ingress } from '../types.js';
  */
 import { publicPage } from './render.js';
 

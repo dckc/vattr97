@@ -19,9 +19,7 @@
  * writes the session and answers `{ ok, summary }`; `{ key, op: 'revoke' }`
  * ends the door. Answers name keys and counts, never cookie values.
  */
-/** @import { BuildRootObject, HttpResponse, MapStore, Remote } from '../src/types.js' */
-
-/** An entropy device, as this vat uses it. @typedef {{ swiss(): string }} Entropy */
+/** @import { BuildRootObject, Entropy, HttpResponse, MapStore, Remote } from '../src/types.js' */
 
 /**
  * A store the session goes into: a map store, read-write (see

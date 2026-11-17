@@ -313,3 +313,50 @@ export type HttpResponse = {
   headers?: Record<string, string>;
   body?: string;
 };
+
+/*
+ * What a boot vat is given, as a vat uses each: the kernel's objects and
+ * the devices. Write `Remote<Entropy>`, not a bare `Remote`.
+ */
+
+/** Serves requests at an ingress. */
+export type Handler = {
+  handle(request: HttpRequest): HttpResponse | Promise<HttpResponse>;
+};
+
+/** Where a vat serves web requests: an ingress, such as the app socket's. */
+export type Ingress = { serve(handler: Remote<Handler>): void };
+
+/** An entropy device: unguessable numbers, for a vat, which has no randomness. */
+export type Entropy = { swiss(): string };
+
+/** A fetch device: the network, as one vat (such as the webApp vat) holds it. */
+export type FetchDevice = {
+  fetch(
+    url: string,
+    init?: import('./devices/types.js').FetchInit,
+  ): Promise<import('./devices/types.js').FetchAnswer>;
+};
+
+/** A bundle's capability: opaque, to hand to `createVat` or `upgrade`. */
+export type BundleCap = object;
+
+/** The boot directory's bundles. */
+export type Bundles = { getBundleCap(name: string): Promise<BundleCap> };
+
+/** A vat's admin node, as whoever made the vat holds it. */
+export type AdminNode = {
+  upgrade(bundle: BundleCap): Promise<void>;
+  terminate(): Promise<void>;
+};
+
+/**
+ * Makes vats. The kernel says only that `root` is some vat's root; whoever
+ * made it knows which, and says so with one cast.
+ */
+export type VatAdmin = {
+  createVat(
+    bundle: BundleCap,
+    params?: object,
+  ): Promise<{ root: Remote<object>; adminNode: Remote<AdminNode> }>;
+};

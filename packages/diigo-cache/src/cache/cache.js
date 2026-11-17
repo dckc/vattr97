@@ -16,7 +16,7 @@
  */
 /**
  * @import { BuildRootObject, MapStore, Remote } from '../../../toybox/src/types.js';
- * @import { WebApp } from '../types.js';
+ * @import { WebApp } from '../../../toybox/examples/webapp.js';
  * @import { Item } from './items.js';
  */
 import { rowOf, updatedOf, usernameOf } from './items.js';
