@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Session to toybox: proposals</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Proposals</h1>
+      <p>
+        Paste a <b>proposal link</b> from a toybox app's page. It names a site,
+        the cookies to read there, and the app to send them to. Accepting asks
+        the browser for access to those two hosts; this extension reads only
+        what an accepted proposal names, and keeps no sessions.
+      </p>
+      <input id="link" type="password" spellcheck="false" autocomplete="off" />
+      <p><button id="review">Review</button></p>
+      <div id="proposed" hidden>
+        <ul id="lines"></ul>
+        <p>
+          <button id="accept">Accept</button>
+          <button id="cancel">Cancel</button>
+        </p>
+      </div>
+      <p id="msg" class="muted"></p>
+      <h2>Accepted</h2>
+      <ul id="accepted"></ul>
+      <script type="module" src="options.js"></script>
+    </main>
+  </body>
+</html>
