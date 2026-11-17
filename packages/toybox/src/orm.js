@@ -30,6 +30,17 @@ export const makeORM = (sql, tables) => {
   };
 
   /**
+   * A column name, as it goes into the SQL: a plain name, never anything
+   * else, even if a caller passes something other than its literal.
+   *
+   * @param {string} column
+   */
+  const col = column => {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(column))
+      throw Error(`${JSON.stringify(column)} is not a column name`);
+    return column;
+  };
+  /**
    * @param {string} table
    * @param {Record<string, unknown>} keyFields
    * @returns {Pick<SqlStorageCursor<any>, 'toArray' | 'one'>} rows as the table's type says: the schema is what keeps that true
@@ -96,6 +107,45 @@ export const makeORM = (sql, tables) => {
           );
         },
       }),
+    /**
+     * The rows whose `column` is at most `max`, least first: such as what's
+     * due by now.
+     *
+     * @template {string & keyof DB} T
+     * @template {string & keyof DB[T]} C
+     * @param {T} table
+     * @param {C} column
+     * @param {DB[T][C] & SqlStorageValue} max
+     * @returns {DB[T][]}
+     */
+    atMost: (table, column, max) =>
+      /** @type {DB[T][]} rows as the table's type says: the schema is what keeps that true */ (
+        /** @type {unknown} */ (
+          sql
+            .exec(
+              `SELECT * FROM ${own(table)} WHERE ${col(column)} <= ? ORDER BY ${col(column)}`,
+              max,
+            )
+            .toArray()
+        )
+      ),
+    /**
+     * The row whose `column` is least, if there's any row: such as what's
+     * due next.
+     *
+     * @template {string & keyof DB} T
+     * @param {T} table
+     * @param {string & keyof DB[T]} column
+     * @returns {DB[T] | undefined}
+     */
+    least: (table, column) =>
+      /** @type {DB[T][]} rows as the table's type says: the schema is what keeps that true */ (
+        /** @type {unknown} */ (
+          sql
+            .exec(`SELECT * FROM ${own(table)} ORDER BY ${col(column)} LIMIT 1`)
+            .toArray()
+        )
+      )[0],
     /**
      * @template {string & keyof DB} T
      * @param {T} table
