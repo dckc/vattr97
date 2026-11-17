@@ -38,6 +38,15 @@ export type Device = {
   kinds: Record<string, KernelObjects>;
   /** a new object of this device, as a kref */
   make: () => Kref;
+  /**
+   * For a device that wakes vats: when it next wants waking, and what to
+   * do then. The kernel has one alarm, set to the earliest `next()` of
+   * all its devices.
+   */
+  alarm?: {
+    next: () => number | undefined;
+    fire: () => Promise<void>;
+  };
 };
 
 /**
@@ -51,6 +60,14 @@ export type MakeDevices = (
     bundles: ReturnType<typeof import('./bundles.js').makeBundles>;
     /** `n` random bytes */
     random: (n: number) => Uint8Array;
+    /** the time, in milliseconds since the epoch */
+    now: () => number;
+    /** deliver a message to a vat's object, as the kernel does */
+    send: (kref: Kref, method: string, args: unknown[]) => Promise<unknown>;
+    /** set the kernel's alarm to the earliest any device's `alarm.next()` asks */
+    rearm: () => void;
+    /** report what went wrong where no caller hears it */
+    log: (message: string) => void;
     withTables: WithTables;
   },
 ) => Record<string, Device>;

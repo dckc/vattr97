@@ -5,17 +5,21 @@ import { TABLES as GIT_TABLES, makeGitTrees } from './git/trees.js';
 import { makeInstallers } from './installer.js';
 import { makeNixStores } from './nix/store.js';
 import { makeSourceTrees } from './source.js';
+import { TABLES as TIMER_TABLES, makeTimers } from './timer.js';
 
 /** @import { MakeDevices } from '../kernel/types.js' */
 
 /**
  * toybox's own I/O devices: networks (`fetch`, `lan`), the nix store, git
- * trees, the source directory, entropy, and the installer, for module
- * source a vat has in hand.
+ * trees, the source directory, entropy, timers, and the installer, for
+ * module source a vat has in hand.
  *
  * @type {MakeDevices}
  */
-export const makeDevices = (powers, { env, bundles, random, withTables }) =>
+export const makeDevices = (
+  powers,
+  { env, bundles, random, now, send, rearm, log, withTables },
+) =>
   harden({
     entropy: makeEntropy(powers, { random }),
     fetch: makeFetchDevices(powers, {
@@ -34,4 +38,5 @@ export const makeDevices = (powers, { env, bundles, random, withTables }) =>
     }),
     nixStore: makeNixStores(powers, { store: env.NIX_STORE, bundles }),
     source: makeSourceTrees(powers, { source: env.SOURCE, bundles }),
+    timer: makeTimers(withTables(TIMER_TABLES), { now, send, rearm, log }),
   });
