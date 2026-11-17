@@ -14,8 +14,11 @@
  * - `onSession()`: a facet for the session keeper, which calls
  *   `sessionSet(at)` after each new session: a refresh, then a fill step
  */
-/** @import { BuildRootObject, MapStore, Remote } from '../../../toybox/src/types.js' */
-/** @import { Item } from './items.js' */
+/**
+ * @import { BuildRootObject, MapStore, Remote } from '../../../toybox/src/types.js';
+ * @import { WebApp } from '../types.js';
+ * @import { Item } from './items.js';
+ */
 import { rowOf, updatedOf, usernameOf } from './items.js';
 import { dateOf, matches, parseQuery } from './query.js';
 
@@ -34,19 +37,44 @@ export const PER_PAGE = 50;
  * @typedef {{ nextPage: number, pages?: number, done: boolean }} Walk
  */
 
-/** @type {BuildRootObject<{ source: Remote }>} */
+/**
+ * What the cache knows besides the bookmarks.
+ *
+ * @typedef {object} CacheState
+ * @property {Walk} walk
+ * @property {string} at when it last fetched, as the caller said
+ * @property {number} total diigo's count of bookmarks
+ * @property {number} newest the newest `updated_at` kept, in epoch seconds
+ * @property {string} user whose bookmarks they are
+ */
+
+/**
+ * @typedef {ReturnType<typeof buildRootObject>} DiigoCache the cache vat's root
+ * @typedef {ReturnType<DiigoCache['viewer']>} DiigoViewer its public view: shared bookmarks, read-only
+ * @typedef {ReturnType<DiigoCache['onSession']>} DiigoOnSession its hook for the session keeper
+ * @typedef {ReturnType<DiigoViewer['query']>} Found what the public view found: bookmarks, or why the filter was refused
+ */
+
+/** @satisfies {BuildRootObject<{ source: Remote<WebApp> }>} */
 export const buildRootObject = ({ E, Far, M, zone }, { source }) => {
   /** @type {MapStore<string, string>} shared items, by link_id, as JSON */
   const shared = zone.mapStore('shared');
   /** @type {MapStore<string, string>} private items, by link_id, as JSON */
   const hidden = zone.mapStore('private');
-  /** @type {MapStore<string, any>} `walk`, `at` (the last fetch), `total`, `newest` (updated_at), `user` */
+  /** @type {MapStore<keyof CacheState, CacheState[keyof CacheState]>} see {@link CacheState} */
   const state = zone.mapStore('state');
 
-  /** @param {string} k @param {unknown} v */
+  /** @template {keyof CacheState} K @param {K} k @param {CacheState[K]} v */
   const put = (k, v) => (state.has(k) ? state.set(k, v) : state.init(k, v));
-  /** @template T @param {string} k @param {T} dflt @returns {T} */
-  const got = (k, dflt) => (state.has(k) ? state.get(k) : dflt);
+  /**
+   * @template {keyof CacheState} K
+   * @template D
+   * @param {K} k
+   * @param {D} dflt what it is before it's put
+   * @returns {CacheState[K] | D}
+   */
+  const got = (k, dflt) =>
+    state.has(k) ? /** @type {CacheState[K]} */ (state.get(k)) : dflt;
 
   /**
    * Page `n` (from 1) of diigo's bookmarks, newest updated first.

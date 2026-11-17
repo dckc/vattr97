@@ -6,17 +6,18 @@ import { matches, parseQuery, toQuery } from '../src/cache/query.js';
 // goal 1d (capsite checklist)
 
 /** vitest's expect, the matchers these tests use, over node:assert */
-const expect = (/** @type {any} */ actual) => ({
+const expect = (/** @type {unknown} */ actual) => ({
   toBe: (/** @type {unknown} */ want) => assert.equal(actual, want),
   toEqual: (/** @type {unknown} */ want) => assert.deepEqual(actual, want),
   toMatch: (/** @type {RegExp | string} */ want) =>
     assert.match(
-      actual,
+      String(actual),
       typeof want === 'string'
         ? new RegExp(want.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
         : want,
     ),
-  toHaveProperty: (/** @type {string} */ name) => assert.ok(name in actual),
+  toHaveProperty: (/** @type {string} */ name) =>
+    assert.ok(typeof actual === 'object' && actual !== null && name in actual),
 });
 
 const NOW = new Date('2026-10-07T12:00:00.000Z');

@@ -13,6 +13,7 @@ import {
 import { makeMemoryVatstore as makeKv } from './memory-vatstore.js';
 
 /** @import { SqlDatabase } from '../src/types.js' */
+/** @import { SessionKeeper } from '../examples/session-keeper.js' */
 /** @import { Vatstore } from '../src/vat/types.js' */
 
 const noDb = /** @type {SqlDatabase} */ (/** @type {unknown} */ (harden({})));
@@ -44,7 +45,6 @@ const incarnate = kv => {
     throw Error('no endowments here');
   };
   const powers = harden({ E, Far, M, zone, db: noDb, endowment });
-  /** @type {any} the keeper's methods, as the vat defines them */
   const keeper = buildKeeper(powers, { entropy });
   const store = zone.makeOnce('store', () =>
     zone.detached().mapStore('session'),
@@ -68,10 +68,11 @@ const incarnate = kv => {
 const keyIn = fragment =>
   new URLSearchParams(fragment.slice(1)).get('key') ?? '';
 
-/** @param {any} keeper @param {object} req */
+/** @param {SessionKeeper} keeper @param {object} req */
 const ask = async (keeper, req) => {
   const res = await E(keeper.door()).serve(JSON.stringify(req));
-  return { status: res.status, body: res.body, json: JSON.parse(res.body) };
+  const body = res.body ?? '';
+  return { status: res.status, body, json: JSON.parse(body) };
 };
 
 test('a proposal names the key, the site, and its cookies', () => {

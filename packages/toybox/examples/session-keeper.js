@@ -21,6 +21,22 @@
  */
 /** @import { BuildRootObject, HttpResponse, MapStore, Remote } from '../src/types.js' */
 
+/** An entropy device, as this vat uses it. @typedef {{ swiss(): string }} Entropy */
+
+/**
+ * A store the session goes into: a map store, read-write (see
+ * store-maker.js), as this vat uses it.
+ *
+ * @typedef {Pick<MapStore<string, string>, 'has' | 'init' | 'set' | 'delete'>} SessionStore
+ */
+
+/**
+ * What the app does after each new session, such as refresh what the
+ * session reads: its answer ends the summary the extension shows.
+ *
+ * @typedef {{ sessionSet(at: string): string | Promise<string> }} SessionHook
+ */
+
 /**
  * What a site's proposal asks the extension to read.
  *
@@ -45,8 +61,8 @@
  * @typedef {object} SiteState
  * @property {Descriptor} descriptor
  * @property {Layout} layout
- * @property {Remote} store read-write: where the session goes
- * @property {Remote | undefined} after told `sessionSet(at)` after each set; its answer, a string, ends the summary
+ * @property {Remote<SessionStore>} store where the session goes
+ * @property {Remote<SessionHook> | undefined} after told `sessionSet(at)` after each set
  * @property {string | undefined} key the door's swiss number, if it's open
  * @property {string | undefined} at when the session was last set, as the extension said
  */
@@ -153,13 +169,19 @@ export const proposalFragment = (key, { site, cookies, label }) => {
   return `#${params}`;
 };
 
-/** @type {BuildRootObject<{ entropy: Remote }>} */
+/**
+ * @typedef {ReturnType<typeof buildRootObject>} SessionKeeper this vat's root, for the app's boot vat
+ * @typedef {ReturnType<SessionKeeper['site']>} SessionSite a site's admin facet
+ * @typedef {ReturnType<SessionKeeper['door']>} SessionDoor the door, for the app's gateway
+ */
+
+/** @satisfies {BuildRootObject<{ entropy: Remote<Entropy> }>} */
 export const buildRootObject = ({ E, Far, M, zone }, { entropy }) => {
   /** @type {MapStore<string, SiteState>} each site, by name */
   const sites = zone.mapStore('sites');
   /** @type {MapStore<string, string>} each open door's site, by key */
   const doors = zone.mapStore('doors');
-  /** @type {MapStore<string, Remote>} each site's admin facet, by name */
+  /** @type {MapStore<string, ReturnType<typeof makeSite>>} each site's admin facet, by name */
   const admins = zone.mapStore('admins');
 
   /** @param {string} name @param {Partial<SiteState>} more */
@@ -219,14 +241,19 @@ export const buildRootObject = ({ E, Far, M, zone }, { entropy }) => {
     },
   );
 
-  /** @param {string} name @param {any} req */
+  /**
+   * @param {string} name
+   * @param {{ cookies?: unknown, at?: unknown }} req as JSON parsed it: not checked yet
+   */
   const set = async (name, { cookies, at }) => {
     const { descriptor, layout, store, after } = sites.get(name);
     const why = cookieRefusal(descriptor.cookies, cookies);
     if (why) return json(400, { ok: false, error: why });
     if (typeof at !== 'string' || !ISO_TIME.test(at))
       return json(400, { ok: false, error: 'at: expected an ISO 8601 time' });
-    for (const [k, v] of entriesFor(layout, cookies)) {
+    // cookieRefusal found each named cookie, and no other, a string
+    const checked = /** @type {Record<string, string>} */ (cookies);
+    for (const [k, v] of entriesFor(layout, checked)) {
       if (await E(store).has(k)) await E(store).set(k, v);
       else await E(store).init(k, v);
     }
@@ -248,13 +275,18 @@ export const buildRootObject = ({ E, Far, M, zone }, { entropy }) => {
    * @param {string} body
    */
   const serve = async body => {
-    /** @type {any} */
-    let req;
+    /** @type {unknown} */
+    let parsed;
     try {
-      req = JSON.parse(body);
+      parsed = JSON.parse(body);
     } catch {
-      req = undefined;
+      parsed = undefined;
     }
+    /** @type {{ key?: unknown, op?: unknown, cookies?: unknown, at?: unknown } | undefined} */
+    const req =
+      parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? parsed
+        : undefined;
     if (!req || typeof req !== 'object')
       return json(400, { ok: false, error: 'expected a JSON object' });
     const { key, op = 'set' } = req;
@@ -291,7 +323,7 @@ export const buildRootObject = ({ E, Far, M, zone }, { entropy }) => {
      *
      * @param {string} name
      * @param {Descriptor} descriptor
-     * @param {{ store: Remote, layout: Layout, after?: Remote }} into
+     * @param {{ store: Remote<SessionStore>, layout: Layout, after?: Remote<SessionHook> }} into
      */
     site(name, descriptor, { store, layout, after }) {
       checkSite(descriptor, layout);
