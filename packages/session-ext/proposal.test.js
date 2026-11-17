@@ -79,28 +79,40 @@ test('refuses a link it cannot use, naming parts but not the key', () => {
 });
 
 test('asks for the site and the app, by host', () => {
-  assert.deepEqual(originsOf(p), ['https://*.example/*', 'http://127.0.0.1/*']);
+  assert.deepEqual(originsOf(p), [
+    'https://www.example/*',
+    'http://127.0.0.1/*',
+  ]);
 });
 
-test("the site's permission covers cookies set for its parent domain", () => {
-  // diigo sets `_smasher_session` with domain=diigo.com, for www.diigo.com;
-  // chrome.cookies answers a cookie only with permission for its domain
-  const at = (/** @type {string} */ site) => originsOf({ ...p, site })[0];
-  assert.equal(at('https://www.diigo.com/'), 'https://*.diigo.com/*');
-  assert.equal(at('https://diigo.com/'), 'https://*.diigo.com/*');
-  assert.equal(
-    at('https://online.bank.example/'),
-    'https://*.online.bank.example/*',
-  );
-  assert.equal(at('http://localhost:8788/'), 'http://localhost/*');
-  assert.equal(at('http://127.0.0.1:8788/'), 'http://127.0.0.1/*');
+test("names the cookies' domain, if it's a parent of the site's host", () => {
+  const link = (/** @type {string} */ more) =>
+    `http://127.0.0.1:8788/api/session#key=${'k'.repeat(32)}&site=https%3A%2F%2Fwww.diigo.com%2F&label=diigo&cookie=sid${more}`;
+  const q = parseProposal(link('&domain=diigo.com'));
+  assert.equal(q.domain, 'diigo.com');
+  assert.deepEqual(originsOf(q), [
+    'https://*.diigo.com/*',
+    'http://127.0.0.1/*',
+  ]);
+  assert.equal(parseProposal(link('')).domain, undefined);
+  for (const domain of ['com', 'other.com', 'igo.com'])
+    assert.throws(
+      () => parseProposal(link(`&domain=${domain}`)),
+      /domain:/,
+      domain,
+    );
 });
 
 test('the review says what is read and where it goes, and what a replacement adds', () => {
   assert.deepEqual(review(p, []), [
     'Example: after you log in, read the cookies sid, csrf for https://www.example/',
     'and send them to http://127.0.0.1:8788/api/session',
+    'Accept asks to read cookies at https://www.example/*',
   ]);
+  assert.equal(
+    review({ ...p, domain: 'example' }, [])[2],
+    'Accept asks to read cookies at https://*.example/*',
+  );
   const one = { ...p, cookies: ['sid'] };
   assert.deepEqual(
     review(p, [one]).at(-1),
@@ -116,9 +128,9 @@ test('one proposal per endpoint and site; dropping one frees only the hosts no o
   const again = withProposal(both, { ...p, key: 'n'.repeat(32) });
   assert.equal(again.length, 2);
   assert.equal(again.at(-1)?.key, 'n'.repeat(32));
-  assert.deepEqual(originsFreed(p, [other]), ['https://*.example/*']);
+  assert.deepEqual(originsFreed(p, [other]), ['https://www.example/*']);
   assert.deepEqual(originsFreed(p, []), [
-    'https://*.example/*',
+    'https://www.example/*',
     'http://127.0.0.1/*',
   ]);
 });

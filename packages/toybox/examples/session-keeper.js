@@ -42,6 +42,11 @@
  * @property {string} site the URL whose cookies to read (https, or http on loopback)
  * @property {string[]} cookies their names
  * @property {string} label how the extension names the site
+ * @property {string} [domain] the domain the site sets its cookies for,
+ *   if it's a parent of the site's host (`diigo.com`, for
+ *   `www.diigo.com`): the extension asks to read cookies for it and its
+ *   subdomains, since a browser hands over a cookie only with access to
+ *   the cookie's domain
  */
 
 /**
@@ -93,8 +98,10 @@ const said = err => String(err).replace(/^Error: /, '');
  * @param {Descriptor} descriptor
  * @param {Layout} layout
  */
-export const checkSite = ({ site, cookies, label }, layout) => {
+export const checkSite = ({ site, cookies, label, domain }, layout) => {
   const url = new URL(site);
+  if (domain !== undefined && !cookieDomain(url.hostname, domain))
+    throw Error("domain: the site's host or a parent of it, with a dot");
   const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
   if (!(url.protocol === 'https:' || (url.protocol === 'http:' && loopback)))
     throw Error('site: https, or http on loopback');
@@ -114,6 +121,20 @@ export const checkSite = ({ site, cookies, label }, layout) => {
   for (const name of cookies)
     if (!used.has(name)) throw Error(`layout: puts ${name} nowhere`);
 };
+
+/**
+ * Can a site at `host` set cookies for `domain`: is the host a name, not
+ * an IP address, and the domain that name or a parent of it, more than a
+ * top-level name? (Short of the public suffix list: `co.uk` passes.)
+ *
+ * @param {string} host
+ * @param {unknown} domain
+ */
+export const cookieDomain = (host, domain) =>
+  typeof domain === 'string' &&
+  !/^[\d.]+$|^\[/.test(host) &&
+  /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain) &&
+  (host === domain || host.endsWith(`.${domain}`));
 
 /**
  * The store's entries for `cookies`, as `layout` places them.
@@ -161,8 +182,9 @@ export const cookieRefusal = (names, cookies) => {
  * @param {string} key
  * @param {Descriptor} descriptor
  */
-export const proposalFragment = (key, { site, cookies, label }) => {
+export const proposalFragment = (key, { site, cookies, label, domain }) => {
   const params = new URLSearchParams({ key, site, label });
+  if (domain !== undefined) params.append('domain', domain);
   for (const name of cookies) params.append('cookie', name);
   return `#${params}`;
 };
@@ -329,6 +351,9 @@ export const buildRootObject = ({ E, Far, M, zone }, { entropy }) => {
         site: new URL(descriptor.site).href,
         cookies: [...descriptor.cookies],
         label: descriptor.label,
+        ...(descriptor.domain === undefined
+          ? {}
+          : { domain: descriptor.domain }),
       });
       const fixed = harden({ store, layout: harden({ ...layout }), after });
       if (!sites.has(name)) {
@@ -341,6 +366,7 @@ export const buildRootObject = ({ E, Far, M, zone }, { entropy }) => {
         const same =
           was.site === d.site &&
           was.label === d.label &&
+          was.domain === d.domain &&
           was.cookies.join(' ') === d.cookies.join(' ');
         update(name, { descriptor: d, ...fixed });
         if (!same) {

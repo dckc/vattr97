@@ -6,6 +6,8 @@ import { M } from '@endo/patterns';
 import { makeLiveslots } from '../src/vat/liveslots.js';
 import {
   buildRootObject as buildKeeper,
+  checkSite,
+  cookieDomain,
   cookieRefusal,
   entriesFor,
   proposalFragment,
@@ -82,6 +84,38 @@ test('a proposal names the key, the site, and its cookies', () => {
   assert.equal(params.get('site'), SITE);
   assert.equal(params.get('label'), 'Bookmarks');
   assert.deepEqual(params.getAll('cookie'), ['sid', 'csrf']);
+  assert.equal(params.get('domain'), null);
+});
+
+test("a proposal names the cookies' domain, if it's a parent of the site's host", () => {
+  const www = { ...descriptor, site: 'https://www.bookmarks.example/' };
+  const fragment = proposalFragment('k1', {
+    ...www,
+    domain: 'bookmarks.example',
+  });
+  assert.equal(
+    new URLSearchParams(fragment.slice(1)).get('domain'),
+    'bookmarks.example',
+  );
+  checkSite({ ...www, domain: 'bookmarks.example' }, layout);
+  checkSite({ ...www, domain: 'www.bookmarks.example' }, layout);
+  for (const domain of [
+    'example',
+    'other.example',
+    'ookmarks.example',
+    'Bookmarks.example',
+  ])
+    assert.throws(
+      () => checkSite({ ...www, domain }, layout),
+      /domain:/,
+      domain,
+    );
+  assert.equal(cookieDomain('bookmarks.example', 'bookmarks.example'), true);
+  assert.equal(
+    cookieDomain('127.0.0.1', '0.0.1'),
+    false,
+    'an IP address has no parent',
+  );
 });
 
 test('the layout puts a cookie as itself, or several as a cookie header', () => {

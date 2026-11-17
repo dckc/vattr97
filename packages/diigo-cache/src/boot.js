@@ -37,12 +37,14 @@ export const HEADERS = harden({
 /**
  * The diigo session, as the extension reads it: the site, and its
  * session cookies. A logged-in browser sends both (seen in devtools,
- * 2026-11-17), set for domain=diigo.com; which of them diigo's API checks
- * isn't known. A changed list closes the door, so the owner page offers a
- * new proposal.
+ * 2026-11-17); diigo sets them for domain=diigo.com, so the extension
+ * must ask for that domain, not just www.diigo.com. Which of them diigo's
+ * API checks isn't known. A changed descriptor closes the door, so the
+ * owner page offers a new proposal.
  */
 export const DIIGO = harden({
   site: 'https://www.diigo.com/',
+  domain: 'diigo.com',
   cookies: ['diigoandlogincookie', '_smasher_session'],
   label: 'diigo',
 });
