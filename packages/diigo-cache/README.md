@@ -17,7 +17,7 @@ It prints `open: http://127.0.0.1:8788/#owner=...`: the owner page. Keep that li
 Then hand it a session:
 
 1. Load [the session extension](../session-ext/README.md) unpacked.
-2. On the owner page, click "Proposal link for the extension". Paste the link into the extension's Proposals page, review it, and Accept.
+2. On the owner page, click "Proposal link for the extension": it copies the link (which holds a key, so the page never shows it) and shows a robot face drawn from the key. Paste it into the extension's Proposals page, check that the robot there matches, and Accept.
 3. Log in to diigo, then click the toolbar button and "Send diigo". The cache refreshes diigo's newest pages, then fills 20 more pages of the rest. The popup reports counts, never bookmarks.
 4. Visit `/public/<your diigo username>?days=7`.
 
