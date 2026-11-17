@@ -451,6 +451,48 @@ test('vats in one kernel', async t => {
   });
 
   await t.test(
+    'an installer makes a bundleCap for modules, which a vatAdmin runs',
+    async () => {
+      const vatAdmin = await k.makeVatAdmin();
+      const installer = await k.makeDevice('installer');
+      const src = await kvat('counter.js');
+      const bundleCap = await E(installer).install({ 'main.js': src });
+      assert.equal(await E(installer).install({ 'main.js': src }), bundleCap);
+      // the same module, however it was installed, is the same bundle
+      assert.equal(await k.installBundle(src), bundleCap);
+      const { root } = await E(vatAdmin).createVat(bundleCap, {});
+      assert.equal(await E(E(root).getCounter()).incr(), 1);
+
+      // several modules, the main one named by worker.json
+      const greeter = await E(installer).install({
+        'worker.json': JSON.stringify({ mainModule: 'greet.js' }),
+        'greet.js': `import { hello } from './lib/hello.js';
+export const buildRootObject = ({ Far }) => Far('greeter', { greet: who => hello(who) });`,
+        'lib/hello.js': 'export const hello = who => `Hello, ${who}`;',
+      });
+      const { root: g } = await E(vatAdmin).createVat(greeter, {});
+      assert.equal(await E(g).greet('Fred'), 'Hello, Fred');
+
+      for (const path of [
+        '../vat.js',
+        '/main.js',
+        'a//b.js',
+        'lib/../main.js',
+        '.x.js',
+      ])
+        await assert.rejects(
+          E(installer).install({ 'main.js': src, [path]: '' }),
+          /not a path within a bundle/,
+        );
+      await assert.rejects(
+        E(installer).install({ 'lib.js': src }),
+        /mainModule must name a .js file in it/,
+      );
+      await assert.rejects(E(installer).install(src), /Must be a copyRecord/);
+    },
+  );
+
+  await t.test(
     'a nixStore makes a bundleCap for a file in the store, and refuses anything else',
     async () => {
       const vatAdmin = await k.makeVatAdmin();

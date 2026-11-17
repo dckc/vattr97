@@ -2,6 +2,7 @@
 import { makeEntropy } from './entropy.js';
 import { makeFetchDevices } from './fetch.js';
 import { TABLES as GIT_TABLES, makeGitTrees } from './git/trees.js';
+import { makeInstallers } from './installer.js';
 import { makeNixStores } from './nix/store.js';
 import { makeSourceTrees } from './source.js';
 
@@ -9,7 +10,8 @@ import { makeSourceTrees } from './source.js';
 
 /**
  * toybox's own I/O devices: networks (`fetch`, `lan`), the nix store, git
- * trees, the source directory, and entropy.
+ * trees, the source directory, entropy, and the installer, for module
+ * source a vat has in hand.
  *
  * @type {MakeDevices}
  */
@@ -24,6 +26,7 @@ export const makeDevices = (powers, { env, bundles, random, withTables }) =>
     gitTrees: makeGitTrees(withTables(GIT_TABLES), {
       checkout: env.GIT_CHECKOUT,
     }),
+    installer: makeInstallers(powers, { bundles }),
     lan: makeFetchDevices(powers, {
       tag: 'LanDevice',
       prefix: 'lan',

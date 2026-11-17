@@ -92,6 +92,7 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
       'fetch',
       'gitTrees',
       'ingress',
+      'installer',
       'lan',
       'nixStore',
       'source',

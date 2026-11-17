@@ -18,18 +18,15 @@ const fileEntries = (node, prefix = '') =>
       );
 
 /**
- * A bundle's manifest, from its worker.json (or, for a file alone, the
+ * A bundle's manifest, from its worker.json (or, without one, the
  * defaults), checked against its files.
  *
  * @param {string} path
- * @param {TreeNode} node
  * @param {Record<string, Uint8Array>} files
  * @returns {Manifest}
  */
-const manifestOf = (path, node, files) => {
+const manifestOf = (path, files) => {
   const json = files['worker.json'];
-  if (node.type !== 'regular' && !json)
-    throw Error(`${path} has no worker.json`);
   /** @type {Record<string, unknown>} what worker.json says, checked below */
   let declared = {};
   if (json) {
@@ -66,9 +63,26 @@ const manifestOf = (path, node, files) => {
 };
 
 /**
+ * `files`, by path, as a bundle: its `worker.json` names the main module
+ * and perhaps a compatibility date and flags; without one, the main
+ * module is `main.js`.
+ *
+ * @param {string} path where the files came from, for messages
+ * @param {Record<string, Uint8Array>} files
+ * @returns {{ manifest: Manifest, files: Record<string, Uint8Array> }}
+ */
+export const bundleOf = (path, files) => {
+  const manifest = manifestOf(path, files);
+  const modules = Object.fromEntries(
+    Object.entries(files).filter(([name]) => name !== 'worker.json'),
+  );
+  return { manifest, files: modules };
+};
+
+/**
  * The tree `node`, read from `path`, as a bundle: a file is a bundle of one
- * module; a directory's files are its modules, its `worker.json` naming the
- * main one and perhaps a compatibility date and flags.
+ * module; a directory's files are its modules, and its `worker.json`, which
+ * it must have, says as {@link bundleOf} has it.
  *
  * @param {string} path
  * @param {TreeNode} node
@@ -77,9 +91,9 @@ const manifestOf = (path, node, files) => {
 export const bundleFiles = (path, node) => {
   // fromEntries, not assignment: a file may be named __proto__
   const files = Object.fromEntries(fileEntries(node));
-  const manifest = manifestOf(path, node, files);
-  delete files['worker.json'];
-  return { manifest, files };
+  if (node.type !== 'regular' && !files['worker.json'])
+    throw Error(`${path} has no worker.json`);
+  return bundleOf(path, files);
 };
 
 /**

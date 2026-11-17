@@ -534,7 +534,8 @@ export const makeKernelClass = ({ makeDevices }) =>
      * The boot vat is the service's root of authority: it gets the boot
      * directory's bundles, a vatAdmin, the ingress for the `app` socket, the
      * endowments the operator made grantable, and one of each I/O device, to
-     * hand on as it sees fit.
+     * hand on as it sees fit. A device added to toybox after the boot vat
+     * was made is added to its params, for its next incarnation.
      */
     boot() {
       this.#booted ??= this.#boot().catch(e => {
@@ -562,12 +563,7 @@ export const makeKernelClass = ({ makeDevices }) =>
           bundles: standIn(this.#bootBundles.make()),
           ingress: standIn(this.#ingresses.socket('app')),
           endowments: standIn(this.#endowments.make()),
-          ...fromEntries(
-            entries(this.#devices).map(([name, { make }]) => [
-              name,
-              standIn(make()),
-            ]),
-          ),
+          ...this.#newDevices(keys(this.#devices)),
         });
         ({ vat } = await this.#startVat(
           hash,
@@ -576,13 +572,36 @@ export const makeKernelClass = ({ makeDevices }) =>
           unmade => this.#db.lookup('kboot', { vat: unmade }).delete(),
         ));
       } else {
-        const old = this.#db.lookup('kvat', { vat }).one();
+        const row = this.#db.lookup('kvat', { vat });
+        const old = row.one();
+        const params = this.#krefs.fromCapData(JSON.parse(old.params));
+        const added = keys(this.#devices).filter(name => !hasOwn(params, name));
+        if (added.length)
+          row.update({
+            params: JSON.stringify(
+              this.#krefs.toCapData(
+                harden({ ...params, ...this.#newDevices(added) }),
+              ),
+            ),
+          });
         if (old.hash !== hash) await this.#upgradeVat(vat, hash);
       }
       await this.#deliver(
         this.#clist(vat).toKernel('o+0'),
         'start',
         this.#krefs.toCapData(harden([])),
+      );
+    }
+
+    /**
+     * A new object of each device in `names`, by name, as the boot vat's params hold them.
+     *
+     * @param {string[]} names
+     */
+    #newDevices(names) {
+      const { standIn } = this.#krefs;
+      return fromEntries(
+        names.map(name => [name, standIn(this.#devices[name].make())]),
       );
     }
 
