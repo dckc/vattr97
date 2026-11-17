@@ -27,10 +27,15 @@
 /** Where the cache reads bookmarks: diigo's own web app's API, as its pages call it. */
 export const ITEMS = 'https://www.diigo.com/interact_api/load_user_items';
 
-/** What diigo's web app sends with each call; the cookie comes from the session store. */
+/**
+ * What the cache sends with each call to diigo's web app API; the cookie
+ * comes from the session store. The user-agent says what this is: diigo's
+ * Cloudflare challenges a bare `Mozilla/5.0` ("Just a moment...", 403),
+ * but lets this through to diigo (probed 2026-11-17).
+ */
 export const HEADERS = harden({
   accept: 'application/json',
-  'user-agent': 'Mozilla/5.0',
+  'user-agent': 'diigo-cache (toybox; +https://github.com/dckc/vattr97)',
   'x-requested-with': 'XMLHttpRequest',
 });
 
