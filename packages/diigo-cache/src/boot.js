@@ -14,14 +14,17 @@
  * - gateway: the app socket's ingress, entropy for the owner's key, the
  *   cache, its public viewer, the diigo site's SessionSite, and the
  *   keeper's door; no network
+ * - pacer: the timer, and the cache; the keeper tells it of each new
+ *   session, and it steps the fill along and refreshes every 3 hours
  */
 /**
- * @import { AdminNode, BuildRootObject, BundleCap, Bundles, Entropy, FetchDevice, Ingress, MapStore, Remote, VatAdmin } from '../../toybox/src/types.js';
+ * @import { AdminNode, BuildRootObject, BundleCap, Bundles, Entropy, FetchDevice, Ingress, MapStore, Remote, Timer, VatAdmin } from '../../toybox/src/types.js';
  * @import { WebApp, WebAppMaker } from '../../toybox/examples/webapp.js';
  * @import { StoreMaker } from '../../toybox/examples/store-maker.js';
  * @import { SessionKeeper } from '../../toybox/examples/session-keeper.js';
  * @import { DiigoCache } from './cache/cache.js';
  * @import { DiigoGateway } from './gateway/gateway.js';
+ * @import { DiigoPacer } from './pacer.js';
  */
 
 /** Where the cache reads bookmarks: diigo's own web app's API, as its pages call it. */
@@ -61,6 +64,7 @@ export const DIIGO = harden({
  * @property {Remote<Entropy>} entropy for the keeper's and gateway's secrets
  * @property {Remote<Ingress>} ingress the app socket's
  * @property {Remote<FetchDevice>} fetch the public internet, for the webApp vat alone
+ * @property {Remote<Timer>} timer the time, and wakeups, for the pacer alone
  */
 
 /**
@@ -72,6 +76,7 @@ export const DIIGO = harden({
  * @property {DiigoCache} cache from cache/
  * @property {SessionKeeper} sessionKeeper from session-keeper.js
  * @property {DiigoGateway} gateway from gateway/
+ * @property {DiigoPacer} pacer from pacer.js
  */
 /** @type {{ [R in keyof Roles]: string }} */
 const CODE = harden({
@@ -80,6 +85,7 @@ const CODE = harden({
   cache: 'cache',
   sessionKeeper: 'session-keeper.js',
   gateway: 'gateway',
+  pacer: 'pacer.js',
 });
 
 /**
@@ -93,7 +99,7 @@ const CODE = harden({
 /** @satisfies {BuildRootObject<Params>} */
 export const buildRootObject = (
   { E, Far, zone },
-  { vatAdmin, bundles, entropy, ingress, fetch },
+  { vatAdmin, bundles, entropy, ingress, fetch, timer },
 ) => {
   /** @type {MapStore<string, { root: Remote<object>, adminNode: Remote<AdminNode>, bundle: BundleCap }>} each vat made, by role */
   const vats = zone.mapStore('vats');
@@ -161,13 +167,14 @@ export const buildRootObject = (
         ),
       );
       const cache = await ensure('cache', { source });
+      const pacer = await ensure('pacer', { timer, cache });
       const keeper = await ensure('sessionKeeper', {
         entropy,
       });
       const site = await E(keeper).site('diigo', DIIGO, {
         store,
         layout: { cookie: [...DIIGO.cookies] },
-        after: await E(cache).onSession(),
+        after: await E(pacer).onSession(),
       });
       await ensure('gateway', {
         ingress,
@@ -177,6 +184,7 @@ export const buildRootObject = (
         site,
         door: await E(keeper).door(),
       });
+      await E(pacer).start();
     },
     /** The owner page's link fragment, for the operator to open. */
     provideOwnerLink: () => E(rootOf('gateway')).provideOwnerLink(),

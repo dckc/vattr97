@@ -16,12 +16,17 @@ import { makeMemoryVatstore } from '../../toybox/test/memory-vatstore.js';
 import { buildRootObject as buildWebApp } from '../../toybox/examples/webapp.js';
 import { buildRootObject as buildKeeper } from '../../toybox/examples/session-keeper.js';
 import { buildRootObject as buildCache } from '../src/cache/cache.js';
+import {
+  buildRootObject as buildPacer,
+  REFRESH_MS,
+  STEP_MS,
+} from '../src/pacer.js';
 import { buildRootObject as buildGateway } from '../src/gateway/gateway.js';
 import { DIIGO, HEADERS, ITEMS } from '../src/boot.js';
 import { parseQuery } from '../src/cache/query.js';
 
 /**
- * @import { Handler, MapStore, SqlDatabase } from '../../toybox/src/types.js';
+ * @import { Handler, MapStore, Remote, SqlDatabase, Waker } from '../../toybox/src/types.js';
  * @import { WebApp } from '../../toybox/examples/webapp.js';
  * @import { Item } from '../src/cache/items.js';
  */
@@ -109,11 +114,37 @@ const setup = (count = 250) => {
   const base = /** @type {WebApp} */ (webApps.makeWebApp(ITEMS, HEADERS));
   const source = base.withHeaderMap(store.readOnly());
   const cache = buildCache(powers, { source });
+  // a timer the test runs: wakeups wait in `wakes` until `tick()`
+  let now = Date.parse(AT);
+  /** @type {{ at: number, handler: Remote<Waker> }[]} */
+  let wakes = [];
+  const timer = Far('timer', {
+    now: () => now,
+    /** @param {number} at @param {Remote<Waker>} handler */
+    wakeAt: (at, handler) => {
+      wakes.push({ at, handler });
+    },
+    /** @param {Remote<Waker>} handler */
+    cancel: handler => {
+      wakes = wakes.filter(w => w.handler !== handler);
+    },
+  });
+  /** The next wakeup, at its time; answers how long after the last time it came. */
+  const tick = async () => {
+    const [next, ...rest] = wakes.sort((a, b) => a.at - b.at);
+    assert.ok(next, 'a wakeup is set');
+    wakes = rest;
+    const after = next.at - now;
+    now = next.at;
+    await E(next.handler).wake(now);
+    return after;
+  };
+  const pacer = buildPacer(powers, { timer, cache });
   const keeper = buildKeeper(powers, { entropy });
   const site = keeper.site('diigo', DIIGO, {
     store,
     layout: { cookie: [...DIIGO.cookies] },
-    after: cache.onSession(),
+    after: pacer.onSession(),
   });
   /** @type {(h: Handler) => void} */
   let serve = () => {};
@@ -148,7 +179,7 @@ const setup = (count = 250) => {
       json: isJson ? JSON.parse(text) : undefined,
     };
   };
-  return { diigo, store, gateway, ask };
+  return { diigo, store, gateway, ask, pacer, tick, wakes: () => wakes };
 };
 
 /** @param {string} fragment @param {string} name */
@@ -208,6 +239,62 @@ test("the extension's request stores the cookie, refreshes, and fills; it hears 
     'diigo session stored; refreshed 1 page: 0 new, 0 changed',
     'a refresh stops at what it has',
   );
+});
+
+test('after a session, the pacer fills a step a second until done, then refreshes every 3 hours', async () => {
+  const s = setup(2600);
+  const { owner, fragment } = await propose(s);
+  const sent = await s.ask('POST', '/api/session', {
+    key: param(fragment, 'key'),
+    cookies: GOOD,
+    at: AT,
+  });
+  assert.match(sent.json.summary, /filled to page 20 of 26/);
+  const status = async () =>
+    (await s.ask('POST', '/api/owner', { key: owner, op: 'status' })).json
+      .cache;
+  assert.equal(
+    (await status()).pace.next,
+    new Date(Date.parse(AT) + STEP_MS).toISOString(),
+  );
+  assert.equal(await s.tick(), STEP_MS);
+  assert.equal(
+    (await status()).walk.done,
+    true,
+    'the rest of the pages, in a step',
+  );
+  assert.equal(s.wakes().length, 1, 'one wakeup at a time');
+  assert.equal(await s.tick(), REFRESH_MS);
+  assert.equal(s.wakes().length, 1);
+  assert.equal(await s.tick(), REFRESH_MS, 'and on');
+});
+
+test('a step that fails stops stepping until 3 hours on, and the owner page says why', async () => {
+  const s = setup(2600);
+  const { owner, fragment } = await propose(s);
+  await s.ask('POST', '/api/session', {
+    key: param(fragment, 'key'),
+    cookies: GOOD,
+    at: AT,
+  });
+  s.store.set('cookie', 'diigoandlogincookie=stale; _smasher_session=stale');
+  assert.equal(await s.tick(), STEP_MS);
+  const { pace, walk } = (
+    await s.ask('POST', '/api/owner', { key: owner, op: 'status' })
+  ).json.cache;
+  assert.equal(walk.done, false);
+  assert.match(
+    pace.failed,
+    /401 on https:\/\/www\.diigo\.com\/interact_api\/load_user_items/,
+  );
+  assert.doesNotMatch(pace.failed, /stale/);
+  assert.equal(await s.tick(), REFRESH_MS);
+});
+
+test('before the first session, the pacer sets no wakeup: nothing to step yet', async () => {
+  const s = setup();
+  await E(s.pacer).start();
+  assert.equal(s.wakes().length, 0);
 });
 
 test('a session diigo refuses is stored anyway, and the refusal says why', async () => {
