@@ -216,7 +216,7 @@ code { word-break: break-all; }
 <h1>diigo-cache</h1>
 <p id="status" class="muted">loading...</p>
 <p id="session" class="muted"></p>
-<p><button id="refresh">Refresh</button><button id="fill">Fill 20 more pages</button></p>
+<p><button id="refresh">Refresh</button><button id="fill">Fill to the end</button></p>
 <h2>Session</h2>
 <p>The session extension (vattr97 <code>packages/session-ext</code>) hands this
 cache your diigo session after you log in. Paste the proposal link into the
@@ -256,7 +256,27 @@ const load = () => call('status').then(show, err => { $('status').textContent = 
 if (!key) $('status').textContent = 'no owner key in this link';
 else load();
 $('refresh').onclick = () => call('refresh', { at: new Date().toISOString() }).then(b => { say('refreshed ' + b.refreshed.pages + ' pages: ' + counts(b.refreshed)); load(); }, err => say(err.message, true));
-$('fill').onclick = () => call('fill', { at: new Date().toISOString() }).then(b => { say((b.filled.done ? 'filled every page: ' : 'filled to page ' + (b.filled.nextPage - 1) + ': ') + counts(b.filled)); load(); }, err => say(err.message, true));
+// a vat has no timer, so this page paces the fill: a step of 20 pages, a pause, the next, until every page is stored or Stop
+let filling = false;
+$('fill').onclick = async () => {
+  if (filling) { filling = false; return; }
+  filling = true;
+  $('fill').textContent = 'Stop';
+  try {
+    while (filling) {
+      const f = (await call('fill', { at: new Date().toISOString() })).filled;
+      say((f.done ? 'filled every page: ' : 'filled to page ' + (f.nextPage - 1) + ' of ' + f.pages + ': ') + counts(f) + (f.done || !filling ? '' : '; filling on…'));
+      load();
+      if (f.done) break;
+      await new Promise(resume => setTimeout(resume, 1000));
+    }
+  } catch (err) {
+    say(err.message, true);
+  } finally {
+    filling = false;
+    $('fill').textContent = 'Fill to the end';
+  }
+};
 // the proposal link holds the door's key: copied, never shown, so no one reads it over your shoulder
 let link = '';
 const copy = () => navigator.clipboard.writeText(link).then(() => say('copied: paste it into the extension; the robot there should match this one'), err => say('copy failed: ' + err.message, true));

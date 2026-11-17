@@ -18,8 +18,9 @@ Then hand it a session:
 
 1. Load [the session extension](../session-ext/README.md) unpacked.
 2. On the owner page, click "Proposal link for the extension": it copies the link (which holds a key, so the page never shows it) and shows a robot face drawn from the key. Paste it into the extension's Proposals page, check that the robot there matches, and Accept.
-3. Log in to diigo, then click the toolbar button and "Send diigo". The cache refreshes diigo's newest pages, then fills 20 more pages of the rest. The popup reports counts, never bookmarks.
-4. Visit `/public/<your diigo username>?days=7`.
+3. Log in to diigo, then click the toolbar button and "Send diigo". The cache refreshes diigo's newest pages (5 pages of 100), then fills 20 more pages of the rest. The popup reports counts, never bookmarks.
+4. On the owner page, click "Fill to the end": it fills 20 pages at a time, with a pause between, until every page is stored, while the page stays open (a vat has no timer, so the page paces it). Stop stops it; Fill picks up where it left off.
+5. Visit `/public/<your diigo username>?days=7`.
 
 Send again after each login, or click Refresh or Fill on the owner page while the session lasts. Run it where your browser is: diigo seems to tie a session to the IP address it was issued to.
 
@@ -31,7 +32,7 @@ Send again after each login, or click Refresh or Fill on the owner page while th
 
 ## Not yet
 
-From capsite's diigo-cache, not here yet: a refresh every 3 hours (a vat has no clock or timer), "invalidate the last N days", RSS export comparison, and the password-manager save button. Bookmarks deleted on diigo stay in the cache.
+From capsite's diigo-cache, not here yet: a fill that goes on with no page open, and a refresh every 3 hours (a vat has no clock or timer; capsite used a Durable Object's alarms), "invalidate the last N days", RSS export comparison, and the password-manager save button. Bookmarks deleted on diigo stay in the cache.
 
 ## Test
 
