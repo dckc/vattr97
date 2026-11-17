@@ -91,6 +91,19 @@ test('pathjoin, query, withHeaders, and withHeaderMap narrow a WebApp; get and p
   );
 });
 
+test("a WebApp sends and answers bodies bigger than a pattern's default string limit", async () => {
+  // diigo's page of bookmarks passes 100,000 characters
+  const { maker } = incarnate(makeKv());
+  const big = 'x'.repeat(200_000);
+  const answer = await E(maker.makeWebApp('http://site.example/api/')).post(
+    big,
+  );
+  assert.equal(
+    answer.length,
+    'POST /api/ cookie=none body='.length + big.length,
+  );
+});
+
 test('a WebApp refuses to leave its path or contradict a header or query, naming keys only', async () => {
   const { store: newStore, maker } = incarnate(makeKv());
   const app = maker.makeWebApp('http://site.example/api/?q=secret');

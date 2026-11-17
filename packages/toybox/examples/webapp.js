@@ -61,6 +61,8 @@ const { entries, fromEntries } = Object;
 /** @satisfies {BuildRootObject<{ egress: Remote<FetchDevice> }>} */
 export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
   const Headers = M.recordOf(M.string(), M.string());
+  // a page of a site's answer passes a pattern's default limit (100,000)
+  const Body = M.string(harden({ stringLengthLimit: BODY_LIMIT }));
   const WebAppI = M.interface('WebApp', {
     pathjoin: M.call(M.string()).returns(M.remotable('WebApp')),
     query: M.call(M.recordOf(M.string(), M.or(M.string(), M.number()))).returns(
@@ -69,11 +71,9 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
     withHeaders: M.call(Headers).returns(M.remotable('WebApp')),
     withHeaderMap: M.call(M.remotable()).returns(M.remotable('WebApp')),
     withFormMap: M.call(M.remotable()).returns(M.remotable('WebApp')),
-    get: M.callWhen().returns(M.string()),
-    post: M.callWhen(M.string()).returns(M.string()),
-    postForm: M.callWhen(M.recordOf(M.string(), M.string())).returns(
-      M.string(),
-    ),
+    get: M.callWhen().returns(Body),
+    post: M.callWhen(Body).returns(Body),
+    postForm: M.callWhen(M.recordOf(M.string(), Body)).returns(Body),
   });
 
   /** @param {string} url @param {string} method @param {Record<string, string>} headers @param {string} [body] */
@@ -231,6 +231,9 @@ const strings = (pairs, what) => {
   }
   return out;
 };
+
+/** The longest body a WebApp sends or answers, in characters: 32 MiB. */
+const BODY_LIMIT = 32 * 1024 * 1024;
 
 /** How much of an error response's body an error says. */
 const EXCERPT = 200;
