@@ -330,6 +330,20 @@ export type Ingress = { serve(handler: Remote<Handler>): void };
 /** An entropy device: unguessable numbers, for a vat, which has no randomness. */
 export type Entropy = { swiss(): string };
 
+/** What a timer wakes: `wake(now)`, once the time it was set for has passed. */
+export type Waker = { wake(now: number): void | Promise<void> };
+
+/**
+ * A timer device: the time, and wakeups, for a vat, which has no clock.
+ * Times are milliseconds since the epoch; a wakeup is delivered at most
+ * once, and outlives restarts.
+ */
+export type Timer = {
+  now(): number;
+  wakeAt(at: number, handler: Remote<Waker>): void;
+  cancel(handler: Remote<Waker>): void;
+};
+
 /** A fetch device: the network, as one vat (such as the webApp vat) holds it. */
 export type FetchDevice = {
   fetch(

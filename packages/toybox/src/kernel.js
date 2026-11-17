@@ -245,6 +245,21 @@ export const makeKernelClass = ({ makeDevices }) =>
         // a device to hand out
         // eslint-disable-next-line no-restricted-properties
         random: n => crypto.getRandomValues(new Uint8Array(n)),
+        // and the clock, for a device to hand out
+        // eslint-disable-next-line no-restricted-properties
+        now: () => Date.now(),
+        send: async (kref, method, args) =>
+          this.#krefs.fromCapData(
+            await this.#deliver(
+              kref,
+              method,
+              this.#krefs.toCapData(harden(args)),
+            ),
+          ),
+        rearm: () => {
+          this.#rearm().catch(e => console.error('kernel: rearm failed', e));
+        },
+        log: message => console.error(message),
       });
       this.#objects = {
         kernel: this.#ingresses,
@@ -537,6 +552,28 @@ export const makeKernelClass = ({ makeDevices }) =>
      * hand on as it sees fit. A device added to toybox after the boot vat
      * was made is added to its params, for its next incarnation.
      */
+    /**
+     * Set the alarm to the earliest time any device wants waking, or none.
+     * A Durable Object has one alarm; the devices share it.
+     */
+    async #rearm() {
+      const times = values(this.#devices)
+        .map(({ alarm }) => alarm?.next())
+        .filter(t => t !== undefined);
+      if (times.length) await this.ctx.storage.setAlarm(Math.min(...times));
+      else await this.ctx.storage.deleteAlarm();
+    }
+
+    /** The Durable Object's alarm: each device wakes what's due, then the alarm is set for what's next. */
+    async alarm() {
+      for (const { alarm } of values(this.#devices))
+        if (alarm)
+          await alarm
+            .fire()
+            .catch(e => console.error('kernel: a device alarm failed', e));
+      await this.#rearm();
+    }
+
     boot() {
       this.#booted ??= this.#boot().catch(e => {
         this.#booted = undefined;
@@ -546,6 +583,8 @@ export const makeKernelClass = ({ makeDevices }) =>
     }
 
     async #boot() {
+      // a wakeup whose time passed while the kernel was down comes now
+      await this.#rearm();
       const [name] = (
         await Promise.all(
           ['boot.js', 'boot'].map(async n =>

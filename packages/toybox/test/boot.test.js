@@ -98,6 +98,7 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
       'lan',
       'nixStore',
       'source',
+      'timer',
       'vatAdmin',
     ]);
     const counter = await E(E(bootVat.root).child()).getCounter();
@@ -186,6 +187,41 @@ test('a device the kernel gained reaches a boot vat made before it, on its next 
   assert.ok((await powers()).includes('installer'));
   await dropBootParam(dir.path('state'), 'installer');
   assert.ok((await powers()).includes('installer'), 'given again');
+});
+
+test("a timer wakes a vat on the kernel's alarm, and a wakeup outlives a restart", async t => {
+  const { startToybox, pkg, makeDir } = await worldP;
+  const dir = await makeDir('toybox-timer-');
+  t.after(dir.remove);
+  await dir.writeText(
+    'bootdir/boot.js',
+    await pkg.readText('test/boot/boot.js'),
+  );
+  await pkg.copy('examples/counter.js', dir, 'bootdir/child.js');
+  const boot = dir.sub('bootdir');
+  /** @param {{ app: (path: string) => Promise<Response> }} box */
+  const woken = async box => Number(await (await box.app('/woken')).text());
+  /** @param {{ app: (path: string) => Promise<Response> }} box @param {number} n */
+  const until = async (box, n) => {
+    for (let i = 0; i < 50 && (await woken(box)) < n; i += 1) await sleep(100);
+    return woken(box);
+  };
+
+  const box = await startToybox(dir, { boot });
+  await box.app('/wake');
+  assert.equal(await woken(box), 0, 'not yet');
+  assert.equal(await until(box, 1), 1);
+  // set one, and stop before it's due
+  await box.app('/wake');
+  await box.stop();
+  await sleep(500);
+  const again = await startToybox(dir, { boot });
+  t.after(again.stop);
+  assert.equal(
+    await until(again, 2),
+    2,
+    'the wakeup missed while down comes at start',
+  );
 });
 
 test('a boot directory may hold its boot vat as `boot/`, a bundle of several modules', async t => {
