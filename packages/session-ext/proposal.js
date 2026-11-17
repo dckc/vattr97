@@ -7,9 +7,10 @@
  * A proposal is a link from a toybox app (toybox's
  * examples/session-keeper.js makes one): the app's session endpoint, then
  * a fragment naming the door's key, the site to read cookies from, the
- * cookies, and a label.
+ * cookies, a label, and, if the site sets its cookies for a parent of its
+ * host, that domain.
  *
- *     http://127.0.0.1:8788/api/session#key=...&site=https%3A%2F%2Fwww.example%2F&label=Example&cookie=sid
+ *     http://127.0.0.1:8788/api/session#key=...&site=https%3A%2F%2Fwww.example%2F&label=Example&domain=example&cookie=sid
  */
 
 /**
@@ -19,6 +20,9 @@
  * @property {string} site the URL whose cookies to read
  * @property {string[]} cookies their names
  * @property {string} label how to name the site
+ * @property {string} [domain] the domain the site sets the cookies for, if
+ *   it's a parent of the site's host: a browser hands an extension a
+ *   cookie only with access to the cookie's domain
  */
 
 /** A cookie name: an HTTP token. */
@@ -26,6 +30,19 @@ const COOKIE_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}$/;
 /** A door's key: a swiss number. */
 const KEY = /^[0-9A-Za-z_-]{16,128}$/;
 const LOOPBACK = ['127.0.0.1', 'localhost', '[::1]'];
+
+/**
+ * Can a site at `host` set cookies for `domain`: is the host a name, not
+ * an IP address, and the domain that name or a parent of it, more than a
+ * top-level name? (Short of the public suffix list: `co.uk` passes.)
+ *
+ * @param {string} host
+ * @param {string} domain
+ */
+const cookieDomain = (host, domain) =>
+  !/^[\d.]+$|^\[/.test(host) &&
+  /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain) &&
+  (host === domain || host.endsWith(`.${domain}`));
 
 /**
  * `text` as a URL, if it's https, or http on loopback; errors name `part`.
@@ -73,7 +90,17 @@ export const parseProposal = text => {
       throw Error('cookie: each must be a cookie name');
   if (new Set(cookies).size !== cookies.length)
     throw Error('cookie: a name is repeated');
-  return { endpoint: link.href, key, site: site.href, cookies, label };
+  const domain = params.get('domain') ?? undefined;
+  if (domain !== undefined && !cookieDomain(site.hostname, domain))
+    throw Error("domain: the site's host or a parent of it, with a dot");
+  return {
+    endpoint: link.href,
+    key,
+    site: site.href,
+    cookies,
+    label,
+    ...(domain === undefined ? {} : { domain }),
+  };
 };
 
 /** One proposal per app endpoint and site: a new one replaces it. @param {Proposal} p */
@@ -81,27 +108,18 @@ export const proposalId = p => `${p.endpoint} ${p.site}`;
 
 /**
  * The host permissions a proposal needs: to read the site's cookies, and
- * to post to the app's endpoint. A pattern names a host, not a port.
- *
- * chrome.cookies answers a cookie only with permission for the cookie's
- * own domain, and a site often sets its session for the parent of its
- * `www.` host (domain=diigo.com, for www.diigo.com). So the site's
- * pattern covers the host without `www.`, and that host's subdomains.
- * Which cookies are read is still only those the proposal names.
+ * to post to the app's endpoint. A pattern names a host, not a port. If
+ * the proposal names a domain, the site's pattern is that domain and its
+ * subdomains; still, only the cookies named are read.
  *
  * @param {Proposal} p
  */
 export const originsOf = p => {
   const site = new URL(p.site);
-  const { hostname } = site;
-  // an IP address or a bare name such as localhost: that host alone
-  const named = /^[\d.]+$|^\[|^[^.]+$/.test(hostname)
-    ? hostname
-    : `*.${hostname.replace(/^www\./, '')}`;
   const app = new URL(p.endpoint);
   return [
     ...new Set([
-      `${site.protocol}//${named}/*`,
+      `${site.protocol}//${p.domain === undefined ? site.hostname : `*.${p.domain}`}/*`,
       `${app.protocol}//${app.hostname}/*`,
     ]),
   ];
@@ -118,6 +136,7 @@ export const review = (p, accepted) => {
   const lines = [
     `${p.label}: after you log in, read the cookie${p.cookies.length > 1 ? 's' : ''} ${p.cookies.join(', ')} for ${p.site}`,
     `and send ${p.cookies.length > 1 ? 'them' : 'it'} to ${p.endpoint}`,
+    `Accept asks to read cookies at ${originsOf(p)[0]}`,
   ];
   const was = accepted.find(a => proposalId(a) === proposalId(p));
   if (was) {
