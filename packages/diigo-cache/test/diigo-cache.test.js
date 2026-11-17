@@ -19,8 +19,8 @@ import { DIIGO, HEADERS, ITEMS } from '../src/boot.js';
 import { parseQuery } from '../src/cache/query.js';
 
 /**
- * @import { SqlDatabase } from '../../toybox/src/types.js';
- * @import { Handler, WebApp, WebAppMaker } from '../src/types.js';
+ * @import { Handler, MapStore, SqlDatabase } from '../../toybox/src/types.js';
+ * @import { WebApp } from '../../toybox/examples/webapp.js';
  * @import { Item } from '../src/cache/items.js';
  */
 
@@ -98,10 +98,10 @@ const setup = (count = 250) => {
   const entropy = Far('entropy', {
     swiss: () => `${(n += 1)}`.padStart(32, 'e'),
   });
-  // toybox's webapp.js types its root only as `object`; this is the interface it has
-  const webApps = /** @type {WebAppMaker} */ (
-    buildWebApp(powers, { egress: makeFetchDevice(diigo.site) })
-  );
+  const webApps = buildWebApp(powers, {
+    egress: makeFetchDevice(diigo.site),
+  });
+  /** @type {MapStore<string, string>} */
   const store = zone.detached().mapStore('diigo-session');
   // in one process, a WebApp is a local object, not only a reference
   const base = /** @type {WebApp} */ (webApps.makeWebApp(ITEMS, HEADERS));

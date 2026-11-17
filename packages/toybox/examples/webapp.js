@@ -22,6 +22,7 @@ const { entries, fromEntries } = Object;
 /**
  * @import { BuildRootObject, Remote } from '../src/types.js';
  * @import { FetchAnswer } from '../src/devices/types.js';
+ * @import { FetchDevice } from '../src/types.js';
  */
 
 /**
@@ -29,10 +30,35 @@ const { entries, fromEntries } = Object;
  * headers from at each send, and the maps it reads form fields from.
  * (`forms` is newer than the others: a WebApp made before it has none.)
  *
- * @typedef {{ url: string, headers: Record<string, string>, maps: Remote[], forms?: Remote[] }} WebAppState
+ * @typedef {{ url: string, headers: Record<string, string>, maps: EntriesMap[], forms?: EntriesMap[] }} WebAppState
  */
 
-/** @type {BuildRootObject<{ egress: Remote }>} */
+/**
+ * Something with `entries()`, read at each send: a map store's
+ * `readOnly()` facet, here or in another vat.
+ *
+ * @typedef {Remote<{ entries(): [string, unknown][] }>} EntriesMap
+ */
+
+/**
+ * A handle to one URL. Declared, not inferred: its methods answer
+ * WebApps, a cycle inference can't follow; the kind's methods are checked
+ * against it.
+ *
+ * @typedef {object} WebApp
+ * @property {(ref: string) => WebApp} pathjoin
+ * @property {(params: Record<string, string | number>) => WebApp} query
+ * @property {(more: Record<string, string>) => WebApp} withHeaders
+ * @property {(map: EntriesMap) => WebApp} withHeaderMap
+ * @property {(map: EntriesMap) => WebApp} withFormMap
+ * @property {() => Promise<string>} get
+ * @property {(body: string) => Promise<string>} post
+ * @property {(fields: Record<string, string>) => Promise<string>} postForm
+ */
+
+/** @typedef {ReturnType<typeof buildRootObject>} WebAppMaker this vat's root */
+
+/** @satisfies {BuildRootObject<{ egress: Remote<FetchDevice> }>} */
 export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
   const Headers = M.recordOf(M.string(), M.string());
   const WebAppI = M.interface('WebApp', {
@@ -63,11 +89,11 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
     return text;
   };
 
-  /** @type {(url: string, headers: Record<string, string>, maps: Remote[], forms: Remote[]) => object} */
+  /** @type {(url: string, headers: Record<string, string>, maps: EntriesMap[], forms: EntriesMap[]) => WebApp} */
   const makeWebApp = zone.exoClass(
     'WebApp',
     WebAppI,
-    /** @param {string} url @param {Record<string, string>} headers @param {Remote[]} maps @param {Remote[]} forms @returns {WebAppState} */
+    /** @param {string} url @param {Record<string, string>} headers @param {EntriesMap[]} maps @param {EntriesMap[]} forms @returns {WebAppState} */
     (url, headers, maps, forms) => ({ url, headers, maps, forms }),
     {
       /** Join a relative path, keeping the query. The new path must stay within the old one. @param {string} ref */
@@ -102,7 +128,7 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
        * such as a map store's `readOnly()` facet, here or in another vat.
        * A contradiction surfaces at send.
        *
-       * @param {Remote} map
+       * @param {EntriesMap} map
        */
       withHeaderMap(map) {
         const { url, headers, maps, forms = [] } = this.state;
@@ -113,7 +139,7 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
        * `withHeaderMap` adds headers: so a holder can send a field it can't
        * read, such as a session token a site wants echoed in the body.
        *
-       * @param {Remote} map
+       * @param {EntriesMap} map
        */
       withFormMap(map) {
         const { url, headers, maps, forms = [] } = this.state;
@@ -142,31 +168,19 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
     },
   );
 
-  /** `fields`, unioned with each form map's entries as of now. @param {Record<string, string>} fields @param {Remote[]} forms */
+  /** `fields`, unioned with each form map's entries as of now. @param {Record<string, string>} fields @param {EntriesMap[]} forms */
   const fieldsNow = async (fields, forms) => {
     let now = unionFields({}, fields);
-    for (const map of forms) {
-      const pairs = await E(map).entries();
-      for (const [key, value] of pairs) {
-        if (typeof value !== 'string')
-          throw Error(`form: ${key} is not a string`);
-      }
-      now = unionFields(now, fromEntries(pairs));
-    }
+    for (const map of forms)
+      now = unionFields(now, strings(await E(map).entries(), 'form'));
     return now;
   };
 
   /** The fixed headers, unioned with each map's entries as of now. @param {WebAppState} state */
   const headersNow = async ({ headers, maps }) => {
     let now = headers;
-    for (const map of maps) {
-      const pairs = await E(map).entries();
-      for (const [key, value] of pairs) {
-        if (typeof value !== 'string')
-          throw Error(`headers: ${key} is not a string`);
-      }
-      now = unionHeaders(now, fromEntries(pairs));
-    }
+    for (const map of maps)
+      now = unionHeaders(now, strings(await E(map).entries(), 'headers'));
     return now;
   };
 
@@ -191,6 +205,31 @@ export const buildRootObject = ({ E, Far, M, zone }, { egress }) => {
       return makeWebApp(u.href, harden({ ...headers }), harden([]), harden([]));
     },
   });
+};
+
+/**
+ * A map's entries as a record of strings; an entry that isn't one is
+ * refused, naming its key, never its value.
+ *
+ * @param {[string, unknown][]} pairs
+ * @param {string} what for the error: `headers` or `form`
+ * @returns {Record<string, string>}
+ */
+const strings = (pairs, what) => {
+  /** @type {Record<string, string>} */
+  const out = {};
+  for (const [key, value] of pairs) {
+    if (typeof value !== 'string')
+      throw Error(`${what}: ${key} is not a string`);
+    // defineProperty, not assignment: a key may be __proto__
+    Object.defineProperty(out, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return out;
 };
 
 /** How much of an error response's body an error says. */

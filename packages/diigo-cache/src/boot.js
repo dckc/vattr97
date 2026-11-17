@@ -16,9 +16,10 @@
  *   keeper's door; no network
  */
 /**
- * @import { BuildRootObject, MapStore, Remote } from '../../toybox/src/types.js';
+ * @import { AdminNode, BuildRootObject, BundleCap, Bundles, Entropy, FetchDevice, Ingress, MapStore, Remote, VatAdmin } from '../../toybox/src/types.js';
+ * @import { WebApp, WebAppMaker } from '../../toybox/examples/webapp.js';
+ * @import { StoreMaker } from '../../toybox/examples/store-maker.js';
  * @import { SessionKeeper } from '../../toybox/examples/session-keeper.js';
- * @import { AdminNode, BundleCap, Bundles, Entropy, FetchDevice, Ingress, StoreMaker, VatAdmin, WebApp, WebAppMaker } from './types.js';
  * @import { DiigoCache } from './cache/cache.js';
  * @import { DiigoGateway } from './gateway/gateway.js';
  */
@@ -76,7 +77,7 @@ const CODE = harden({
 /**
  * What boot keeps of its own making: the session store, and the WebApp over it.
  *
- * @typedef {{ store: Remote<MapStore<string, string>>, source: Remote<WebApp> }} Kept
+ * @typedef {{ store: Remote<MapStore<string, unknown>>, source: Remote<WebApp> }} Kept
  */
 
 /** @typedef {ReturnType<typeof buildRootObject>} DiigoCacheBoot the boot vat's root */

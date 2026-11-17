@@ -108,6 +108,8 @@ export default [
       'packages/diigo-cache/**/*.js',
       'packages/session-ext/**/*.js',
       'packages/toybox/examples/session-keeper.js',
+      'packages/toybox/examples/webapp.js',
+      'packages/toybox/examples/store-maker.js',
       'packages/toybox/test/session-keeper.test.js',
       'eslint-typed-refs.mjs',
     ],
