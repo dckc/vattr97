@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Session to toybox",
+  "version": "0.1.0",
+  "description": "Hand a site's session, not your password, to a toybox app that proposed it. Reads only the cookies an accepted proposal names. See vattr97#67.",
+  "permissions": ["cookies", "storage"],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "action": {
+    "default_title": "Send a session to toybox",
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
+}

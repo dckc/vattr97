@@ -1,0 +1,10 @@
+{
+  "name": "@vattr/session-ext",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser extension: hand a site's session to a toybox app that proposed it (vattr97#67)",
+  "scripts": {
+    "test": "node --test"
+  }
+}
