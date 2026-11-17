@@ -18,6 +18,12 @@ import { buildRootObject as buildGateway } from '../src/gateway/gateway.js';
 import { DIIGO, HEADERS, ITEMS } from '../src/boot.js';
 import { parseQuery } from '../src/cache/query.js';
 
+/**
+ * @import { SqlDatabase } from '../../toybox/src/types.js';
+ * @import { Handler, WebApp, WebAppMaker } from '../src/types.js';
+ * @import { Item } from '../src/cache/items.js';
+ */
+
 const GOOD = {
   diigoandlogincookie: 'GOOD-login',
   _smasher_session: 'GOOD-sess',
@@ -85,34 +91,35 @@ const setup = (count = 250) => {
     Far,
     M,
     zone,
-    db: /** @type {any} */ ({}),
+    db: /** @type {SqlDatabase} */ (/** @type {unknown} */ (harden({}))),
     endowment,
   });
   let n = 0;
   const entropy = Far('entropy', {
     swiss: () => `${(n += 1)}`.padStart(32, 'e'),
   });
-  /** @type {any} */
-  const webApps = buildWebApp(powers, { egress: makeFetchDevice(diigo.site) });
+  // toybox's webapp.js types its root only as `object`; this is the interface it has
+  const webApps = /** @type {WebAppMaker} */ (
+    buildWebApp(powers, { egress: makeFetchDevice(diigo.site) })
+  );
   const store = zone.detached().mapStore('diigo-session');
-  const source = webApps
-    .makeWebApp(ITEMS, HEADERS)
-    .withHeaderMap(store.readOnly());
-  /** @type {any} */
+  // in one process, a WebApp is a local object, not only a reference
+  const base = /** @type {WebApp} */ (webApps.makeWebApp(ITEMS, HEADERS));
+  const source = base.withHeaderMap(store.readOnly());
   const cache = buildCache(powers, { source });
-  /** @type {any} */
   const keeper = buildKeeper(powers, { entropy });
   const site = keeper.site('diigo', DIIGO, {
     store,
     layout: { cookie: [...DIIGO.cookies] },
     after: cache.onSession(),
   });
-  /** @type {(h: any) => void} */
+  /** @type {(h: Handler) => void} */
   let serve = () => {};
-  /** @type {Promise<any>} */
+  /** @type {Promise<Handler>} */
   const served = new Promise(resolve => (serve = resolve));
-  const ingress = Far('ingress', { serve: (/** @type {any} */ h) => serve(h) });
-  /** @type {any} */
+  const ingress = Far('ingress', {
+    serve: (/** @type {Handler} */ h) => serve(h),
+  });
   const gateway = buildGateway(powers, {
     ingress,
     entropy,
@@ -129,8 +136,15 @@ const setup = (count = 250) => {
       labels,
       body: body ? JSON.stringify(body) : '',
     });
-    const isJson = res.headers['content-type'] === 'application/json';
-    return { ...res, json: isJson ? JSON.parse(res.body) : undefined };
+    const headers = res.headers ?? {};
+    const text = res.body ?? '';
+    const isJson = headers['content-type'] === 'application/json';
+    return {
+      status: res.status,
+      headers,
+      body: text,
+      json: isJson ? JSON.parse(text) : undefined,
+    };
   };
   return { diigo, store, gateway, ask };
 };
@@ -245,7 +259,7 @@ test('the public page shows shared bookmarks only, as an h-feed, filtered', asyn
   assert.equal(all.json.complete, true);
   assert.ok(
     all.json.items.every(
-      (/** @type {any} */ it) => !it.private && !('comments' in it),
+      (/** @type {Item} */ it) => !it.private && !('comments' in it),
     ),
   );
 
@@ -255,7 +269,7 @@ test('the public page shows shared bookmarks only, as an h-feed, filtered', asyn
     days: '20',
   });
   assert.deepEqual(
-    recent.json.items.map((/** @type {any} */ it) => it.title),
+    recent.json.items.map((/** @type {Item} */ it) => it.title),
     ['shared 0', 'shared 1', 'shared 3'],
   );
   const tagged = await s.ask('GET', '/public/dckc-test', undefined, {
@@ -264,8 +278,8 @@ test('the public page shows shared bookmarks only, as an h-feed, filtered', asyn
     in: '2026-10',
   });
   assert.ok(
-    tagged.json.items.every((/** @type {any} */ it) =>
-      it.tags.includes('weekly'),
+    tagged.json.items.every((/** @type {Item} */ it) =>
+      String(it.tags).split(',').includes('weekly'),
     ),
   );
   const refused = await s.ask('GET', '/public/dckc-test', undefined, {
@@ -318,7 +332,7 @@ test('a bookmark made private leaves the shared store', async () => {
     format: 'json',
   });
   assert.deepEqual(
-    page.json.items.map((/** @type {any} */ it) => it.title),
+    page.json.items.map((/** @type {Item} */ it) => it.title),
     ['shared 1'],
   );
 });

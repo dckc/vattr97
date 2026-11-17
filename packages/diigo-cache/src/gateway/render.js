@@ -3,6 +3,8 @@
  * capsite's diigo-cache, whose markup is the page's API for other sites.
  * Pure: it renders what the viewer answered.
  *
+ * @import { Found } from '../cache/cache.js';
+ *
  * @see https://microformats.org/wiki/h-entry
  * @see https://indieweb.org/bookmark
  */
@@ -103,7 +105,7 @@ export const itemList = (items, by, here) => {
  *
  * @param {string} user
  * @param {Record<string, string>} params
- * @param {any} found the viewer's answer
+ * @param {Found} found the viewer's answer
  */
 export const publicPage = (user, params, found) => {
   const here = `/public/${encodeURIComponent(user)}`;
@@ -112,7 +114,7 @@ export const publicPage = (user, params, found) => {
     : ' Not every diigo page is stored yet, so some may be missing.';
   const asOf = found.at ? ` As of ${esc(found.at)}.` : ' Not fetched yet.';
   let content;
-  if (found.error) {
+  if ('error' in found) {
     content = `${filterForm(here, params)}\n<p><em>${esc(found.error)}</em></p>`;
   } else {
     const kept = Object.entries(params).filter(

@@ -16,17 +16,22 @@
  *
  * Errors say what failed, never a key or cookie.
  */
-/** @import { BuildRootObject, HttpResponse, MapStore, Remote } from '../../../toybox/src/types.js' */
+/**
+ * @import { BuildRootObject, HttpResponse, MapStore, Remote } from '../../../toybox/src/types.js';
+ * @import { SessionDoor, SessionSite } from '../../../toybox/examples/session-keeper.js';
+ * @import { DiigoCache, DiigoViewer } from '../cache/cache.js';
+ * @import { Entropy, Ingress } from '../types.js';
+ */
 import { publicPage } from './render.js';
 
 /**
  * @typedef {object} Params
- * @property {Remote} ingress where the pages and API are served
- * @property {Remote} entropy draws the owner's key
- * @property {Remote} cache the cache vat's root
- * @property {Remote} viewer the cache's public view
- * @property {Remote} site the diigo site's SessionSite
- * @property {Remote} door the session keeper's door
+ * @property {Remote<Ingress>} ingress where the pages and API are served
+ * @property {Remote<Entropy>} entropy draws the owner's key
+ * @property {Remote<DiigoCache>} cache the cache vat's root
+ * @property {Remote<DiigoViewer>} viewer the cache's public view
+ * @property {Remote<SessionSite>} site the diigo site's admin facet
+ * @property {Remote<SessionDoor>} door the session keeper's door
  */
 
 /** @param {number} status @param {unknown} value @returns {HttpResponse} */
@@ -53,7 +58,9 @@ const parse = body => {
   }
 };
 
-/** @type {BuildRootObject<Params>} */
+/** @typedef {ReturnType<typeof buildRootObject>} DiigoGateway the gateway's root */
+
+/** @satisfies {BuildRootObject<Params>} */
 export const buildRootObject = (
   { E, Far, zone },
   { ingress, entropy, cache, viewer, site, door },
@@ -68,7 +75,10 @@ export const buildRootObject = (
     return keys.get('owner');
   };
 
-  /** @param {any} req */
+  /**
+   * @param {{ key?: unknown, op?: unknown, at?: unknown, pages?: unknown }} req
+   *   the owner page's request, as JSON parsed it: not checked yet
+   */
   const owner = async ({ key, op, at, pages }) => {
     if (typeof key !== 'string' || key !== (await ownerKey()))
       return json(403, { ok: false, error: 'not the owner key' });
@@ -79,10 +89,34 @@ export const buildRootObject = (
           cache: await E(cache).status(),
           session: await E(site).status(),
         });
-      if (op === 'refresh')
-        return json(200, { ok: true, refreshed: await E(cache).refresh(at) });
-      if (op === 'fill')
-        return json(200, { ok: true, filled: await E(cache).fill(at, pages) });
+      if (op === 'refresh' || op === 'fill') {
+        if (typeof at !== 'string')
+          return json(400, {
+            ok: false,
+            error: 'at: expected an ISO 8601 time',
+          });
+        if (op === 'refresh')
+          return json(200, { ok: true, refreshed: await E(cache).refresh(at) });
+        if (
+          pages !== undefined &&
+          !(
+            Number.isInteger(pages) &&
+            Number(pages) >= 1 &&
+            Number(pages) <= 100
+          )
+        )
+          return json(400, {
+            ok: false,
+            error: 'pages: expected a whole number from 1 to 100',
+          });
+        return json(200, {
+          ok: true,
+          filled: await E(cache).fill(
+            at,
+            /** @type {number | undefined} */ (pages),
+          ),
+        });
+      }
       if (op === 'proposal')
         return json(200, { ok: true, fragment: await E(site).fragment() });
       if (op === 'revoke') {
@@ -107,9 +141,10 @@ export const buildRootObject = (
         headers: { 'content-type': 'text/plain' },
         body: `no shared bookmarks for ${user}\n`,
       });
-    if (labels.format === 'json') return json(found.error ? 400 : 200, found);
+    const status = 'error' in found ? 400 : 200;
+    if (labels.format === 'json') return json(status, found);
     return harden({
-      status: found.error ? 400 : 200,
+      status,
       headers: { 'content-type': 'text/html; charset=utf-8' },
       body: publicPage(user, labels, found),
     });
