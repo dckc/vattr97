@@ -1,8 +1,10 @@
 /**
  * @file the edge for proposals: holds chrome.permissions, chrome.storage,
  * and fetch (to tell an app its door is dropped); proposal.js decides what
- * each means. Keys are kept, never shown.
+ * each means. Keys are kept, never shown: a hashicon of each stands in,
+ * to match against the one on the app's page.
  */
+import { keyIcon } from './hashicon.js';
 import {
   originsFreed,
   originsOf,
@@ -48,6 +50,7 @@ const show = async () => {
     const li = document.createElement('li');
     const what = document.createElement('div');
     what.textContent = `${p.label}: ${p.cookies.join(', ')} from ${p.site}, to ${p.endpoint}`;
+    what.prepend(await keyIcon(document, crypto.subtle, p.key));
     const drop = Object.assign(document.createElement('button'), {
       textContent: 'Drop',
     });
@@ -99,8 +102,9 @@ $('review').onclick = async () => {
       Object.assign(document.createElement('li'), { textContent }),
     ),
   );
+  lines.prepend(await keyIcon(document, crypto.subtle, pending.key));
   $('proposed').hidden = false;
-  say('');
+  say("the picture should match the one beside the link on the app's page");
 };
 
 $('cancel').onclick = () => {

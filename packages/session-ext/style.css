@@ -58,3 +58,9 @@ li {
 code {
   word-break: break-all;
 }
+
+svg[role='img'] {
+  vertical-align: middle;
+  margin-right: 8px;
+  border-radius: 4px;
+}

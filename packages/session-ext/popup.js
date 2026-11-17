@@ -2,6 +2,7 @@
  * @file the edge for sending: holds chrome.cookies, chrome.storage, fetch,
  * and the clock, narrows each to one use, and hands those to proposal.js.
  */
+import { keyIcon } from './hashicon.js';
 import { cookiesFor, refusal, report, setRequest } from './proposal.js';
 
 /** @typedef {import('./proposal.js').Proposal} Proposal */
@@ -63,6 +64,6 @@ for (const p of proposals) {
     textContent: `Send ${p.label}`,
   });
   button.onclick = () => sendIt(p);
-  li.append(button);
+  li.append(await keyIcon(document, crypto.subtle, p.key), button);
   $('sites').append(li);
 }
