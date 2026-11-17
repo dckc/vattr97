@@ -155,7 +155,7 @@ const param = (fragment, name) =>
 
 /** The owner's key, and a proposal fragment from the owner page. @param {ReturnType<typeof setup>} s */
 const propose = async ({ gateway, ask }) => {
-  const owner = param(await E(gateway).ownerLink(), 'owner');
+  const owner = param(await E(gateway).provideOwnerLink(), 'owner');
   const { json } = await ask('POST', '/api/owner', {
     key: owner,
     op: 'proposal',

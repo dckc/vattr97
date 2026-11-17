@@ -171,6 +171,6 @@ export const buildRootObject = (
       });
     },
     /** The owner page's link fragment, for the operator to open. */
-    ownerLink: () => E(rootOf('gateway')).ownerLink(),
+    provideOwnerLink: () => E(rootOf('gateway')).provideOwnerLink(),
   });
 };

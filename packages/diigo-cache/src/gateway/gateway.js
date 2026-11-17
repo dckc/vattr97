@@ -190,7 +190,7 @@ export const buildRootObject = (
 
   return Far('diigoGateway', {
     /** The owner page's fragment: whoever opens it can refresh the cache and hand out its proposal. */
-    ownerLink: async () => `#owner=${await ownerKey()}`,
+    provideOwnerLink: async () => `#owner=${await ownerKey()}`,
   });
 };
 
