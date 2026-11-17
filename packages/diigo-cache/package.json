@@ -1,0 +1,13 @@
+{
+  "name": "@vattr/diigo-cache",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Your diigo bookmarks, cached in toybox vats, with a public page you can filter; the session comes from the session extension",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node --import ../toybox/src/node-lockdown.js --test test/*.test.js",
+    "serve": "node build.js && node --import ../toybox/src/node-lockdown.js ../toybox/scripts/serve.js ${DIIGO_CACHE_STATE:-$HOME/.local/state/diigo-cache} dist/boot",
+    "typecheck": "tsc -p . --noEmit"
+  }
+}

@@ -13,7 +13,7 @@
     "format": "prettier --write .",
     "format-check": "prettier --check .",
     "test": "yarn workspaces foreach -A run test",
-    "typecheck": "tsc --noEmit && yarn workspace @vattr/toybox run typecheck"
+    "typecheck": "tsc --noEmit && yarn workspace @vattr/toybox run typecheck && yarn workspace @vattr/diigo-cache run typecheck"
   },
   "devDependencies": {
     "@endo/init": "^1.1.13",
