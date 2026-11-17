@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "checkJs": true,
+    "lib": ["es2024"],
+    "types": ["../../node_modules/@cloudflare/workers-types", "node"]
+  },
+  "include": [
+    "*.js",
+    "src/**/*.js",
+    "test/**/*.js",
+    "../../globals.d.ts",
+    "../toybox/src/worker-env.d.ts",
+    "../toybox/src/endo-encoders.d.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
+}

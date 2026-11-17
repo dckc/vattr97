@@ -10,5 +10,5 @@
     "skipLibCheck": true
   },
   "include": ["**/*.js", "**/*.ts"],
-  "exclude": ["node_modules", "coverage", "packages/toybox"]
+  "exclude": ["node_modules", "coverage", "packages/toybox", "packages/diigo-cache"]
 }
