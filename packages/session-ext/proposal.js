@@ -83,16 +83,29 @@ export const proposalId = p => `${p.endpoint} ${p.site}`;
  * The host permissions a proposal needs: to read the site's cookies, and
  * to post to the app's endpoint. A pattern names a host, not a port.
  *
+ * chrome.cookies answers a cookie only with permission for the cookie's
+ * own domain, and a site often sets its session for the parent of its
+ * `www.` host (domain=diigo.com, for www.diigo.com). So the site's
+ * pattern covers the host without `www.`, and that host's subdomains.
+ * Which cookies are read is still only those the proposal names.
+ *
  * @param {Proposal} p
  */
-export const originsOf = p => [
-  ...new Set(
-    [p.site, p.endpoint].map(u => {
-      const { protocol, hostname } = new URL(u);
-      return `${protocol}//${hostname}/*`;
-    }),
-  ),
-];
+export const originsOf = p => {
+  const site = new URL(p.site);
+  const { hostname } = site;
+  // an IP address or a bare name such as localhost: that host alone
+  const named = /^[\d.]+$|^\[|^[^.]+$/.test(hostname)
+    ? hostname
+    : `*.${hostname.replace(/^www\./, '')}`;
+  const app = new URL(p.endpoint);
+  return [
+    ...new Set([
+      `${site.protocol}//${named}/*`,
+      `${app.protocol}//${app.hostname}/*`,
+    ]),
+  ];
+};
 
 /**
  * What to show before Accept, line by line: what will be read, where it
