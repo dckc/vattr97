@@ -15,43 +15,127 @@
  */
 
 /**
- * A 5×5 grid, mirrored left to right, in one hue: the hue from the first
- * byte, the cells from the next two. Self-contained, so a page can embed
+ * A robot's face: people tell faces apart, and remember them, better
+ * than patterns. The digest picks the head's shape and hue, the eyes and
+ * which way they look, the mouth, the antennas, the ears, and the
+ * background's hue: about 21 bits. Self-contained, so a page can embed
  * its source.
  *
  * @template {SvgNode} N
  * @param {{ createElementNS(ns: string, name: string): N }} doc a document
- * @param {Uint8Array} bytes a digest, 3 bytes at least
+ * @param {Uint8Array} bytes a digest, 9 bytes at least
  * @returns {N}
  */
 export const hashicon = (doc, bytes) => {
   const ns = 'http://www.w3.org/2000/svg';
-  const el = (
-    /** @type {string} */ name,
-    /** @type {Record<string, string | number>} */ attrs,
-  ) => {
+  /** @param {string} name @param {Record<string, string | number>} attrs */
+  const el = (name, attrs) => {
     const e = doc.createElementNS(ns, name);
     for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
     return e;
   };
+  /** @param {number} i @param {number} n */
+  const pick = (i, n) => bytes[i] % n;
+  /** @param {number} i @param {number} light */
+  const color = (i, light) =>
+    'hsl(' + (bytes[i] % 12) * 30 + ' 60% ' + light + '%)';
+  const skin = color(0, 55);
+  const dark = color(0, 22);
+  const glow = color(4, 72);
   const svg = el('svg', {
-    viewBox: '-1 -1 7 7',
+    viewBox: '0 0 32 32',
     width: 40,
     height: 40,
     role: 'img',
-    'aria-label': 'hashicon of the key',
+    'aria-label': 'a robot face drawn from the key',
   });
-  svg.append(
-    el('rect', { x: -1, y: -1, width: 7, height: 7, fill: '#f4f4f4' }),
-  );
-  const fill = 'hsl(' + Math.round((bytes[0] * 360) / 256) + ' 65% 40%)';
-  for (let i = 0; i < 15; i += 1) {
-    if (((bytes[1 + (i >> 3)] >> (i & 7)) & 1) === 0) continue;
-    const row = i % 5;
-    const col = Math.floor(i / 5);
-    for (const x of new Set([col, 4 - col]))
-      svg.append(el('rect', { x, y: row, width: 1, height: 1, fill }));
+  /** @param {string} name @param {Record<string, string | number>} attrs */
+  const add = (name, attrs) => svg.append(el(name, attrs));
+  add('rect', { width: 32, height: 32, fill: color(1, 90) });
+  const antennas = [[], [16], [10, 22]][pick(6, 3)];
+  for (const x of antennas) {
+    add('line', {
+      x1: x,
+      y1: 9,
+      x2: x,
+      y2: 4,
+      stroke: dark,
+      'stroke-width': 1.5,
+    });
+    add('circle', { cx: x, cy: 3.5, r: 2, fill: glow, stroke: dark });
   }
+  if (pick(7, 2))
+    for (const x of [3, 27])
+      add('rect', { x, y: 14, width: 2, height: 7, fill: dark });
+  const head = pick(2, 3);
+  if (head === 2)
+    add('ellipse', {
+      cx: 16,
+      cy: 18,
+      rx: 11.5,
+      ry: 10,
+      fill: skin,
+      stroke: dark,
+    });
+  else
+    add('rect', {
+      x: 5,
+      y: 8,
+      width: 22,
+      height: 20,
+      rx: head ? 6 : 1.5,
+      fill: skin,
+      stroke: dark,
+    });
+  const look = pick(8, 3) - 1;
+  const eyes = pick(3, 4);
+  /** @type {number[]} */
+  let pupils = [11, 21];
+  if (eyes === 0)
+    for (const cx of [11, 21])
+      add('circle', { cx, cy: 15, r: 3.2, fill: glow, stroke: dark });
+  else if (eyes === 1)
+    for (const x of [8, 18])
+      add('rect', { x, y: 12, width: 6, height: 6, fill: glow, stroke: dark });
+  else if (eyes === 2) {
+    add('rect', {
+      x: 7,
+      y: 12.5,
+      width: 18,
+      height: 5,
+      rx: 2.5,
+      fill: glow,
+      stroke: dark,
+    });
+    pupils = [12, 20];
+  } else {
+    add('circle', { cx: 16, cy: 15, r: 4.5, fill: glow, stroke: dark });
+    pupils = [16];
+  }
+  for (const cx of pupils)
+    add('circle', { cx: cx + look * 1.2, cy: 15, r: 1.3, fill: dark });
+  const mouth = pick(5, 4);
+  if (mouth === 0) {
+    add('rect', { x: 10, y: 21, width: 12, height: 4, fill: dark });
+    for (const x of [13, 16, 19])
+      add('line', { x1: x, y1: 21, x2: x, y2: 25, stroke: skin });
+  } else if (mouth === 1)
+    add('path', {
+      d: 'M10 21 Q16 27 22 21',
+      fill: 'none',
+      stroke: dark,
+      'stroke-width': 2,
+    });
+  else if (mouth === 2)
+    add('line', {
+      x1: 10,
+      y1: 23,
+      x2: 22,
+      y2: 23,
+      stroke: dark,
+      'stroke-width': 2,
+    });
+  else add('ellipse', { cx: 16, cy: 23, rx: 3, ry: 2.5, fill: dark });
   return svg;
 };
 
