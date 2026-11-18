@@ -216,7 +216,9 @@ const responseFrom = (res, policy) => {
     },
   );
   resp.headers.set('Referrer-Policy', 'no-referrer');
-  resp.headers.set('Content-Security-Policy', policy);
+  // appended, not set: a browser enforces every policy it's sent, so a
+  // handler's own (a sandbox, say) can narrow this one but never widen it
+  resp.headers.append('Content-Security-Policy', policy);
   return resp;
 };
 
