@@ -30,6 +30,7 @@ export const PAGE = `<!doctype html>
 <p>A secret, such as a key to put in a store, goes here, never in the arguments: <input type="password" id="secretIn" size="24" autocomplete="off" aria-label="a secret"> and <code>{"@secret": true}</code> in the arguments stands for it. It's sent with the next call that names it, then cleared.</p>
 <table><thead><tr><th>name</th><th>what</th><th>call</th></tr></thead><tbody id="names"></tbody></table>
 <pre id="answer"></pre>
+<p id="saveOut" hidden><button id="save">save answer as a file</button> <span id="saveName"></span></p>
 <h2>Messages</h2>
 <table><thead><tr><th>#</th><th>from</th><th>message</th><th></th></tr></thead><tbody id="messages"></tbody></table>
 <h2>Send</h2>
@@ -49,6 +50,8 @@ export const PAGE = `<!doctype html>
 <h2>Guest</h2>
 <p>A guest of yours: it starts knowing only you, and proposes to you what it needs.</p>
 <form id="guest">guest's name <input name="name" size="10"> <button>make a link</button></form>
+<p>A page: what a name refers to answers <code>handle(request)</code> at a link of its own, in a sandbox.</p>
+<form id="servePage">name to serve <input name="name" size="10"> <button>make a link</button></form>
 </div>
 <p id="linkOut" hidden><input type="password" id="secret" readonly size="40" aria-label="the link, hidden"> <button id="copy">copy</button></p>
 <p id="link"></p>
@@ -106,6 +109,20 @@ const withSecret = v => {
   return v;
 };
 
+// an answer that's text, such as a CSV or OFX download, can be saved as a
+// file, named for the call: a method ending in Csv or Ofx gets that extension
+let saveUrl = '';
+const offerSave = (answer, base) => {
+  if (saveUrl) URL.revokeObjectURL(saveUrl);
+  $('saveOut').hidden = typeof answer !== 'string';
+  if (typeof answer !== 'string') return;
+  const ext = (base.match(/(csv|ofx)$/i)?.[1] ?? 'txt').toLowerCase();
+  saveUrl = URL.createObjectURL(new Blob([answer], { type: 'text/plain' }));
+  $('saveName').textContent = base + '.' + ext;
+  $('save').onclick = () =>
+    Object.assign(document.createElement('a'), { href: saveUrl, download: base + '.' + ext }).click();
+};
+
 // polling redraws only the messages, and only when they changed, so it
 // doesn't wipe a call or an endowment being typed
 let shownMessages = '';
@@ -132,11 +149,22 @@ const render = async ({ withNames = true } = {}) => {
           saveAs: saveAs.value || undefined,
         });
         $('secretIn').value = '';
-        show('answer', name + '.' + method.value + ' → ' + JSON.stringify(answer));
+        show('answer', name + '.' + method.value + ' → ' + (typeof answer === 'string'
+          ? 'text, ' + answer.length + ' characters; save it as a file. It begins:\\n' + answer.split('\\n').slice(0, 5).join('\\n')
+          : JSON.stringify(answer)));
+        offerSave(answer, name + '-' + method.value);
+        await render();
+      });
+      // forgetting a name drops this host's hold on it; anyone else's stays
+      const forget = el('button', { textContent: 'delete', title: 'forget the name ' + name });
+      forget.onclick = guard('answer', async () => {
+        if (!confirm('Forget the name ' + name + '?')) return;
+        await api({ op: 'forget', name });
+        show('answer', 'forgot ' + name);
         await render();
       });
       return el('tr', {}, el('td', { textContent: name }), el('td', { textContent: iface }),
-        el('td', {}, method, ' ', args, ' ', saveAs, ' ', call));
+        el('td', {}, method, ' ', args, ' ', saveAs, ' ', call, ' ', forget));
     }),
   );
   if (withNames || messagesChanged) $('messages').replaceChildren(
@@ -211,6 +239,11 @@ $('invite').onsubmit = guard('link', async ev => {
   ev.preventDefault();
   const { invite } = await api({ op: 'invite', peer: ev.target.elements.peer.value });
   holdLink(location.origin + '/#invite=' + invite, 'one use');
+});
+$('servePage').onsubmit = guard('link', async ev => {
+  ev.preventDefault();
+  const { page } = await api({ op: 'servePage', name: ev.target.elements.name.value });
+  holdLink(location.origin + '/page#page=' + page, 'whoever holds it can use that page');
 });
 $('guest').onsubmit = guard('link', async ev => {
   ev.preventDefault();
