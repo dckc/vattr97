@@ -162,3 +162,12 @@ test('a presence keeps the interface its sender alleged', () => {
   });
   assert.equal(String(counter), '[object Alleged: Counter]');
 });
+
+test("a presence stored under a name the kernel once gave, its kref, is named 'remote'", () => {
+  const { unserialize } = makeLiveslots({ send, kv: makeKv() });
+  const signers = unserialize({
+    body: '#"$0.Alleged: kref ko35"',
+    slots: ['o-1'],
+  });
+  assert.equal(String(signers), '[object Alleged: remote]');
+});
