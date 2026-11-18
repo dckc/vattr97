@@ -158,11 +158,69 @@
           runHook postInstall
         '';
       });
+
+      # the wallet (packages/toybox/examples/wallet) as toybox's serve.js
+      # runs it, for a user's own service: `toybox-wallet-serve STATE_DIR
+      # [--port PORT] [--link-file FILE]`. Its source directory, whose
+      # bundles a boot vat makes vats from by path, is toybox's examples.
+      # The code a guest defines isn't here: the kernel keeps it, in STATE_DIR.
+      toyboxWallet = toybox.overrideAttrs (old: {
+        pname = "toybox-wallet";
+        installPhase = ''
+          runHook preInstall
+          lib=$out/lib/vattr97
+          mkdir -p $lib/packages $out/bin $out/lib/systemd/user
+          cp -r package.json node_modules $lib/
+          cp -r packages/toybox $lib/packages/
+          rm -r $lib/packages/toybox/examples/probes
+          # the other workspaces' links lead to packages not here
+          find $lib/node_modules/@vattr -maxdepth 1 -type l ! -name toybox -delete
+          bin=$lib/node_modules/@cloudflare/workerd-linux-64/bin/workerd
+          test -e $bin
+          ln -sf ${workerd}/bin/workerd $bin
+          ex=$lib/packages/toybox/examples
+          cat > $out/bin/toybox-wallet-serve <<SH
+          #!${pkgs.runtimeShell}
+          # usage: toybox-wallet-serve STATE_DIR [--port PORT] [--link-file FILE]
+          state=\$1
+          shift
+          exec ${pkgs.nodejs}/bin/node $lib/packages/toybox/scripts/serve.js \\
+            "\$state" $ex/wallet --source $ex "\$@"
+          SH
+          chmod +x $out/bin/toybox-wallet-serve
+          # a user unit, as installed in the nix profile
+          # ~/.local/state/nix/profiles/toybox-wallet, a path that survives
+          # upgrades: `systemctl --user link` it. The port is 8787 unless a
+          # drop-in sets PORT.
+          cat > $out/lib/systemd/user/toybox-wallet.service <<'UNIT'
+          [Unit]
+          Description=toybox wallet: a kernel of vats, with an owner's page
+
+          [Service]
+          Environment=PORT=8787
+          ExecStart=%S/nix/profiles/toybox-wallet/bin/toybox-wallet-serve %S/toybox-wallet --port ''${PORT} --link-file %S/toybox-wallet/owner-link
+          StateDirectory=toybox-wallet
+          StateDirectoryMode=0700
+          UMask=0077
+          Restart=on-failure
+          PrivateTmp=yes
+          NoNewPrivileges=yes
+          SystemCallFilter=@system-service
+          SystemCallFilter=pkey_alloc pkey_mprotect pkey_free
+          # not MemoryDenyWriteExecute: V8's JIT needs W+X
+
+          [Install]
+          WantedBy=default.target
+          UNIT
+          runHook postInstall
+        '';
+      });
     in
     {
       packages.${system} = {
         default = toybox;
         diigo-cache = diigoCache;
+        toybox-wallet = toyboxWallet;
         inherit toybox workerd;
       };
 
