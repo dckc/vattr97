@@ -62,6 +62,8 @@ export type MakeDevices = (
     random: (n: number) => Uint8Array;
     /** the time, in milliseconds since the epoch */
     now: () => number;
+    /** WebCrypto's signing, for a device that holds keys */
+    subtle: Pick<SubtleCrypto, 'importKey' | 'sign'>;
     /** deliver a message to a vat's object, as the kernel does */
     send: (kref: Kref, method: string, args: unknown[]) => Promise<unknown>;
     /** set the kernel's alarm to the earliest any device's `alarm.next()` asks */

@@ -3,6 +3,7 @@ import { makeEntropy } from './entropy.js';
 import { makeFetchDevices } from './fetch.js';
 import { TABLES as GIT_TABLES, makeGitTrees } from './git/trees.js';
 import { makeInstallers } from './installer.js';
+import { TABLES as JWT_TABLES, makeJwtSigners } from './jwt.js';
 import { makeNixStores } from './nix/store.js';
 import { makeSourceTrees } from './source.js';
 import { TABLES as TIMER_TABLES, makeTimers } from './timer.js';
@@ -11,14 +12,14 @@ import { TABLES as TIMER_TABLES, makeTimers } from './timer.js';
 
 /**
  * toybox's own I/O devices: networks (`fetch`, `lan`), the nix store, git
- * trees, the source directory, entropy, timers, and the installer, for
+ * trees, the source directory, entropy, timers, JWT signers, and the installer, for
  * module source a vat has in hand.
  *
  * @type {MakeDevices}
  */
 export const makeDevices = (
   powers,
-  { env, bundles, random, now, send, rearm, log, withTables },
+  { env, bundles, random, now, subtle, send, rearm, log, withTables },
 ) =>
   harden({
     entropy: makeEntropy(powers, { random }),
@@ -31,6 +32,12 @@ export const makeDevices = (
       checkout: env.GIT_CHECKOUT,
     }),
     installer: makeInstallers(powers, { bundles }),
+    jwtSigners: makeJwtSigners(withTables(JWT_TABLES), {
+      now,
+      random,
+      subtle,
+      send,
+    }),
     lan: makeFetchDevices(powers, {
       tag: 'LanDevice',
       prefix: 'lan',
