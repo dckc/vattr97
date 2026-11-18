@@ -27,6 +27,7 @@ export const PAGE = `<!doctype html>
 <section id="agent" hidden>
 <h2>Names</h2>
 <p>Call a method on what a name refers to. Arguments are JSON; <code>{"@name": "x"}</code> is the reference named x. An answer's references are saved as the name you give.</p>
+<p>A secret, such as a key to put in a store, goes here, never in the arguments: <input type="password" id="secretIn" size="24" autocomplete="off" aria-label="a secret"> and <code>{"@secret": true}</code> in the arguments stands for it. It's sent with the next call that names it, then cleared.</p>
 <table><thead><tr><th>name</th><th>what</th><th>call</th></tr></thead><tbody id="names"></tbody></table>
 <pre id="answer"></pre>
 <h2>Messages</h2>
@@ -49,7 +50,8 @@ export const PAGE = `<!doctype html>
 <p>A guest of yours: it starts knowing only you, and proposes to you what it needs.</p>
 <form id="guest">guest's name <input name="name" size="10"> <button>make a link</button></form>
 </div>
-<pre id="link"></pre>
+<p id="linkOut" hidden><input type="password" id="secret" readonly size="40" aria-label="the link, hidden"> <button id="copy">copy</button></p>
+<p id="link"></p>
 </section>
 <script src="/wallet.js"></script>
 </body>
@@ -89,9 +91,29 @@ const guard = (where, f) => async (...args) => {
   }
 };
 
-// polling redraws only the messages, so it doesn't wipe a call being typed
+// {"@secret": true}, anywhere in a call's arguments, is the secret field's text,
+// so a key goes to a store without being shown
+const withSecret = v => {
+  if (Array.isArray(v)) return v.map(withSecret);
+  if (v && typeof v === 'object') {
+    const ks = Object.keys(v);
+    if (ks.length === 1 && ks[0] === '@secret' && v['@secret'] === true) {
+      if (!$('secretIn').value) throw Error('the secret field is empty');
+      return $('secretIn').value;
+    }
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, withSecret(x)]));
+  }
+  return v;
+};
+
+// polling redraws only the messages, and only when they changed, so it
+// doesn't wipe a call or an endowment being typed
+let shownMessages = '';
 const render = async ({ withNames = true } = {}) => {
   const { label, kind, names, messages } = await api({ op: 'view' });
+  const seen = JSON.stringify(messages);
+  const messagesChanged = seen !== shownMessages;
+  shownMessages = seen;
   $('label').textContent = label + ' (' + kind + ')';
   $('hostOnly').hidden = kind !== 'host';
   $('guestOnly').hidden = kind !== 'guest';
@@ -106,9 +128,10 @@ const render = async ({ withNames = true } = {}) => {
           op: 'call',
           target: name,
           method: method.value,
-          args: JSON.parse(args.value || '[]'),
+          args: withSecret(JSON.parse(args.value || '[]')),
           saveAs: saveAs.value || undefined,
         });
+        $('secretIn').value = '';
         show('answer', name + '.' + method.value + ' → ' + JSON.stringify(answer));
         await render();
       });
@@ -116,7 +139,7 @@ const render = async ({ withNames = true } = {}) => {
         el('td', {}, method, ' ', args, ' ', saveAs, ' ', call));
     }),
   );
-  $('messages').replaceChildren(
+  if (withNames || messagesChanged) $('messages').replaceChildren(
     ...messages.map(message => {
       const { number, from } = message;
       if (message.type === 'definition') return definitionRow(message);
@@ -175,15 +198,24 @@ $('define').onsubmit = guard('answer', async ev => {
   await api({ op: 'define', slots: JSON.parse(f.slots.value || '{}'), modules: { 'main.js': f.source.value } });
   show('answer', 'proposed');
 });
+// a link holds a secret: it goes in a password field, to copy, never shown
+// (a password field won't copy with Ctrl-C, hence the button)
+const holdLink = (link, note) => {
+  $('secret').value = link;
+  $('linkOut').hidden = false;
+  show('link', 'made a link (' + note + '); copy it, and keep it to yourself');
+};
+$('copy').onclick = guard('link', () =>
+  navigator.clipboard.writeText($('secret').value).then(() => show('link', 'copied')));
 $('invite').onsubmit = guard('link', async ev => {
   ev.preventDefault();
   const { invite } = await api({ op: 'invite', peer: ev.target.elements.peer.value });
-  show('link', location.origin + '/#invite=' + invite + '  (one use)');
+  holdLink(location.origin + '/#invite=' + invite, 'one use');
 });
 $('guest').onsubmit = guard('link', async ev => {
   ev.preventDefault();
   const { guest } = await api({ op: 'provideGuest', name: ev.target.elements.name.value });
-  show('link', location.origin + '/#agent=' + guest + '  (whoever holds it is your guest)');
+  holdLink(location.origin + '/#agent=' + guest, 'whoever holds it is your guest');
   await render();
 });
 
