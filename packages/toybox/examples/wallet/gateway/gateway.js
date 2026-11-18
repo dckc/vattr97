@@ -7,6 +7,13 @@
  */
 import { isRef, prepareAgentsKit, save } from './agents.exo.js';
 import { PAGE, SCRIPT } from './page.js';
+import {
+  LOADER,
+  LOADER_SCRIPT,
+  SERVED,
+  pageRequestOf,
+  postingBack,
+} from './pages.js';
 import { prepareRegistry } from './registry.exo.js';
 
 /**
@@ -31,6 +38,8 @@ const { entries, fromEntries, keys } = Object;
  *
  * @typedef {{ definer: Remote<Definer>, ownerStarters: Record<string, Remote> }} Equipment
  */
+
+/** @typedef {{ handle(request: HttpRequest): HttpResponse | Promise<HttpResponse> }} PageHandler what a host serves at a page's link */
 
 /**
  * `value`, a JSON object from the page, as a record.
@@ -141,6 +150,15 @@ export const buildRootObject = (
   });
   /** each agent's own facet, and each open invitation, by the swiss number in its link */
   const links = zone.makeOnce('links', () => makeRegistry());
+  /**
+   * each page a host serves: the object whose `handle(request)` answers its
+   * link. One kind of registry keeps both; this one keeps pages.
+   */
+  const pages = zone.makeOnce('pages', () =>
+    /** @type {() => Registry<Remote<PageHandler>>} the same maker, keeping pages */ (
+      /** @type {unknown} */ (makeRegistry)
+    )(),
+  );
 
   /**
    * The agent `swiss` keeps, if any.
@@ -304,6 +322,17 @@ export const buildRootObject = (
             hostOf(agent, 'invites').invite(String(req.peer)),
           ),
         };
+      case 'servePage': {
+        hostOf(agent, 'serves pages');
+        const name = String(req.name);
+        if (!names.nameHub.has(name))
+          throw Error(`no ${JSON.stringify(name)} here`);
+        // whatever the host names: what its `handle` answers is checked as it's served
+        const target = /** @type {Remote<PageHandler>} */ (
+          await names.nameHub.lookup(name)
+        );
+        return { page: await pages.register(target) };
+      }
       case 'provideGuest':
         return {
           guest: await links.register(
@@ -332,19 +361,83 @@ export const buildRootObject = (
     return operate(agent, req);
   };
 
+  /**
+   * A page a host served, posted to {@link SERVED} with its swiss number
+   * in the body (see pages.js): the request goes to the object the number
+   * keeps, and its answer comes back in a sandbox (an opaque origin, no
+   * scripts), so the page can't reach the wallet's storage, where each
+   * browser keeps its agent's swiss number. Of the answer's headers, only
+   * its type and disposition pass, and its forms post back here.
+   *
+   * @param {string} body the form's
+   * @returns {Promise<HttpResponse>}
+   */
+  const servePage = async body => {
+    const { page: swiss, path, labels } = pageRequestOf(body);
+    const target = pages.deref(swiss);
+    if (!target) return { status: 404, body: 'not here\n' };
+    const request = { method: 'POST', path, labels, body: '' };
+    const answer =
+      /** @type {Partial<HttpResponse>} a page's answer, checked below */ (
+        await E(target).handle(harden(request))
+      );
+    /** @type {Record<string, string>} */
+    const headers = {
+      'content-security-policy': 'sandbox allow-forms allow-downloads',
+      'cache-control': 'no-store',
+    };
+    for (const h of ['content-type', 'content-disposition']) {
+      const v = answer?.headers?.[h];
+      if (typeof v === 'string') headers[h] = v;
+    }
+    const text = typeof answer?.body === 'string' ? answer.body : '';
+    return {
+      status: typeof answer?.status === 'number' ? answer.status : 200,
+      headers,
+      body: /^text\/html\b/.test(headers['content-type'] ?? '')
+        ? postingBack(text, swiss)
+        : text,
+    };
+  };
+
   const makeHandler = zone.exoClass('Handler', undefined, () => ({}), {
     /** @param {HttpRequest} request */
     async handle({ method, path, body }) {
+      if (method === 'POST' && path === SERVED) return servePage(body);
+      if (method === 'GET' && path === '/page')
+        return {
+          status: 200,
+          headers: {
+            'content-type': 'text/html; charset=utf-8',
+            'cache-control': 'no-store',
+          },
+          body: LOADER,
+        };
+      if (method === 'GET' && path === '/page.js')
+        return {
+          status: 200,
+          headers: {
+            'content-type': 'text/javascript; charset=utf-8',
+            'cache-control': 'no-store',
+          },
+          body: LOADER_SCRIPT,
+        };
       if (method === 'GET' && path === '/')
         return {
           status: 200,
-          headers: { 'content-type': 'text/html; charset=utf-8' },
+          headers: {
+            'content-type': 'text/html; charset=utf-8',
+            'cache-control': 'no-store',
+          },
           body: PAGE,
         };
       if (method === 'GET' && path === '/wallet.js')
         return {
           status: 200,
-          headers: { 'content-type': 'text/javascript; charset=utf-8' },
+          headers: {
+            'content-type': 'text/javascript; charset=utf-8',
+            'cache-control': 'no-store',
+          },
           body: SCRIPT,
         };
       if (method === 'POST' && path === '/api') {

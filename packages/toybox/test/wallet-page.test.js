@@ -14,3 +14,17 @@ test('a secret never shows: the made link and the secret field are password inpu
   assert.match(PAGE, /<input type="password" id="secretIn"/);
   assert.doesNotMatch(SCRIPT, /show\('link', location\.origin/);
 });
+
+test('an answer that is text can be saved as a file', () => {
+  assert.match(PAGE, /<button id="save">/);
+  assert.match(SCRIPT, /offerSave\(answer/);
+});
+
+test('each name has a delete button, which forgets it', () => {
+  assert.match(SCRIPT, /op: 'forget', name/);
+});
+
+test("a page's link holds its number in the fragment, never the path", () => {
+  assert.match(SCRIPT, /'\/page#page=' \+ page/);
+  assert.doesNotMatch(SCRIPT, /'\/s\/' \+ page/);
+});

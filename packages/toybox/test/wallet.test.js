@@ -728,3 +728,83 @@ test("hal proposes a reader of owen's bank transactions; owen endows it with the
     await hal.readTransactions();
   });
 });
+
+/** A page a guest proposes: it answers a form, and tries a header it shouldn't set. */
+const PAGE = {
+  'main.js': `export const buildRootObject = ({ M, zone }) =>
+  zone.exo('Page', M.interface('Page', { handle: M.call(M.record()).returns(M.record()) }), {
+    handle: ({ path, labels }) => ({
+      headers: { 'content-type': 'text/plain', 'set-cookie': 'agent=stolen', 'content-disposition': 'inline' },
+      body: path + ' ' + (labels.since ?? '') + ' <script>localStorage</script>',
+    }),
+  });
+`,
+};
+
+test('a host serves a page at a link of its own, in a sandbox, passing only its type and disposition', async t => {
+  const { startToybox, pkg, makeDir } = await worldP;
+  const dir = await makeDir('toybox-page-');
+  t.after(dir.remove);
+  const { source, boot } = await copyExamples({ pkg }, dir);
+  const box = await startToybox(dir, {
+    boot,
+    source,
+    config: 'test/config-local.capnp',
+  });
+  t.after(box.stop);
+  const operator = await operate(box);
+  t.after(operator.close);
+  const owner = swissOf(await E(operator.boot).provideOwnerLink());
+  /** @param {SwissNum} agent @param {Record<string, unknown>} req */
+  const as = (agent, req) => postToPage(box.app, { agent, ...req });
+  const { guest } = await as(owner, { op: 'provideGuest', name: 'pager' });
+  await as(/** @type {SwissNum} */ (guest), {
+    op: 'define',
+    modules: PAGE,
+    slots: {},
+  });
+  const { messages } = await as(owner, { op: 'view' });
+  const [{ number }] = /** @type {{ number: number, type: string }[]} */ (
+    messages
+  ).filter(m => m.type === 'definition');
+  await as(owner, { op: 'endow', number, bindings: {}, saveAs: 'page' });
+  // a guest serves no pages
+  await assert.rejects(
+    as(/** @type {SwissNum} */ (guest), { op: 'servePage', name: 'host' }),
+    /only a host/,
+  );
+  const { page } = await as(owner, { op: 'servePage', name: 'page' });
+
+  /** @param {Record<string, string>} fields */
+  const post = fields =>
+    box.app('/s/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(fields).toString(),
+    });
+  const resp = await post({
+    page: String(page),
+    path: '/ofx',
+    since: '2026-03-01',
+  });
+  assert.equal(resp.status, 200);
+  // the page's sandbox, and the app socket's own policy too
+  const policies = String(resp.headers.get('content-security-policy')).split(
+    ', ',
+  );
+  assert.ok(
+    policies.includes('sandbox allow-forms allow-downloads'),
+    policies.join(' | '),
+  );
+  assert.ok(
+    policies.some(p => p.startsWith("default-src 'self'")),
+    policies.join(' | '),
+  );
+  assert.equal(resp.headers.get('content-type'), 'text/plain');
+  assert.equal(resp.headers.get('content-disposition'), 'inline');
+  assert.equal(resp.headers.get('set-cookie'), null);
+  assert.match(await resp.text(), /^\/ofx 2026-03-01 /);
+  assert.equal((await post({ page: 'not-a-page' })).status, 404);
+  // the number never goes in a path: the link holds it in its fragment
+  assert.equal((await box.app(`/s/${page}/`, {})).status, 404);
+});
