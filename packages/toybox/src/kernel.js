@@ -2,10 +2,9 @@
 import { DurableObject, WorkerEntrypoint } from 'cloudflare:workers';
 import { RpcTarget, newWorkersRpcResponse } from 'capnweb';
 import { Fail, q } from '@endo/errors';
-import { makeMarshal } from '@endo/marshal';
-import { Far } from '@endo/pass-style';
 import VAT_RUNTIME from 'vat-runtime.txt';
 import { makeBootBundles } from './kernel/boot.js';
+import { LEGACY, makeKrefMarshal } from './kernel/kref-marshal.js';
 import { TABLES as BUNDLE_TABLES, makeBundles } from './kernel/bundles.js';
 import {
   TABLES as ENDOWMENT_TABLES,
@@ -91,43 +90,6 @@ const makeSessionClist = () => {
   };
 };
 
-/**
- * A marshal whose slots are krefs: each becomes a stand-in object in the
- * data, and back, so kernel objects' methods see references as objects.
- */
-const makeKrefMarshal = () => {
-  /** @type {WeakMap<object, Kref>} */
-  const krefOf = new WeakMap();
-  /** @param {Kref} kref */
-  const standIn = kref => {
-    const obj = Far(`kref ${kref}`, {});
-    krefOf.set(obj, kref);
-    return obj;
-  };
-  /** @param {unknown} obj */
-  const toKref = obj => {
-    const kref = typeof obj === 'object' && obj && krefOf.get(obj);
-    if (!kref) throw Fail`not a reference the kernel handed out`;
-    return kref;
-  };
-  const marshal = makeMarshal(toKref, standIn, {
-    serializeBodyFormat: 'smallcaps',
-    errorTagging: 'off',
-  });
-  return harden({
-    /** @param {unknown} val @returns {CapData<Kref>} */
-    toCapData: val =>
-      marshal.toCapData(
-        harden(/** @type {any} marshal checks it's passable */ (val)),
-      ),
-    /** @param {CapData<Kref>} capdata @returns {any} whatever the sender sent */
-    fromCapData: capdata => marshal.fromCapData(capdata),
-    standIn,
-    /** @param {unknown} obj */
-    krefOf: obj =>
-      typeof obj === 'object' && obj ? krefOf.get(obj) : undefined,
-  });
-};
 
 /**
  * The kernel names every exported object by a kref (`ko<n>`) and keeps, for
@@ -154,7 +116,10 @@ const makeKrefMarshal = () => {
  */
 export const makeKernelClass = ({ makeDevices }) =>
   class Kernel extends DurableObject {
-    #krefs = makeKrefMarshal();
+    // the kernel's own objects are named by their kind, such as `timer`
+    #krefs = makeKrefMarshal(
+      kref => this.#keyOf(kref)?.split(':')[0] ?? 'remote',
+    );
     /** @type {ORM<Tables>} */
     #db;
     /** @type {Record<string, KernelObjects>} each kind of the kernel's own objects, by key prefix */
@@ -585,6 +550,7 @@ export const makeKernelClass = ({ makeDevices }) =>
     async #boot() {
       // a wakeup whose time passed while the kernel was down comes now
       await this.#rearm();
+      this.#renameLegacyParams();
       const [name] = (
         await Promise.all(
           ['boot.js', 'boot'].map(async n =>
@@ -630,6 +596,22 @@ export const makeKernelClass = ({ makeDevices }) =>
         'start',
         this.#krefs.toCapData(harden([])),
       );
+    }
+
+    /**
+     * Rewrite stored params that name a reference by its kref, as the
+     * kernel's marshal once did, so a vat started with them never sees one.
+     */
+    #renameLegacyParams() {
+      const legacy = new RegExp(LEGACY.source.slice(1, -1));
+      for (const { vat, params } of this.#db.query('kvat')) {
+        if (!legacy.test(params)) continue;
+        this.#db.lookup('kvat', { vat }).update({
+          params: JSON.stringify(
+            this.#krefs.toCapData(this.#krefs.fromCapData(JSON.parse(params))),
+          ),
+        });
+      }
     }
 
     /**

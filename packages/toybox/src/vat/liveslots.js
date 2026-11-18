@@ -5,6 +5,9 @@ import { defineExoClass, defineExoClassKit } from '@endo/exo';
 import { Remotable, passStyleOf } from '@endo/pass-style';
 import { withSubZones } from './sub-zones.js';
 
+/** A name the kernel's marshal once gave every reference: the kref itself. */
+const LEGACY = /^Alleged: kref ko\d+$/;
+
 /**
  * @import { MakeMarshalOptions } from '@endo/marshal';
  * @import { Passable } from '@endo/pass-style';
@@ -173,7 +176,11 @@ export const makeLiveslots = ({ send, kv }) => {
    */
   const slotToVal = (vref, iface = 'Alleged: remote') => {
     if (vref.startsWith('o-'))
-      return presences.get(vref) ?? makePresence(vref, iface);
+      return (
+        presences.get(vref) ??
+        // `kref ko<n>` is a name the kernel once gave, kept in a store; no name
+        makePresence(vref, LEGACY.test(iface) ? 'Alleged: remote' : iface)
+      );
     const obj = exported.get(vref);
     if (obj) return obj;
     if (vref.startsWith('o+d')) return revive(vref);
