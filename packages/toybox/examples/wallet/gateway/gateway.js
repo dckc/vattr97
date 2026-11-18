@@ -115,6 +115,8 @@ export const buildRootObject = (
   const gateway = zone.mapStore('gateway');
   /** @type {MapStore<'equipment', Equipment>} as the boot vat last equipped the gateway */
   const equipped = zone.mapStore('equipped');
+  /** @type {MapStore<'names', string[]>} the owner starters offered so far */
+  const offeredStore = zone.mapStore('offered');
 
   /** The definer, which runs an endowed definition in a vat of its own. */
   const definer = () => {
@@ -418,18 +420,35 @@ export const buildRootObject = (
     invites: () => invitesFacet,
     /**
      * At each start, from the boot vat: the definer, and what the owner's
-     * host starts with. An owner's host made before the gateway was first
-     * equipped gets the names it lacks then, and only then, so a name its
-     * owner forgets stays forgotten.
+     * host starts with. An owner's host made before then gets each starter
+     * it lacks once, the first time it's offered, so a name its owner
+     * forgets stays forgotten, and a starter added later still arrives.
      *
      * @param {Equipment} equipment
      */
     equip(equipment) {
-      const first = !equipped.has('equipment');
-      if (first) equipped.init('equipment', equipment);
-      else equipped.set('equipment', equipment);
-      if (!first || !gateway.has('owner')) return;
-      agentsKit.addNames(gateway.get('owner'), equipment.ownerStarters);
+      const before = equipped.has('equipment')
+        ? equipped.get('equipment')
+        : undefined;
+      if (before) equipped.set('equipment', equipment);
+      else equipped.init('equipment', equipment);
+      // a gateway equipped before `offered` was kept offered what it was equipped with
+      const offered = offeredStore.has('names')
+        ? offeredStore.get('names')
+        : before
+          ? keys(before.ownerStarters)
+          : [];
+      const fresh = keys(equipment.ownerStarters).filter(
+        name => !offered.includes(name),
+      );
+      if (offeredStore.has('names'))
+        offeredStore.set('names', harden([...offered, ...fresh]));
+      else offeredStore.init('names', harden([...offered, ...fresh]));
+      if (!gateway.has('owner') || !fresh.length) return;
+      agentsKit.addNames(
+        gateway.get('owner'),
+        fromEntries(fresh.map(name => [name, equipment.ownerStarters[name]])),
+      );
     },
   });
 };

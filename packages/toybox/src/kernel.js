@@ -213,6 +213,8 @@ export const makeKernelClass = ({ makeDevices }) =>
         // and the clock, for a device to hand out
         // eslint-disable-next-line no-restricted-properties
         now: () => Date.now(),
+        // and signing, for the JWT signers
+        subtle: crypto.subtle,
         send: async (kref, method, args) =>
           this.#krefs.fromCapData(
             await this.#deliver(
