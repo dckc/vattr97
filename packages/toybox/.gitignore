@@ -1,0 +1,5 @@
+state/
+admin.sock
+switchboard-*.sock
+dist/
+.wrangler/
