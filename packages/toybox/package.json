@@ -8,6 +8,7 @@
     "test": "node build.js && node build-cloudflare.js examples/neighbor && node --import ./src/node-lockdown.js --test test/*.test.js",
     "build": "node build.js",
     "build:cloudflare": "node build-cloudflare.js examples/neighbor",
+    "build:cloudflare:wallet": "node build-cloudflare.js examples/wallet examples",
     "lint": "eslint .",
     "lint-fix": "eslint . --fix",
     "typecheck": "tsc -p . --noEmit",
