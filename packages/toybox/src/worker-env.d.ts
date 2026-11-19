@@ -24,6 +24,8 @@ interface Env {
   SOURCE: Fetcher;
   /** the names of the service bindings the boot vat may grant to vats */
   GRANTABLE: string[];
+  /** on Cloudflare only, a secret: whoever POSTs it to `/.toybox/owner` gets the boot vat's owner link */
+  OWNER_KEY?: string;
 }
 
 declare namespace Cloudflare {
@@ -43,6 +45,12 @@ declare module 'toybox-boot' {
   /** a directory: each entry a file's UTF-8 contents, or a directory */
   export type BootTree = { [name: string]: string | BootTree };
   const tree: BootTree;
+  export default tree;
+}
+
+/** the source directory built into the Cloudflare Worker (build-cloudflare.js) */
+declare module 'toybox-source' {
+  const tree: import('toybox-boot').BootTree;
   export default tree;
 }
 

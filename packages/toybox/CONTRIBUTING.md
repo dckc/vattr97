@@ -51,11 +51,20 @@ Not yet: promise pipelining between vats (each message waits for its answer), me
 
 ## On Cloudflare
 
-The kernel runs on Cloudflare as it is, each vat a facet loaded through the Worker Loader (Dynamic Workers, which take the Workers Paid plan). [src/cloudflare.js](src/cloudflare.js) stands in for config.capnp: the Worker's `fetch` is the app socket; the boot directory is built into the Worker; the internet is the Worker's own `fetch`; the LAN, the nix store, the git checkout, and the source directory reach nothing. There is no admin socket, so nobody installs code over the web, and no http socket.
+The kernel runs on Cloudflare as it is, each vat a facet loaded through the Worker Loader (Dynamic Workers, which take the Workers Paid plan). [src/cloudflare.js](src/cloudflare.js) stands in for config.capnp: the Worker's `fetch` is the app socket; the boot and source directories are built into the Worker; the internet is the Worker's own `fetch`; the LAN, the nix store, and the git checkout reach nothing. There is no admin socket, so nobody installs code over the web, and no http socket.
 
 ```sh
 yarn build:cloudflare                 # dist/cloudflare, with examples/neighbor as the boot directory
 ../../node_modules/.bin/wrangler dev  # lend the mower, at the URL it prints
+```
+
+The wallet's owner link, which `toybox-serve` asks the boot vat for over the admin socket, comes instead from `POST /.toybox/owner` with the `OWNER_KEY` secret as the body. The key travels only in a request body, and the link's swiss number only in its fragment. Without the secret there is no such route.
+
+```sh
+yarn build:cloudflare:wallet          # examples/wallet boots, with examples/ as the source directory
+../../node_modules/.bin/wrangler secret put OWNER_KEY < key
+../../node_modules/.bin/wrangler deploy
+curl --data-binary @key https://toybox.<account>.workers.dev/.toybox/owner  # #agent=…, to open after the origin
 ```
 
 A Durable Object can have at most ten Dynamic Workers with requests in flight, and a kernel's vats are all facets of one, so at most ten of a kernel's vats can be busy at once.
