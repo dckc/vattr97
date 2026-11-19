@@ -11,6 +11,10 @@
   lib,
   # where diigo-cache-serve is
   bin,
+  # where its README is, for `systemctl status`'s Docs: line
+  doc,
+  # the source of the commit it was built from, if it has a URL
+  source ? null,
   # the app socket's port; the http socket is the next one
   port ? 8790,
 }:
@@ -19,6 +23,7 @@
 
   services.diigo-cache = {
     description = "diigo-cache: diigo bookmarks cached in toybox vats";
+    documentation = [ "file://${doc}/README.md" ] ++ lib.optional (source != null) source;
     after = [ "network-online.target" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {

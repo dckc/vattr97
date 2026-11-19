@@ -10,6 +10,8 @@
       pkgs = nixpkgs.legacyPackages.${system};
       inherit (pkgs) lib;
       yarn-berry = pkgs.yarn-berry_4;
+      # the commit a build came from; a dirty tree's ends in -dirty
+      shortRev = self.shortRev or self.dirtyShortRev or "unknown";
 
       # nixpkgs has no workerd of its own; wrangler carries a patched one.
       # It must be at least the compatibility date in
@@ -103,6 +105,7 @@
       # goes to FILE, and a unit's journal gets only its fingerprint.
       diigoCache = toybox.overrideAttrs (old: {
         pname = "diigo-cache";
+        version = "0.0.0-${shortRev}";
         src = lib.fileset.toSource {
           root = ./.;
           fileset = lib.fileset.unions [
@@ -142,6 +145,9 @@
             $lib/packages/toybox/scripts/serve.js "\$state" $lib/packages/diigo-cache/dist/boot "\$@"
           SH
           chmod +x $out/bin/diigo-cache-serve
+          mkdir -p $out/share/doc/diigo-cache
+          cp packages/diigo-cache/README.md $out/share/doc/diigo-cache/
+          echo ${self.rev or self.dirtyRev or "unknown"} > $out/share/doc/diigo-cache/REVISION
           # as installed in the nix profile /nix/var/nix/profiles/diigo-cache,
           # a path that survives upgrades
           mkdir -p $out/lib/systemd/system
@@ -151,6 +157,11 @@
                 import ./nix/diigo-cache-units.nix {
                   inherit lib;
                   bin = "/nix/var/nix/profiles/diigo-cache/bin";
+                  doc = "/nix/var/nix/profiles/diigo-cache/share/doc/diigo-cache";
+                  # a clean tree's commit, whose source anyone can read
+                  source = lib.mapNullable (
+                    rev: "https://github.com/dckc/vattr97/tree/${rev}/packages/diigo-cache"
+                  ) (self.rev or null);
                 }
               )
             )

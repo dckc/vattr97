@@ -15,7 +15,8 @@ let
     Description = u.description;
   }
   // lib.optionalAttrs (u ? requires) { Requires = lib.concatStringsSep " " u.requires; }
-  // lib.optionalAttrs (u ? after) { After = lib.concatStringsSep " " u.after; };
+  // lib.optionalAttrs (u ? after) { After = lib.concatStringsSep " " u.after; }
+  // lib.optionalAttrs (u ? documentation) { Documentation = lib.concatStringsSep " " u.documentation; };
   install = u: lib.optionalString (u ? wantedBy) (
     "\n" + section "Install" { WantedBy = lib.concatStringsSep " " u.wantedBy; }
   );
