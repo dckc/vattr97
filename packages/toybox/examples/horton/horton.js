@@ -13,8 +13,11 @@
  * it makes; `shutOff(who)` refuses that party's requests from then on, and
  * stops sending it any.
  *
- * E's proxies take any message, by `match`; a toybox object has the
- * methods its kind defines, so a proxy has one per verb in `params.verbs`.
+ * E's proxies take any message, by `match`. A toybox object has the
+ * methods its kind defines, so a proxy takes its methods from its stub's
+ * target, by the `__getMethodNames__` that every remotable answers (as
+ * @endo/marshal's dot-membrane does), in a kind for each set of names (as
+ * @agoric/base-zone's revocable kit does).
  *
  * @see https://erights.org/download/horton/ the paper's Java and E code
  */
@@ -24,7 +27,6 @@
 /**
  * @typedef {object} Params
  * @property {string} label the name this party proposes for itself
- * @property {string[]} verbs the methods its proxies forward
  */
 
 /**
@@ -37,12 +39,15 @@
 
 const { fromEntries } = Object;
 
+/** A meta-method, such as `__getMethodNames__`: not the target's to forward. @param {string} name */
+const isMeta = name => name.startsWith('__');
+
 /** @param {unknown} x @returns {x is Scalar} */
 const isScalar = x =>
   x === null || ['string', 'number', 'boolean'].includes(typeof x);
 
 /** @satisfies {BuildRootObject<Params>} */
-export const buildRootObject = ({ E, Far, zone }, { label, verbs }) => {
+export const buildRootObject = ({ E, Far, zone }, { label }) => {
   /** @type {MapStore<Remote, string>} pet names, by Who */
   const petNames = zone.mapStore('petNames');
   /** @type {MapStore<Remote, true>} Whos shut off */
@@ -51,6 +56,8 @@ export const buildRootObject = ({ E, Far, zone }, { label, verbs }) => {
   const log = zone.mapStore('log');
   /** @type {MapStore<object, { stub: Remote, whoBlame: Remote }>} each proxy's guts, by rights amplification */
   const guts = zone.mapStore('guts');
+  /** @type {MapStore<string, string[]>} each proxy kind's method names, by tag */
+  const proxyKinds = zone.mapStore('proxyKinds');
 
   const note = (/** @type {string} */ line) => log.init(log.getSize(), line);
 
@@ -162,12 +169,19 @@ export const buildRootObject = ({ E, Far, zone }, { label, verbs }) => {
           descs.map(async d =>
             'data' in d
               ? d.data
-              : makeProxy(d.from, await unwrap(d.gift, d.from)),
+              : await makeProxy(d.from, await unwrap(d.gift, d.from)),
           ),
         );
         refuseIfShut(whoBlame, verb);
         note(`${await nameOf(whoBlame)} asked ${verb}`);
         return E(target)[verb](...args);
+      },
+      /** The methods of this stub's target, for a proxy to it to forward. */
+      async getMethodNames() {
+        refuseIfShut(this.state.whoBlame, 'getMethodNames');
+        /** @type {string[]} */
+        const names = await E(this.state.target).__getMethodNames__();
+        return names.filter(name => !isMeta(name));
       },
     },
   );
@@ -195,24 +209,52 @@ export const buildRootObject = ({ E, Far, zone }, { label, verbs }) => {
     return E(stub).deliver(verb, descs);
   };
 
-  const makeProxyObject = zone.exoClass(
-    'Proxy',
-    undefined,
-    () => ({}),
-    fromEntries(
-      verbs.map(verb => [
-        verb,
-        /** @this {{ self: object }} @param {unknown[]} args */
-        function (...args) {
-          return forward(this.self, verb, args);
-        },
-      ]),
-    ),
-  );
+  /**
+   * The kind of proxy with methods `names`, defined the first time it's
+   * asked for, and in every incarnation after.
+   *
+   * @type {Map<string, () => object>}
+   */
+  const proxyMakers = new Map();
+  /** @param {string} tag @param {string[]} names */
+  const defineProxyKind = (tag, names) => {
+    const make = zone.exoClass(
+      tag,
+      undefined,
+      () => ({}),
+      fromEntries(
+        names.map(verb => [
+          verb,
+          /** @this {{ self: object }} @param {unknown[]} args */
+          function (...args) {
+            return forward(this.self, verb, args);
+          },
+        ]),
+      ),
+    );
+    proxyMakers.set(tag, make);
+    return make;
+  };
+  for (const [tag, names] of proxyKinds.entries()) defineProxyKind(tag, names);
+  /** @param {string[]} names */
+  const provideProxyMaker = names => {
+    const sorted = [...names].sort();
+    const tag = `Proxy(${sorted.join(',')})`;
+    const found = proxyMakers.get(tag);
+    if (found) return found;
+    proxyKinds.init(tag, harden(sorted));
+    return defineProxyKind(tag, sorted);
+  };
 
-  /** A proxy to `stub`, blaming `whoBlame` for its service. @param {Remote} whoBlame @param {Remote} stub */
-  const makeProxy = (whoBlame, stub) => {
-    const proxy = makeProxyObject();
+  /**
+   * A proxy to `stub`, with its target's methods, blaming `whoBlame` for
+   * its service.
+   *
+   * @param {Remote} whoBlame @param {Remote} stub
+   */
+  const makeProxy = async (whoBlame, stub) => {
+    const names = await E(stub).getMethodNames();
+    const proxy = provideProxyMaker(names)();
     guts.init(proxy, harden({ stub, whoBlame }));
     return proxy;
   };
