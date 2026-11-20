@@ -55,8 +55,6 @@ const worldP = (async () => {
   };
 })();
 
-const verbs = ['tidy', 'read', 'write', 'history'];
-
 test('Horton: A says b.tidy(c), and each party can tell who done it', async t => {
   const { startToybox, src, makeDir } = await worldP;
   const dir = await makeDir();
@@ -76,7 +74,7 @@ test('Horton: A says b.tidy(c), and each party can tell who done it', async t =>
   };
   const restartAll = () => Promise.all(admins.map(a => E(a).restart()));
   /** @param {string} label */
-  const party = label => vat('horton.js', { label, verbs });
+  const party = label => vat('horton.js', { label });
 
   const [alice, bob, carol] = await Promise.all(
     ['Alice', 'Bob', 'Carol'].map(party),
@@ -101,6 +99,13 @@ test('Horton: A says b.tidy(c), and each party can tell who done it', async t =>
   await t.test(
     'the inductive case: Bob gets a path to C of his own',
     async () => {
+      /** @param {Remote} x */
+      const methodsOf = async x =>
+        (await E(x).__getMethodNames__())
+          .filter((/** @type {string} */ n) => !n.startsWith('__'))
+          .sort();
+      assert.deepEqual(await methodsOf(c), await methodsOf(page));
+      assert.deepEqual(await methodsOf(b), ['scribble', 'tidy']);
       assert.equal(await E(b).tidy(c), 'tidied');
       assert.equal(await E(c).read(), 'hello world');
       assert.deepEqual(await E(alice).getLog(), [
