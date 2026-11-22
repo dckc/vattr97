@@ -23,6 +23,7 @@ export const PAGE = `<!doctype html>
 </head>
 <body>
 <h1>toybox wallet <small id="label"></small></h1>
+<p><a href="/blocks">blocks</a></p>
 <p id="status">loading…</p>
 <section id="agent" hidden>
 <h2>Names</h2>

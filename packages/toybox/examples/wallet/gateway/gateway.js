@@ -7,6 +7,7 @@
  */
 import { isRef, prepareAgentsKit, save } from './agents.exo.js';
 import { PAGE, SCRIPT } from './page.js';
+import { BLOCKS_PAGE, BLOCKS_SCRIPT } from './blocks.js';
 import { prepareRegistry } from './registry.exo.js';
 
 /**
@@ -338,6 +339,18 @@ export const buildRootObject = (
           status: 200,
           headers: { 'content-type': 'text/html; charset=utf-8' },
           body: PAGE,
+        };
+      if (method === 'GET' && path === '/blocks')
+        return {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+          body: BLOCKS_PAGE,
+        };
+      if (method === 'GET' && path === '/blocks.js')
+        return {
+          status: 200,
+          headers: { 'content-type': 'text/javascript; charset=utf-8' },
+          body: BLOCKS_SCRIPT,
         };
       if (method === 'GET' && path === '/wallet.js')
         return {
