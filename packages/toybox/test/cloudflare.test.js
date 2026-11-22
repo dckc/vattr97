@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 import assert from 'node:assert/strict';
 import { makeTree } from '../src/dir-tree.js';
+import { runStatement } from '../examples/wallet/gateway/blocks.js';
 
 /** @import { Tree } from '../src/dir-tree.js' */
 
@@ -279,6 +280,45 @@ test("the wallet on wrangler dev: with the owner key, owen gets his link, endows
       method: 'twice',
     });
     assert.equal(answer, 2);
+  });
+
+  await t.test('the blocks page runs a nested call through /api', async t => {
+    const dev = await startDev(persist, { config, vars });
+    t.after(dev.stop);
+    const page = await dev.app('/blocks');
+    assert.equal(page.status, 200);
+    assert.match(
+      page.headers.get('content-security-policy') ?? '',
+      /script-src 'self' https:\/\/cdnjs\.cloudflare\.com/,
+    );
+    assert.match(await page.text(), /integrity="sha384-/);
+    assert.equal((await dev.app('/blocks.js')).status, 200);
+
+    let n = 0;
+    const answer = await runStatement(
+      req => onPage(dev, owen, req),
+      {
+        save: 'n',
+        expr: {
+          call: {
+            target: {
+              call: {
+                target: { pet: 'counters' },
+                method: 'makeCounter',
+                args: [],
+              },
+            },
+            method: 'incr',
+            args: [],
+          },
+        },
+      },
+      () => `_t${(n += 1)}`,
+    );
+    assert.equal(answer, 1);
+    const { names } = await onPage(dev, owen, { op: 'view' });
+    assert.ok(Array.isArray(names));
+    assert.ok(!names.some(({ name }) => name.startsWith('_t')));
   });
 
   await t.test('after a restart', async t => {

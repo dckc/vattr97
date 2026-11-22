@@ -33,7 +33,7 @@ const PUBLIC_POLICY = "script-src 'none'";
 
 /** The app socket is the boot vat's alone, on an origin of its own: its pages' scripts come from it. */
 const APP_POLICY =
-  "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'";
+  "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'";
 
 /** A mount, as the Directory finds it: the ingress key it leads to, and its labels. @typedef {{ vat: IngressKey, labels: Record<string, string> }} Mount */
 
