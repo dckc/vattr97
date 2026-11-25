@@ -13,6 +13,7 @@
  * @import { Gateway } from './gateway/gateway.js';
  * @typedef {{ make(keyMap: Remote, kid: string, claims: Record<string, string | string[]>, ttl?: number): Remote }} JwtSigners
  * @typedef {{ make(keyMap: Remote, shardId: string, maxPhloLimit: number): Remote }} RholoSigners
+ * @typedef {{ makeSigner(keyMap: Remote, algorithm: 'Ed25519' | 'P-256' | 'secp256k1', entry?: string): Remote }} Crypto
  */
 
 /**
@@ -25,6 +26,8 @@
  * @property {Remote<{ install(modules: Record<string, string>): Promise<Remote> }>} installer for definitions' modules
  * @property {Remote<JwtSigners>} jwtSigners makes JWT signers of keys in the owner's stores
  * @property {Remote<RholoSigners>} rholoSigners makes rholo deploy signers of keys in the owner's stores
+ * @property {Remote<Crypto>} crypto hashes, and signers of keys in the owner's stores
+ * @property {Remote<{ now(): number }>} timer the clock, for the owner to hand on
  */
 
 /** @typedef {{ root: Remote, adminNode: Remote, bundle: Remote }} Kept */
@@ -34,7 +37,7 @@
 /** @satisfies {BuildRootObject<Params>} */
 export const buildRootObject = (
   { E, Far, M, zone },
-  { vatAdmin, source, entropy, ingress, fetch, installer, jwtSigners, rholoSigners },
+  { vatAdmin, source, entropy, ingress, fetch, installer, jwtSigners, rholoSigners, crypto, timer },
 ) => {
   /** @type {MapStore<string, Kept>} each vat this one made, by role */
   const vats = zone.mapStore('vats');
@@ -120,7 +123,7 @@ export const buildRootObject = (
       });
       await E(gateway()).equip({
         definer,
-        ownerStarters: { webApps, stores, jwtSigners, rholoSigners },
+        ownerStarters: { webApps, stores, jwtSigners, rholoSigners, crypto, timer, entropy },
       });
     },
     /** The first client's link fragment, for the operator to open or give away. */
