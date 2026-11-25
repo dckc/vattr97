@@ -5,6 +5,7 @@ import { TABLES as GIT_TABLES, makeGitTrees } from './git/trees.js';
 import { makeInstallers } from './installer.js';
 import { TABLES as JWT_TABLES, makeJwtSigners } from './jwt.js';
 import { makeNixStores } from './nix/store.js';
+import { TABLES as RHOLO_TABLES, makeRholoSigners } from './rholo.js';
 import { makeSourceTrees } from './source.js';
 import { TABLES as TIMER_TABLES, makeTimers } from './timer.js';
 
@@ -12,7 +13,7 @@ import { TABLES as TIMER_TABLES, makeTimers } from './timer.js';
 
 /**
  * toybox's own I/O devices: networks (`fetch`, `lan`), the nix store, git
- * trees, the source directory, entropy, timers, JWT signers, and the installer, for
+ * trees, the source directory, entropy, timers, JWT signers, rholo deploy signers, and the installer, for
  * module source a vat has in hand.
  *
  * @type {MakeDevices}
@@ -38,6 +39,7 @@ export const makeDevices = (
       subtle,
       send,
     }),
+    rholoSigners: makeRholoSigners(withTables(RHOLO_TABLES), { send }),
     lan: makeFetchDevices(powers, {
       tag: 'LanDevice',
       prefix: 'lan',

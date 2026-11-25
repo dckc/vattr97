@@ -98,6 +98,7 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
       'jwtSigners',
       'lan',
       'nixStore',
+      'rholoSigners',
       'source',
       'timer',
       'vatAdmin',

@@ -33,6 +33,9 @@
     "@endo/marshal": "1.10.0",
     "@endo/pass-style": "1.8.2",
     "@endo/patterns": "^1.9.1",
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0",
+    "@scure/base": "1.2.6",
     "capnweb": "0.12.0",
     "workerd": "1.20261006.1",
     "ws": "8.22.0"

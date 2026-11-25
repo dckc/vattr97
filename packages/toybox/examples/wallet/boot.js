@@ -3,7 +3,7 @@
  * and gateway vats from the source directory, examples/, and upgrades each
  * when its code there changes. The gateway serves the app socket, with the counters
  * and issuers as what every host starts with; the owner's host starts
- * with the WebApp maker, the store maker, and the JWT signer maker too. The gateway runs a
+ * with the WebApp maker, the store maker, and the JWT and rholo signer makers too. The gateway runs a
  * definition a host endows through the definer, which holds the installer
  * and the vatAdmin, so the gateway can make vats of code it's given and
  * nothing else of the kernel's.
@@ -12,6 +12,7 @@
  * @import { BuildRootObject, MapStore, Remote, SwissNum } from '../../src/types.js';
  * @import { Gateway } from './gateway/gateway.js';
  * @typedef {{ make(keyMap: Remote, kid: string, claims: Record<string, string | string[]>, ttl?: number): Remote }} JwtSigners
+ * @typedef {{ make(keyMap: Remote, shardId: string, maxPhloLimit: number): Remote }} RholoSigners
  */
 
 /**
@@ -23,6 +24,7 @@
  * @property {Remote} fetch for the WebApp maker's egress
  * @property {Remote<{ install(modules: Record<string, string>): Promise<Remote> }>} installer for definitions' modules
  * @property {Remote<JwtSigners>} jwtSigners makes JWT signers of keys in the owner's stores
+ * @property {Remote<RholoSigners>} rholoSigners makes rholo deploy signers of keys in the owner's stores
  */
 
 /** @typedef {{ root: Remote, adminNode: Remote, bundle: Remote }} Kept */
@@ -32,7 +34,7 @@
 /** @satisfies {BuildRootObject<Params>} */
 export const buildRootObject = (
   { E, Far, M, zone },
-  { vatAdmin, source, entropy, ingress, fetch, installer, jwtSigners },
+  { vatAdmin, source, entropy, ingress, fetch, installer, jwtSigners, rholoSigners },
 ) => {
   /** @type {MapStore<string, Kept>} each vat this one made, by role */
   const vats = zone.mapStore('vats');
@@ -118,7 +120,7 @@ export const buildRootObject = (
       });
       await E(gateway()).equip({
         definer,
-        ownerStarters: { webApps, stores, jwtSigners },
+        ownerStarters: { webApps, stores, jwtSigners, rholoSigners },
       });
     },
     /** The first client's link fragment, for the operator to open or give away. */
