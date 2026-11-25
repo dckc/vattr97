@@ -34,6 +34,18 @@ export const exprText = expr =>
       : `E(${exprText(expr.call.target)}).${expr.call.method}(${expr.call.args.map(exprText).join(', ')})`;
 
 /**
+ * The methods a call block offers, from what `__getMethodNames__`
+ * answered: those a caller would choose, without the `__` meta methods.
+ *
+ * @param {unknown} answer
+ * @returns {string[]}
+ */
+export const methodChoices = answer =>
+  Array.isArray(answer)
+    ? answer.filter(n => typeof n === 'string' && !n.startsWith('__')).sort()
+    : [];
+
+/**
  * `stmt` as text: `name = expression`, or an endowment of a definition's
  * slots.
  *
@@ -163,6 +175,7 @@ ${REVIEW_SCRIPT}
 const runStatement = ${runStatement};
 const exprText = ${exprText};
 const statementText = ${statementText};
+const methodChoices = ${methodChoices};
 const $ = id => document.getElementById(id);
 const api = async req => {
   const resp = await fetch('/api', {
@@ -183,6 +196,15 @@ const log = (text, bad) => {
 
 const COLOUR = { pet: '#13836f', call: '#4b52c9', lit: '#b7791f', save: '#4c5566', defn: '#8c3f8f' };
 
+// the methods of the object a name refers to, asked once per name
+const methodsAsked = new Map();
+const methodsOf = name => {
+  if (!methodsAsked.has(name))
+    methodsAsked.set(name, api({ op: 'call', target: name, method: '__getMethodNames__', args: [] })
+      .then(({ answer }) => methodChoices(answer), e => { console.warn('methods of', name, e); return []; }));
+  return methodsAsked.get(name);
+};
+
 const defineBlocks = (names, definitions) => {
   for (const { name, iface } of names) {
     Blockly.Blocks['pet:' + name] = {
@@ -199,13 +221,36 @@ const defineBlocks = (names, definitions) => {
       init() {
         // E( target ).method( args ): the target is the first socket
         this.appendValueInput('TARGET').appendField('E(');
-        this.appendDummyInput().appendField(').').appendField(new Blockly.FieldTextInput('method'), 'METHOD').appendField('(');
+        this.appendDummyInput('HEAD').appendField(').').appendField(new Blockly.FieldTextInput('method'), 'METHOD').appendField('(');
         for (let i = 0; i < n; i += 1) this.appendValueInput('ARG' + i).appendField(i ? ',' : '');
         this.appendDummyInput().appendField(')');
         this.setInputsInline(true);
         this.setTooltip('call method on the target, with ' + n + ' argument' + (n === 1 ? '' : 's'));
         this.setOutput(true, null);
         this.setColour(COLOUR.call);
+      },
+      // a name as the target: choose among its methods; otherwise, type one
+      onchange() {
+        if (this.isInFlyout || this.isDisposed()) return;
+        const target = this.getInputTargetBlock('TARGET');
+        const name = target && target.type.startsWith('pet:') ? target.type.slice(4) : undefined;
+        if (name === this.methodsFor) return;
+        this.methodsFor = name;
+        const current = this.getFieldValue('METHOD');
+        const put = field => {
+          const head = this.getInput('HEAD');
+          head.removeField('METHOD');
+          head.insertFieldAt(1, field, 'METHOD');
+        };
+        if (!name) {
+          if (!(this.getField('METHOD') instanceof Blockly.FieldTextInput)) put(new Blockly.FieldTextInput(current));
+          return;
+        }
+        methodsOf(name).then(choices => {
+          if (this.methodsFor !== name || this.isDisposed() || !choices.length) return;
+          put(new Blockly.FieldDropdown(choices.map(m => [m, m])));
+          this.setFieldValue(choices.includes(current) ? current : choices[0], 'METHOD');
+        });
       },
     };
   }

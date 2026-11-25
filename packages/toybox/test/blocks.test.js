@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  methodChoices,
   runStatement,
   statementText,
 } from '../examples/wallet/gateway/blocks.js';
@@ -190,4 +191,12 @@ test('the pegboard reads as text: saves as assignments, calls in E() form, endow
     }),
     'ertp = endow(#2, { testnet, signer: s1 })',
   );
+});
+
+test('a call block offers the methods a caller would choose, sorted', () => {
+  assert.deepEqual(
+    methodChoices(['withdraw', '__getMethodNames__', 'deposit', 3]),
+    ['deposit', 'withdraw'],
+  );
+  assert.deepEqual(methodChoices({ not: 'a list' }), []);
 });
