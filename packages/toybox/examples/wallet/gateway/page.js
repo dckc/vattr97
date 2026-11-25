@@ -4,6 +4,13 @@
  * read once and taken out of the address bar.
  */
 
+/** highlight.js 11.9.0, from cdnjs, pinned by its hash, to colorize a definition's source. */
+const HLJS = {
+  src: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js',
+  integrity:
+    'sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp',
+};
+
 export const PAGE = `<!doctype html>
 <html lang="en">
 <head>
@@ -19,6 +26,11 @@ export const PAGE = `<!doctype html>
   textarea { width: 100%; font-family: monospace; }
   pre { background: #f4f4f4; padding: .5em; white-space: pre-wrap; }
   .err { color: #a00; }
+  /* a definition's source, colorized by highlight.js */
+  .hljs-keyword, .hljs-built_in { color: #a626a4; } .hljs-string, .hljs-regexp { color: #50a14f; }
+  .hljs-number, .hljs-literal { color: #986801; } .hljs-comment { color: #8a8a8a; font-style: italic; }
+  .hljs-title, .hljs-title\\.function_ { color: #4078f2; } .hljs-params, .hljs-variable { color: #c18401; }
+  .hljs-attr, .hljs-property { color: #e45649; } .hljs-doctag { color: #0184bc; }
 </style>
 </head>
 <body>
@@ -57,6 +69,7 @@ export const PAGE = `<!doctype html>
 <p id="linkOut" hidden><input type="password" id="secret" readonly size="40" aria-label="the link, hidden"> <button id="copy">copy</button></p>
 <p id="link"></p>
 </section>
+<script src="${HLJS.src}" integrity="${HLJS.integrity}" crossorigin="anonymous"></script>
 <script src="/wallet.js"></script>
 </body>
 </html>
@@ -196,6 +209,13 @@ const dismissButton = number => {
   return dismiss;
 };
 
+// a module's source, colorized when highlight.js loaded, plain text when it didn't
+const sourceCode = source => {
+  const code = el('code', { className: 'language-javascript', textContent: source });
+  if (globalThis.hljs) globalThis.hljs.highlightElement(code);
+  return code;
+};
+
 // a proposed module: its slots and source to read, open, since endowing runs it at once, and what to fill each slot with
 const definitionRow = ({ number, from, modules, slots }) => {
   const bindings = el('input', { className: 'args', placeholder: JSON.stringify(Object.fromEntries(Object.keys(slots).map(k => [k, 'a name']))) });
@@ -209,7 +229,7 @@ const definitionRow = ({ number, from, modules, slots }) => {
   const slotList = el('ul', {}, ...Object.entries(slots).map(([name, { label }]) => el('li', {}, el('code', { textContent: name }), ': ' + label)));
   return el('tr', {}, el('td', { textContent: String(number) }), el('td', { textContent: from ?? '?' }),
     el('td', {}, 'a definition', slotList, ...Object.entries(modules).map(([path, source]) =>
-      el('details', { open: true }, el('summary', { textContent: path }), el('pre', { textContent: source })))),
+      el('details', { open: true }, el('summary', { textContent: path }), el('pre', {}, sourceCode(source))))),
     el('td', {}, bindings, ' ', as, ' ', endow, ' ', dismissButton(number)));
 };
 
