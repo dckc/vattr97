@@ -207,6 +207,13 @@ export type BuildRootObject<P = unknown> = (
   params: P,
 ) => object;
 
+/** Hashes of bytes, each given and answered in hex. */
+export type Hashes = {
+  sha256: (hex: string) => string;
+  blake2b256: (hex: string) => string;
+  keccak256: (hex: string) => string;
+};
+
 /**
  * What `buildRootObject` gets, beside its params. A module has no other
  * way to reach the world: no clock, no randomness, no network, but what
@@ -236,6 +243,8 @@ export type Powers = {
    */
   M: typeof MType;
   zone: Zone;
+  /** Hashes, of hex, in hex: pure, so every module has them. */
+  hashes: Hashes;
   /** the module's own SQLite, for what suits tables better than objects */
   db: SqlDatabase;
   /**

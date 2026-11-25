@@ -1,4 +1,4 @@
-/** @file Crypto devices, and the JWT and rholo signers a definition builds from them. */
+/** @file Hashes, crypto devices, and the JWT and rholo signers a definition builds from them. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -10,6 +10,7 @@ import { keccak_256 } from '@noble/hashes/sha3';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { E, Far } from '@endo/far';
 import { TABLES, makeCryptoDevices } from '../src/devices/crypto.js';
+import { hashes } from '../src/hashes.js';
 import { signJwt } from '../src/devices/jwt.js';
 import { revAddressOf, signDeploy } from '../src/devices/rholo.js';
 import { makeORM } from '../src/orm.js';
@@ -86,28 +87,18 @@ const setup = () => {
       sign: hex => call('sign', [hex]),
     });
   };
-  const hashes = Far('Crypto', {
-    /** @param {string} hex */
-    blake2b256: hex => /** @type {string} */ (ask('blake2b256', [hex])),
-    /** @param {string} hex */
-    keccak256: hex => /** @type {string} */ (ask('keccak256', [hex])),
-  });
-  return { keyMap, keyMapRef, ask, signerFor, hashes };
+  return { keyMap, keyMapRef, ask, signerFor };
 };
 
 test('hashes of hex, in hex', () => {
-  const { ask } = setup();
   const msg = 'cafe';
-  assert.equal(ask('sha256', [msg]), bytesToHex(sha256(hexToBytes(msg))));
+  assert.equal(hashes.sha256(msg), bytesToHex(sha256(hexToBytes(msg))));
   assert.equal(
-    ask('blake2b256', [msg]),
+    hashes.blake2b256(msg),
     bytesToHex(blake2b(hexToBytes(msg), { dkLen: 32 })),
   );
-  assert.equal(
-    ask('keccak256', [msg]),
-    bytesToHex(keccak_256(hexToBytes(msg))),
-  );
-  assert.throws(() => ask('sha256', ['xyz']), /hex/);
+  assert.equal(hashes.keccak256(msg), bytesToHex(keccak_256(hexToBytes(msg))));
+  assert.throws(() => hashes.sha256('xyz'), /hex/);
 });
 
 test('a secp256k1 signer signs a 32-byte digest, with low s', async () => {
@@ -224,11 +215,11 @@ const deploy = harden({
 });
 
 test("a definition's rholo signer signs as the rholoSigners device does", async () => {
-  const { keyMap, signerFor, hashes } = setup();
+  const { keyMap, signerFor } = setup();
   keyMap.set('privateKey', SECP_KEY);
   const signers = buildRholoSigners(
-    { E, Far },
-    { crypto: hashes, key: signerFor('secp256k1') },
+    { E, Far, hashes },
+    { key: signerFor('secp256k1') },
   );
   const signer = signers.make('/testnet', 1_000_000);
   const key = hexToBytes(SECP_KEY);

@@ -1,7 +1,8 @@
 /**
- * @file Crypto devices: hashes, and signers over keys a vat can't read,
- * out of which a vat builds the signers a protocol wants (a JWT's, a
- * chain's deploys). Bytes go in and out as hex.
+ * @file Crypto devices: signers over keys a vat can't read, out of which
+ * a vat builds the signers a protocol wants (a JWT's, a chain's deploys),
+ * with the hashes every vat has among its powers (../hashes.js). Bytes go
+ * in and out as hex.
  *
  * As with the JWT signers (./jwt.js), a key is kept in someone's map
  * store: a signer holds the store's `readOnly()` facet and reads the key
@@ -16,12 +17,10 @@
  *   hash, and answers r ‖ s with low s. Its key is 64 hex digits.
  */
 import { secp256k1 } from '@noble/curves/secp256k1';
-import { blake2b } from '@noble/hashes/blake2b';
-import { sha256 } from '@noble/hashes/sha2';
-import { keccak_256 } from '@noble/hashes/sha3';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { Fail, q } from '@endo/errors';
 import { M } from '@endo/patterns';
+import { bytesOf } from '../hashes.js';
 import { kzone } from '../kernel/objects.js';
 import { parseKey as parseJwtKey } from './jwt.js';
 
@@ -43,23 +42,6 @@ export const ALGORITHMS = freeze(
 );
 
 const Hex = M.string();
-
-/** Bytes of `hex`, an even number of hex digits. @param {string} hex @param {string} what */
-const bytesOf = (hex, what) =>
-  /^([0-9a-fA-F]{2})*$/.test(hex)
-    ? hexToBytes(hex)
-    : Fail`${q(what)}: not hex, an even number of hex digits`;
-
-/** The hashes, of hex, in hex. */
-export const HASHES = freeze({
-  /** @param {string} hex */
-  sha256: hex => bytesToHex(sha256(bytesOf(hex, 'sha256'))),
-  /** @param {string} hex */
-  blake2b256: hex =>
-    bytesToHex(blake2b(bytesOf(hex, 'blake2b256'), { dkLen: 32 })),
-  /** @param {string} hex */
-  keccak256: hex => bytesToHex(keccak_256(bytesOf(hex, 'keccak256'))),
-});
 
 /**
  * A secp256k1 private key from a key map's text: 64 hex digits, perhaps
@@ -133,7 +115,7 @@ export const keyPair = async (subtle, algorithm, keyText) => {
 };
 
 /**
- * The kernel's crypto devices. A `crypto` object answers hashes, and
+ * The kernel's crypto devices. A `crypto` object's
  * `makeSigner(keyMap, algorithm, entry)` answers a signer whose
  * `sign(hex)` signs with the key in that entry of `keyMap`.
  *
@@ -167,15 +149,11 @@ export const makeCryptoDevices = (
       crypto: kzone.exoClass(
         'Crypto',
         M.interface('Crypto', {
-          sha256: M.call(Hex).returns(Hex),
-          blake2b256: M.call(Hex).returns(Hex),
-          keccak256: M.call(Hex).returns(Hex),
           makeSigner: M.call(M.remotable(), M.or(...ALGORITHMS))
             .optional(M.string())
             .returns(M.remotable()),
         }),
         {
-          ...HASHES,
           /**
            * A signer that reads its key from `keyMap`'s `entry`.
            *
@@ -229,7 +207,7 @@ export const makeCryptoDevices = (
         },
       ),
     },
-    /** Hashes, and a signer maker: whoever holds it can make signers from key maps it holds. */
+    /** A signer maker: whoever holds it can make signers from key maps it holds. */
     make: () => kernelObject(`crypto:${next('crypto')}`),
   });
 };

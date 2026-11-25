@@ -3,6 +3,7 @@ import '@endo/init';
 import { DurableObject } from 'cloudflare:workers';
 import { E, Far } from '@endo/far';
 import { M } from '@endo/patterns';
+import { hashes } from '../hashes.js';
 import { makeLiveslots } from './liveslots.js';
 
 /**
@@ -179,6 +180,7 @@ export class App extends DurableObject {
           Far,
           M,
           zone,
+          hashes,
           db: makeSqlDatabase(this.ctx.storage),
           endowment: makeEndowment(this.env.endowments),
         }),

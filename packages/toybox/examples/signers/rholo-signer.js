@@ -1,8 +1,8 @@
 /**
  * @file Rholo deploy signers, for a definition: built from a secp256k1
- * signer and the crypto device's hashes, as the kernel's `rholoSigners`
- * device's are. Its params: `crypto`, for blake2b and keccak, and `key`, a
- * secp256k1 signer from `E(crypto).makeSigner(keys.readOnly(), 'secp256k1')`.
+ * signer and the hashes every vat has, as the kernel's `rholoSigners`
+ * device's are. Its one param: `key`, a secp256k1 signer from
+ * `E(crypto).makeSigner(keys.readOnly(), 'secp256k1')`.
  * Its root makes signers for one shard, under a phlo limit.
  *
  * @see https://github.com/rhovision-org/rholo/blob/dev/docs/src/developer/building-apps.md
@@ -60,24 +60,17 @@ export const encodeDeployData = data => {
 };
 
 /**
- * @typedef {object} Crypto the crypto device's hashes, of hex, in hex
- * @property {(hex: string) => string} blake2b256
- * @property {(hex: string) => string} keccak256
- */
-
-/**
  * @typedef {object} Key a secp256k1 signer
  * @property {() => Promise<string>} getPublicKey uncompressed, in hex
  * @property {(digest: string) => Promise<string>} sign r ‖ s, low s, in hex
  */
 
 /**
- * @param {{ E: (x: any) => any, Far: typeof import('@endo/far').Far }} powers
- * @param {{ crypto: Crypto, key: Key }} params
+ * @param {{ E: (x: any) => any, Far: typeof import('@endo/far').Far, hashes: import('../../src/types.js').Hashes }} powers
+ * @param {{ key: Key }} params
  */
-export const buildRootObject = ({ E, Far }, { crypto, key }) => {
-  /** @param {string} hex */
-  const blake2b256 = hex => E(crypto).blake2b256(hex);
+export const buildRootObject = ({ E, Far, hashes }, { key }) => {
+  const { blake2b256, keccak256 } = hashes;
 
   /**
    * The REV address of a public key: base58 of the coin id, version,
@@ -86,10 +79,10 @@ export const buildRootObject = ({ E, Far }, { crypto, key }) => {
    *
    * @param {string} publicKey uncompressed, in hex
    */
-  const revAddressOf = async publicKey => {
-    const eth = (await E(crypto).keccak256(publicKey.slice(2))).slice(-40);
-    const payload = `00000000${await E(crypto).keccak256(eth)}`;
-    const checksum = (await blake2b256(payload)).slice(0, 8);
+  const revAddressOf = publicKey => {
+    const eth = keccak256(publicKey.slice(2)).slice(-40);
+    const payload = `00000000${keccak256(eth)}`;
+    const checksum = blake2b256(payload).slice(0, 8);
     return base58OfHex(payload + checksum);
   };
 
@@ -150,7 +143,7 @@ export const buildRootObject = ({ E, Far }, { crypto, key }) => {
             validAfterBlockNumber,
             shardId,
           });
-          const digest = await blake2b256(encodeDeployData(data));
+          const digest = blake2b256(encodeDeployData(data));
           const [deployer, compact] = await Promise.all([
             E(key).getPublicKey(),
             E(key).sign(digest),

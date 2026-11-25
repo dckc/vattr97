@@ -6,6 +6,7 @@ import { M } from '@endo/patterns';
 import { makeLiveslots } from '../src/vat/liveslots.js';
 import { buildRootObject } from '../examples/wallet/issuers.js';
 import { makeMemoryVatstore } from './memory-vatstore.js';
+import { hashes } from '../src/hashes.js';
 
 /** @import { Remote, SqlDatabase } from '../src/types.js' */
 
@@ -18,7 +19,10 @@ const makeIssuers = () => {
   const endowment = () => {
     throw Error('no endowments here');
   };
-  return buildRootObject(harden({ E, Far, M, zone, db, endowment }), {});
+  return buildRootObject(
+    harden({ E, Far, M, zone, hashes, db, endowment }),
+    {},
+  );
 };
 
 test("a deposit that would take a balance past exact integers is refused, and the payment isn't spent", () => {
