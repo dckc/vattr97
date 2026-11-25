@@ -644,6 +644,20 @@ export const prepareAgentsKit = (zone, { E, Far, M, starters, definer }) => {
       for (const [name, ref] of entries(refs))
         if (!names.nameHub.has(name)) save(names, name, ref);
     },
+    /**
+     * Name each of `refs` that `host` names, but as `undefined`.
+     *
+     * @param {Host} host @param {Record<string, Remote>} refs
+     */
+    mendNames: (host, refs) => {
+      const names = host.names();
+      const empty = names.nameHub
+        .entries()
+        .filter(([, ref]) => ref === undefined)
+        .map(([name]) => name);
+      for (const [name, ref] of entries(refs))
+        if (empty.includes(name)) save(names, name, ref);
+    },
   });
 };
 
