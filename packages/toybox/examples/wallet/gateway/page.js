@@ -4,12 +4,7 @@
  * read once and taken out of the address bar.
  */
 
-/** highlight.js 11.9.0, from cdnjs, pinned by its hash, to colorize a definition's source. */
-const HLJS = {
-  src: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js',
-  integrity:
-    'sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp',
-};
+import { HLJS_TAG, REVIEW_CSS, REVIEW_SCRIPT } from './review.js';
 
 export const PAGE = `<!doctype html>
 <html lang="en">
@@ -18,7 +13,7 @@ export const PAGE = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>toybox wallet</title>
 <style>
-  body { font: 15px/1.4 system-ui, sans-serif; margin: 1em auto; max-width: 52em; padding: 0 1em; }
+  body { font: 15px/1.4 system-ui, sans-serif; margin: 1em auto; max-width: 80em; padding: 0 1em; }
   h1 { font-size: 1.3em; } h2 { font-size: 1.1em; margin-top: 1.5em; }
   table { border-collapse: collapse; width: 100%; }
   td, th { border-bottom: 1px solid #ddd; padding: .3em; text-align: left; vertical-align: top; }
@@ -26,11 +21,8 @@ export const PAGE = `<!doctype html>
   textarea { width: 100%; font-family: monospace; }
   pre { background: #f4f4f4; padding: .5em; white-space: pre-wrap; }
   .err { color: #a00; }
-  /* a definition's source, colorized by highlight.js */
-  .hljs-keyword, .hljs-built_in { color: #a626a4; } .hljs-string, .hljs-regexp { color: #50a14f; }
-  .hljs-number, .hljs-literal { color: #986801; } .hljs-comment { color: #8a8a8a; font-style: italic; }
-  .hljs-title, .hljs-title\\.function_ { color: #4078f2; } .hljs-params, .hljs-variable { color: #c18401; }
-  .hljs-attr, .hljs-property { color: #e45649; } .hljs-doctag { color: #0184bc; }
+  table.messages td:nth-child(3) { width: 70%; max-width: 0; }
+${REVIEW_CSS}
 </style>
 </head>
 <body>
@@ -45,7 +37,7 @@ export const PAGE = `<!doctype html>
 <pre id="answer"></pre>
 <p id="saveOut" hidden><button id="save">save answer as a file</button> <span id="saveName"></span></p>
 <h2>Messages</h2>
-<table><thead><tr><th>#</th><th>from</th><th>message</th><th></th></tr></thead><tbody id="messages"></tbody></table>
+<table class="messages"><thead><tr><th>#</th><th>from</th><th>message</th><th></th></tr></thead><tbody id="messages"></tbody></table>
 <h2>Send</h2>
 <p>A message to a correspondent: text, and the things you name, which they see by the same names.</p>
 <form id="send">to <input name="to" size="8"> text <input name="text" size="16"> names <input name="names" placeholder="a, b"> <button>send</button></form>
@@ -69,13 +61,14 @@ export const PAGE = `<!doctype html>
 <p id="linkOut" hidden><input type="password" id="secret" readonly size="40" aria-label="the link, hidden"> <button id="copy">copy</button></p>
 <p id="link"></p>
 </section>
-<script src="${HLJS.src}" integrity="${HLJS.integrity}" crossorigin="anonymous"></script>
+${HLJS_TAG}
 <script src="/wallet.js"></script>
 </body>
 </html>
 `;
 
 export const SCRIPT = `'use strict';
+${REVIEW_SCRIPT}
 const $ = id => document.getElementById(id);
 const el = (tag, props, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
@@ -209,13 +202,6 @@ const dismissButton = number => {
   return dismiss;
 };
 
-// a module's source, colorized when highlight.js loaded, plain text when it didn't
-const sourceCode = source => {
-  const code = el('code', { className: 'language-javascript', textContent: source });
-  if (globalThis.hljs) globalThis.hljs.highlightElement(code);
-  return code;
-};
-
 // a proposed module: its slots and source to read, open, since endowing runs it at once, and what to fill each slot with
 const definitionRow = ({ number, from, modules, slots }) => {
   const bindings = el('input', { className: 'args', placeholder: JSON.stringify(Object.fromEntries(Object.keys(slots).map(k => [k, 'a name']))) });
@@ -229,7 +215,7 @@ const definitionRow = ({ number, from, modules, slots }) => {
   const slotList = el('ul', {}, ...Object.entries(slots).map(([name, { label }]) => el('li', {}, el('code', { textContent: name }), ': ' + label)));
   return el('tr', {}, el('td', { textContent: String(number) }), el('td', { textContent: from ?? '?' }),
     el('td', {}, 'a definition', slotList, ...Object.entries(modules).map(([path, source]) =>
-      el('details', { open: true }, el('summary', { textContent: path }), el('pre', {}, sourceCode(source))))),
+      sourceView(path, source))),
     el('td', {}, bindings, ' ', as, ' ', endow, ' ', dismissButton(number)));
 };
 

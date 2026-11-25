@@ -20,6 +20,34 @@
  */
 
 /**
+ * `expr` as text, in the E() form the pegboard's call blocks show:
+ * a name, JSON for data, `E(target).method(args)` for a call.
+ *
+ * @param {Expr} expr
+ * @returns {string}
+ */
+export const exprText = expr =>
+  'pet' in expr
+    ? expr.pet
+    : 'lit' in expr
+      ? JSON.stringify(expr.lit)
+      : `E(${exprText(expr.call.target)}).${expr.call.method}(${expr.call.args.map(exprText).join(', ')})`;
+
+/**
+ * `stmt` as text: `name = expression`, or an endowment of a definition's
+ * slots.
+ *
+ * @param {Statement} stmt
+ * @returns {string}
+ */
+export const statementText = stmt =>
+  'save' in stmt
+    ? `${stmt.save} = ${exprText(stmt.expr)}`
+    : `${stmt.saveAs} = endow(#${stmt.endow}, { ${Object.entries(stmt.bindings)
+        .map(([slot, name]) => (slot === name ? slot : `${slot}: ${name}`))
+        .join(', ')} })`;
+
+/**
  * Run `stmt` through `api`, the page's `/api`, one call per round trip:
  * a nested call's answer is saved under a fresh name from `fresh` when
  * it holds a reference, and those names are forgotten afterward. The
@@ -89,6 +117,8 @@ const BLOCKLY = {
     'sha384-/1qMEpeVmzE/uziwDI7/6KKVXkk47cs2W1gDbV4EZ2Y08YpcgARmvVet4dcovLIY',
 };
 
+import { HLJS_TAG, REVIEW_CSS, REVIEW_SCRIPT } from './review.js';
+
 export const BLOCKS_PAGE = `<!doctype html>
 <html lang="en">
 <head>
@@ -104,6 +134,8 @@ export const BLOCKS_PAGE = `<!doctype html>
   #pegboard { height: 70vh; min-height: 24em; border: 1px solid #ccc; }
   pre { background: #f4f4f4; padding: .5em; white-space: pre-wrap; overflow-wrap: anywhere; }
   .err { color: #a00; }
+  #review h2 { font-size: 1.1em; } #review h3 { font-size: 1em; margin-bottom: .2em; }
+${REVIEW_CSS}
 </style>
 </head>
 <body>
@@ -112,10 +144,14 @@ export const BLOCKS_PAGE = `<!doctype html>
 <main>
 <div id="pegboard"></div>
 <aside>
+<p>What Run will do, in order:</p>
+<pre id="expr"></pre>
 <button id="run" type="button">Run</button>
 <pre id="log"></pre>
 </aside>
 </main>
+<section id="review"><h2>Review</h2><p id="reviewNone">No definitions in the inbox.</p></section>
+${HLJS_TAG}
 <script src="${BLOCKLY.src}" integrity="${BLOCKLY.integrity}" crossorigin="anonymous"></script>
 <script src="/blocks.js"></script>
 </body>
@@ -123,7 +159,10 @@ export const BLOCKS_PAGE = `<!doctype html>
 `;
 
 export const BLOCKS_SCRIPT = `'use strict';
+${REVIEW_SCRIPT}
 const runStatement = ${runStatement};
+const exprText = ${exprText};
+const statementText = ${statementText};
 const $ = id => document.getElementById(id);
 const api = async req => {
   const resp = await fetch('/api', {
@@ -158,9 +197,13 @@ const defineBlocks = (names, definitions) => {
   for (const n of [0, 1, 2]) {
     Blockly.Blocks['call' + n] = {
       init() {
-        this.appendValueInput('TARGET').appendField(new Blockly.FieldTextInput('method'), 'METHOD');
-        for (let i = 0; i < n; i += 1) this.appendValueInput('ARG' + i).appendField('arg');
-        this.setInputsInline(n === 0);
+        // E( target ).method( args ): the target is the first socket
+        this.appendValueInput('TARGET').appendField('E(');
+        this.appendDummyInput().appendField(').').appendField(new Blockly.FieldTextInput('method'), 'METHOD').appendField('(');
+        for (let i = 0; i < n; i += 1) this.appendValueInput('ARG' + i).appendField(i ? ',' : '');
+        this.appendDummyInput().appendField(')');
+        this.setInputsInline(true);
+        this.setTooltip('call method on the target, with ' + n + ' argument' + (n === 1 ? '' : 's'));
         this.setOutput(true, null);
         this.setColour(COLOUR.call);
       },
@@ -237,6 +280,13 @@ const main = async () => {
   $('label').textContent = view.label + ' (' + view.kind + ')';
   const definitions = view.messages.filter(m => m.type === 'definition');
   defineBlocks(view.names, definitions);
+  // what each definition would run, to read before endowing it
+  $('reviewNone').hidden = definitions.length > 0;
+  for (const { number, from, slots, modules } of definitions) {
+    const h = document.createElement('h3');
+    h.textContent = '#' + number + ' from ' + from + ': asks for ' + Object.entries(slots).map(([k, { label }]) => k + ' (' + label + ')').join(', ');
+    $('review').append(h, ...Object.entries(modules).map(([path, source]) => sourceView(path, source)));
+  }
   const ws = Blockly.inject('pegboard', {
     toolbox: toolboxOf(view.names, definitions),
     renderer: 'zelos',
@@ -246,6 +296,19 @@ const main = async () => {
     trashcan: false,
   });
   $('status').textContent = 'Drag names and calls onto the pegboard, then Run.';
+  // the pegboard as text, as it changes, so it's read before it's run
+  const showText = () => {
+    try {
+      const lines = statementsOf(ws).map(statementText);
+      $('expr').textContent = lines.length ? lines.join('\\n') : '(nothing yet: a save as or endow block starts a statement)';
+      $('expr').className = '';
+    } catch (e) {
+      $('expr').textContent = e.message;
+      $('expr').className = 'err';
+    }
+  };
+  ws.addChangeListener(ev => { if (!ev.isUiEvent) showText(); });
+  showText();
   let n = 0;
   const fresh = () => '_blocks' + Date.now().toString(36) + (n += 1);
   $('run').addEventListener('click', async () => {

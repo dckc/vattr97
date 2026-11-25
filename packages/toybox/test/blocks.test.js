@@ -1,7 +1,10 @@
 /** @file The blocks page's statements, run against a page API that records what it's asked. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runStatement } from '../examples/wallet/gateway/blocks.js';
+import {
+  runStatement,
+  statementText,
+} from '../examples/wallet/gateway/blocks.js';
 
 /**
  * A page API that answers each `call` from `answers`, by method, and
@@ -154,4 +157,37 @@ test('endowing names a definition and its slots', async () => {
   assert.deepEqual(asked, [
     { op: 'endow', number: 3, bindings: { counter: 'c' }, saveAs: 'twice' },
   ]);
+});
+
+test('the pegboard reads as text: saves as assignments, calls in E() form, endowments by slot', () => {
+  assert.equal(
+    statementText({
+      save: 'widget',
+      expr: {
+        call: {
+          target: { pet: 'shop' },
+          method: 'buy',
+          args: [
+            {
+              call: {
+                target: { pet: 'wallet' },
+                method: 'withdraw',
+                args: [{ lit: 3 }],
+              },
+            },
+            { lit: 'blue' },
+          ],
+        },
+      },
+    }),
+    'widget = E(shop).buy(E(wallet).withdraw(3), "blue")',
+  );
+  assert.equal(
+    statementText({
+      endow: 2,
+      bindings: { testnet: 'testnet', signer: 's1' },
+      saveAs: 'ertp',
+    }),
+    'ertp = endow(#2, { testnet, signer: s1 })',
+  );
 });
