@@ -8,6 +8,9 @@ import { defineExoClass } from '@endo/exo';
 /** @import { KernelObjects } from './types.js' */
 /** @import { Methods } from '../types.js' */
 
+/** The methods every exo has, beyond its kind's own, that a message may reach. */
+const META = harden(['__getMethodNames__']);
+
 /**
  * The kernel objects of one kind: `deliver(rest, method, args)` calls
  * `method` on the instance `rest` names (the part of its key after the
@@ -27,8 +30,8 @@ const kernelObjects = (tag, interfaceGuard, methods) => {
   );
   return harden({
     deliver: (rest, method, args) => {
-      // only the kind's own methods: not what every object inherits (toString, constructor, ...), which no guard covers
-      if (!Object.hasOwn(methods, method))
+      // only the kind's own methods and an exo's META: not what every object inherits (toString, constructor, ...), which no guard covers
+      if (!Object.hasOwn(methods, method) && !META.includes(method))
         throw Error(`a ${tag} has no ${method}`);
       const obj = make(rest);
       return Reflect.apply(obj[method], obj, args);
