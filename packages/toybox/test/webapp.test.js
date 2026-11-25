@@ -58,7 +58,16 @@ const incarnate = kv => {
   const endowment = () => {
     throw Error('no endowments here');
   };
-  const powers = harden({ E, Far, M, zone, hashes, db: noDb, endowment });
+  const powers = harden({
+    E,
+    Far,
+    M,
+    zone,
+    hashes,
+    stdlib: harden({ E, Far, M, hashes }),
+    db: noDb,
+    endowment,
+  });
   /** @type {Remote} the maker's methods, as the vat defines them */
   const maker = buildWebApp(powers, { egress });
   /** @param {string} label @returns {MapStore<string, string>} */
@@ -218,7 +227,16 @@ test('postForm sends multipart/form-data: its fields, and each form map as of th
   const endowment = () => {
     throw Error('no endowments here');
   };
-  const powers = harden({ E, Far, M, zone, hashes, db: noDb, endowment });
+  const powers = harden({
+    E,
+    Far,
+    M,
+    zone,
+    hashes,
+    stdlib: harden({ E, Far, M, hashes }),
+    db: noDb,
+    endowment,
+  });
   /** @type {Remote} */
   const maker = buildWebApp(powers, { egress: makeFetchDevice(formSite) });
   /** @type {MapStore<string, string>} */
@@ -249,7 +267,16 @@ test('postForm refuses contradictions and malformed fields, naming keys only', a
   const endowment = () => {
     throw Error('no endowments here');
   };
-  const powers = harden({ E, Far, M, zone, hashes, db: noDb, endowment });
+  const powers = harden({
+    E,
+    Far,
+    M,
+    zone,
+    hashes,
+    stdlib: harden({ E, Far, M, hashes }),
+    db: noDb,
+    endowment,
+  });
   /** @type {Remote} */
   const maker = buildWebApp(powers, { egress: makeFetchDevice(formSite) });
   /** @type {MapStore<string, string>} */

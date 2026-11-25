@@ -27,10 +27,13 @@ const jsonB64url = value => base64urlOfHex(utf8Hex(JSON.stringify(value)));
  */
 
 /**
- * @param {{ E: (x: any) => any, Far: typeof import('@endo/far').Far }} powers
+ * @param {{ stdlib: Pick<import('../../src/types.js').Stdlib, 'E' | 'Far'> }} powers
  * @param {{ key: Key, timer: { now(): number }, entropy: { swiss(): string } }} params
  */
-export const buildRootObject = ({ E, Far }, { key, timer, entropy }) =>
+export const buildRootObject = (
+  { stdlib: { E, Far } },
+  { key, timer, entropy },
+) =>
   Far('JwtSigners', {
     /**
      * A signer whose JWTs carry `kid`, `claims`, and live `ttl` seconds.

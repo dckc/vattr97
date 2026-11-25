@@ -47,7 +47,16 @@ const incarnate = kv => {
   const endowment = () => {
     throw Error('no endowments here');
   };
-  const powers = harden({ E, Far, M, zone, hashes, db: noDb, endowment });
+  const powers = harden({
+    E,
+    Far,
+    M,
+    zone,
+    hashes,
+    stdlib: harden({ E, Far, M, hashes }),
+    db: noDb,
+    endowment,
+  });
   const keeper = buildKeeper(powers, { entropy });
   const store = zone.makeOnce('store', () =>
     zone.detached().mapStore('session'),

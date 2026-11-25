@@ -20,7 +20,16 @@ const makeIssuers = () => {
     throw Error('no endowments here');
   };
   return buildRootObject(
-    harden({ E, Far, M, zone, hashes, db, endowment }),
+    harden({
+      E,
+      Far,
+      M,
+      zone,
+      hashes,
+      stdlib: harden({ E, Far, M, hashes }),
+      db,
+      endowment,
+    }),
     {},
   );
 };

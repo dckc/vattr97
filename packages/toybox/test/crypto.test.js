@@ -218,7 +218,7 @@ test("a definition's rholo signer signs as the rholoSigners device does", async 
   const { keyMap, signerFor } = setup();
   keyMap.set('privateKey', SECP_KEY);
   const signers = buildRholoSigners(
-    { E, Far, hashes },
+    { stdlib: { E, Far, hashes } },
     { key: signerFor('secp256k1') },
   );
   const signer = signers.make('/testnet', 1_000_000);
@@ -247,7 +247,7 @@ test("a definition's JWT signer signs as the jwtSigners device does", async () =
   keyMap.set('privateKey', ED_SEED);
   const now = 1_764_000_000_123;
   const signers = buildJwtSigners(
-    { E, Far },
+    { stdlib: { E, Far } },
     {
       key: signerFor('Ed25519'),
       timer: Far('Timer', { now: () => now }),

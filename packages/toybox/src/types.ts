@@ -207,6 +207,14 @@ export type BuildRootObject<P = unknown> = (
   params: P,
 ) => object;
 
+/** What's pure among a module's powers. */
+export type Stdlib = {
+  E: typeof EType;
+  Far: typeof FarType;
+  M: typeof MType;
+  hashes: Hashes;
+};
+
 /** Hashes of bytes, each given and answered in hex. */
 export type Hashes = {
   sha256: (hex: string) => string;
@@ -245,6 +253,12 @@ export type Powers = {
   zone: Zone;
   /** Hashes, of hex, in hex: pure, so every module has them. */
   hashes: Hashes;
+  /**
+   * What's pure, in one place: `E`, `Far`, `M`, and `hashes`, which grant
+   * nothing beyond what a module already holds. The same as the powers of
+   * those names, which remain for modules written before it.
+   */
+  stdlib: Stdlib;
   /** the module's own SQLite, for what suits tables better than objects */
   db: SqlDatabase;
   /**

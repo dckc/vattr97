@@ -51,7 +51,16 @@ test("an owner's host made before the gateway was equipped gets the owner's star
     throw Error('no endowments here');
   };
   const gateway = buildRootObject(
-    harden({ E, Far, M, zone, hashes, db, endowment }),
+    harden({
+      E,
+      Far,
+      M,
+      zone,
+      hashes,
+      stdlib: harden({ E, Far, M, hashes }),
+      db,
+      endowment,
+    }),
     {
       ingress,
       entropy,

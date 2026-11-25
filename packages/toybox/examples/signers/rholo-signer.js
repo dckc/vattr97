@@ -66,10 +66,10 @@ export const encodeDeployData = data => {
  */
 
 /**
- * @param {{ E: (x: any) => any, Far: typeof import('@endo/far').Far, hashes: import('../../src/types.js').Hashes }} powers
+ * @param {{ stdlib: Pick<import('../../src/types.js').Stdlib, 'E' | 'Far' | 'hashes'> }} powers
  * @param {{ key: Key }} params
  */
-export const buildRootObject = ({ E, Far, hashes }, { key }) => {
+export const buildRootObject = ({ stdlib: { E, Far, hashes } }, { key }) => {
   const { blake2b256, keccak256 } = hashes;
 
   /**

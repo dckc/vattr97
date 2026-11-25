@@ -181,6 +181,7 @@ export class App extends DurableObject {
           M,
           zone,
           hashes,
+          stdlib: harden({ E, Far, M, hashes }),
           db: makeSqlDatabase(this.ctx.storage),
           endowment: makeEndowment(this.env.endowments),
         }),
