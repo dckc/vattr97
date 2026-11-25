@@ -8,6 +8,7 @@ import { M } from '@endo/patterns';
 import { buildRootObject as buildWebApp } from '../examples/webapp.js';
 import { makeMemoryVatstore as makeKv } from './memory-vatstore.js';
 import { hashes } from '../src/hashes.js';
+import { assert as endoAssert } from '@endo/errors';
 
 /** @import { MapStore, Remote, SqlDatabase } from '../src/types.js' */
 /** @import { Vatstore } from '../src/vat/types.js' */
@@ -64,7 +65,7 @@ const incarnate = kv => {
     M,
     zone,
     hashes,
-    stdlib: harden({ E, Far, M, hashes }),
+    stdlib: harden({ assert: endoAssert, E, Far, M, hashes }),
     db: noDb,
     endowment,
   });
@@ -233,7 +234,7 @@ test('postForm sends multipart/form-data: its fields, and each form map as of th
     M,
     zone,
     hashes,
-    stdlib: harden({ E, Far, M, hashes }),
+    stdlib: harden({ assert: endoAssert, E, Far, M, hashes }),
     db: noDb,
     endowment,
   });
@@ -273,7 +274,7 @@ test('postForm refuses contradictions and malformed fields, naming keys only', a
     M,
     zone,
     hashes,
-    stdlib: harden({ E, Far, M, hashes }),
+    stdlib: harden({ assert: endoAssert, E, Far, M, hashes }),
     db: noDb,
     endowment,
   });

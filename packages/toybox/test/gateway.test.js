@@ -1,6 +1,7 @@
 /** @file The wallet's gateway, in one process: what the boot vat equips it with, at each start, and what the owner's host names of it. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { assert as endoAssert } from '@endo/errors';
 import { E, Far } from '@endo/far';
 import { M } from '@endo/patterns';
 import { hashes } from '../src/hashes.js';
@@ -57,7 +58,7 @@ test("an owner's host made before the gateway was equipped gets the owner's star
       M,
       zone,
       hashes,
-      stdlib: harden({ E, Far, M, hashes }),
+      stdlib: harden({ assert: endoAssert, E, Far, M, hashes }),
       db,
       endowment,
     }),
