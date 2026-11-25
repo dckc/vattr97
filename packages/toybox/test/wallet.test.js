@@ -282,8 +282,13 @@ const makeAlice = ({ me, onPage, bob, t }) => {
     async run() {
       tAssert.deepStrictEqual([...(await E(nameHub).keys())].sort(), [
         'counters',
+        'crypto',
+        'entropy',
         'issuers',
+        'jwtSigners',
+        'rholoSigners',
         'stores',
+        'timer',
         'webApps',
       ]);
       await countOnPage();
