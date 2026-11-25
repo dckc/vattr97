@@ -194,7 +194,7 @@ const defineBlocks = (names, definitions) => {
       },
     };
   }
-  for (const n of [0, 1, 2]) {
+  for (const n of [0, 1, 2, 3]) {
     Blockly.Blocks['call' + n] = {
       init() {
         // E( target ).method( args ): the target is the first socket
@@ -235,7 +235,7 @@ const toolboxOf = (names, definitions) => ({
   kind: 'categoryToolbox',
   contents: [
     { kind: 'category', name: 'Names', colour: COLOUR.pet, contents: names.map(({ name }) => ({ kind: 'block', type: 'pet:' + name })) },
-    { kind: 'category', name: 'Calls', colour: COLOUR.call, contents: [0, 1, 2].map(n => ({ kind: 'block', type: 'call' + n })) },
+    { kind: 'category', name: 'Calls', colour: COLOUR.call, contents: [0, 1, 2, 3].map(n => ({ kind: 'block', type: 'call' + n })) },
     { kind: 'category', name: 'Values', colour: COLOUR.lit, contents: [{ kind: 'block', type: 'number' }, { kind: 'block', type: 'text' }] },
     { kind: 'category', name: 'Save', colour: COLOUR.save, contents: [{ kind: 'block', type: 'save' }] },
     { kind: 'category', name: 'Inbox', colour: COLOUR.defn, contents: definitions.map(({ number }) => ({ kind: 'block', type: 'endow:' + number })) },
