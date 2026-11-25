@@ -14,7 +14,7 @@ import {
 } from '../examples/session-keeper.js';
 import { makeMemoryVatstore as makeKv } from './memory-vatstore.js';
 import { hashes } from '../src/hashes.js';
-import { assert as endoAssert } from '@endo/errors';
+import { assert as endoAssert, Fail, q } from '@endo/errors';
 
 /** @import { SqlDatabase } from '../src/types.js' */
 /** @import { SessionKeeper } from '../examples/session-keeper.js' */
@@ -54,7 +54,7 @@ const incarnate = kv => {
     M,
     zone,
     hashes,
-    stdlib: harden({ assert: endoAssert, E, Far, M, hashes }),
+    stdlib: harden({ assert: endoAssert, Fail, q, E, Far, M, hashes }),
     db: noDb,
     endowment,
   });

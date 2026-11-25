@@ -7,7 +7,11 @@
  * @see ../CONTRIBUTING.md#conventions for how toybox's JavaScript is typed and checked
  */
 import type { E as EType, Far as FarType } from '@endo/far';
-import type { assert as assertType } from '@endo/errors';
+import type {
+  assert as assertType,
+  Fail as FailType,
+  q as qType,
+} from '@endo/errors';
 import type { DataOnly, RemotableBrand } from '@endo/eventual-send';
 import type { InterfaceGuard, M as MType } from '@endo/patterns';
 
@@ -217,6 +221,12 @@ export type Stdlib = {
    * @see https://github.com/endojs/endo/tree/master/packages/errors
    */
   assert: typeof assertType;
+  /**
+   * ``Fail`msg ${q(x)}` `` throws, as `|| Fail` follows a check: a
+   * substitution is redacted from the message unless quoted with `q`.
+   */
+  Fail: typeof FailType;
+  q: typeof qType;
   E: typeof EType;
   Far: typeof FarType;
   M: typeof MType;
@@ -262,7 +272,7 @@ export type Powers = {
   /** Hashes, of hex, in hex: pure, so every module has them. */
   hashes: Hashes;
   /**
-   * What's pure, in one place: `assert`, `E`, `Far`, `M`, and `hashes`, which grant
+   * What's pure, in one place: `assert`, `Fail`, `q`, `E`, `Far`, `M`, and `hashes`, which grant
    * nothing beyond what a module already holds. The same as the powers of
    * those names, which remain for modules written before it.
    */

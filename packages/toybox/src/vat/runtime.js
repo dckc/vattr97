@@ -1,7 +1,7 @@
 /** @file A kernel vat's runtime, in its facet: SES, liveslots, and the vat's own module (`vat.js`). */
 import '@endo/init';
 import { DurableObject } from 'cloudflare:workers';
-import { assert } from '@endo/errors';
+import { assert, Fail, q } from '@endo/errors';
 import { E, Far } from '@endo/far';
 import { M } from '@endo/patterns';
 import { hashes } from '../hashes.js';
@@ -182,7 +182,7 @@ export class App extends DurableObject {
           M,
           zone,
           hashes,
-          stdlib: harden({ assert, E, Far, M, hashes }),
+          stdlib: harden({ assert, Fail, q, E, Far, M, hashes }),
           db: makeSqlDatabase(this.ctx.storage),
           endowment: makeEndowment(this.env.endowments),
         }),
