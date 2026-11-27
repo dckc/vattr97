@@ -36,9 +36,19 @@ export const buildRootObject = (
   const vats = zone.mapStore('vats');
 
   /**
+   * Each definition's vat's admin node, by its root: kept, though nothing
+   * here uses one yet, since a lost admin node can't be had again. Forgetting
+   * a root's name doesn't terminate its vat: whoever it was sent on to
+   * may still hold it.
+   *
+   * @type {MapStore<Remote, Remote>}
+   */
+  const defined = zone.mapStore('defined');
+
+  /**
    * The definer: `run(modules, params)` makes a vat of `modules`, as an
    * installer takes them, with `params`, and answers its root. Its admin
-   * node stays here.
+   * node stays here, in `defined`.
    */
   const makeDefiner = zone.exoClass(
     'Definer',
@@ -52,7 +62,8 @@ export const buildRootObject = (
       /** @param {Record<string, string>} modules @param {Record<string, Remote>} params */
       async run(modules, params) {
         const bundle = await E(installer).install(modules);
-        const { root } = await E(vatAdmin).createVat(bundle, params);
+        const { root, adminNode } = await E(vatAdmin).createVat(bundle, params);
+        defined.init(root, adminNode);
         return root;
       },
     },
