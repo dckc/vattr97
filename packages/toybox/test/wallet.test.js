@@ -572,12 +572,19 @@ const makeOwen = ({ me, onPage, bank, helper, t }) => {
     });
     if (proposal?.type !== 'definition') throw Error('no proposal');
 
-    // he can endow it only with what he has
+    // he can endow it only with what he has, and names it, on his page
+    const { number } = proposal;
+    const endow = (/** @type {unknown} */ bindings) =>
+      onPage({ op: 'endow', number, bindings, saveAs: 'reader' });
     await tAssert.rejects(
-      E(host).endow(proposal.number, { bank: 'nope' }, 'reader'),
+      endow({ bank: 'nope' }),
       /"nameKey" not found: "nope"/,
     );
-    await E(host).endow(proposal.number, { bank: 'bank.asMe' }, 'reader');
+    await tAssert.rejects(endow({ bank: 1 }), /bindings\.bank is a string/);
+    await tAssert.rejects(endow(['bank.asMe']), /bindings is a record/);
+    tAssert.deepStrictEqual(await endow({ bank: 'bank.asMe' }), {
+      answer: { '@name': 'reader' },
+    });
     await E(host).send(name, ['your reader'], ['reader'], ['reader']);
   };
 
@@ -598,9 +605,10 @@ const makeOwen = ({ me, onPage, bank, helper, t }) => {
  * their transactions, asks his host to run it, and waits for what his host
  * sends. His browser keeps his link, once he has one.
  *
- * @param {{ openLink: (swiss: SwissNum) => Promise<GuestAgent>, link?: SwissNum, t: TestContext }} powers
+ * @param {{ openLink: (swiss: SwissNum) => Promise<GuestAgent>, post: OnPage, link?: SwissNum, t: TestContext }} powers
+ *   `post` posts to the page's API, with whatever link the request names
  */
-const makeHelper = ({ openLink, link, t }) => {
+const makeHelper = ({ openLink, post, link, t }) => {
   /** @type {TestContext['assert']} assertion signatures need a declared type */
   const tAssert = t.assert;
   /** @type {PromiseWithResolvers<SwissNum>} */
@@ -662,7 +670,25 @@ const makeHelper = ({ openLink, link, t }) => {
       linked.resolve(swiss);
       // a guest starts knowing only its host
       tAssert.deepStrictEqual([...(await E(me.nameHub).keys())], ['host']);
-      await E(me.guest).define(READER, READER_SLOTS);
+      /** @type {OnPage} his page */
+      const onPage = req => post({ agent: swiss, ...req });
+      const define = (
+        /** @type {unknown} */ modules,
+        /** @type {unknown} */ slots,
+      ) => onPage({ op: 'define', modules, slots });
+      await tAssert.rejects(
+        define({ ...READER, 'main.js': 1 }, READER_SLOTS),
+        /modules\.main\.js is a string/,
+      );
+      await tAssert.rejects(
+        define(READER, { bank: 'the bank' }),
+        /slots\.bank is a record/,
+      );
+      await tAssert.rejects(
+        define(READER, { bank: { label: 1 } }),
+        /slots\.bank\.label is a string/,
+      );
+      await define(READER, READER_SLOTS);
       awaitReader().then(helped.resolve, helped.reject);
     },
     helped: () => helped.promise,
@@ -694,6 +720,7 @@ test("hal proposes a reader of owen's bank transactions; owen endows it with the
     const owen = swissOf(await E(operator.boot).provideOwnerLink());
     const hal = makeHelper({
       openLink: swiss => asGuest(E(agents).deref(swiss)),
+      post: req => postToPage(box.app, req),
       t,
     });
     await Promise.all([
@@ -722,6 +749,7 @@ test("hal proposes a reader of owen's bank transactions; owen endows it with the
     const agents = E(operator.boot).agents();
     const hal = makeHelper({
       openLink: swiss => asGuest(E(agents).deref(swiss)),
+      post: req => postToPage(box.app, req),
       link: halLink,
       t,
     });
