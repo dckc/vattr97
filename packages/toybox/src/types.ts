@@ -119,6 +119,16 @@ export type ExoClassKit = <
 /** What a method of a kit's facet sees as `this`. */
 export type KitContext<S extends State, F> = { state: S; facets: F };
 
+/**
+ * A kit, or any record of objects, as another vat holds it: each member
+ * a {@link Remote}.
+ *
+ * @example
+ * // a NameHubKit another vat made
+ * const { nameHub, nameAdmin }: RemoteKit<NameHubKit> = await E(x).names();
+ */
+export type RemoteKit<K> = { [F in keyof K]: Remote<K[F]> };
+
 /** A kit's facets, as its maker answers them. */
 export type KitOf<F extends Record<string, Methods>> = {
   [K in keyof F as string extends K ? never : K]: Guarded<F[K]>;

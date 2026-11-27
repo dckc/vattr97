@@ -5,12 +5,14 @@ import {
   cp,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   symlink,
   writeFile,
 } from 'node:fs/promises';
 import { connect, createServer } from 'node:net';
+import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -92,6 +94,7 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
       'fetch',
       'gitTrees',
       'ingress',
+      'installer',
       'lan',
       'nixStore',
       'source',
@@ -116,6 +119,73 @@ test('the boot vat starts on the first request to the app socket, keeps its vats
     assert.equal(vats.length, 2);
     assert.equal(await E(E(E(vats[0].root).child()).getCounter()).incr(), 2);
   });
+});
+
+/**
+ * Make the boot vat in `stateDir` as a kernel without the device `name`
+ * would have: its params, as the kernel keeps them, lack it.
+ *
+ * @param {string} stateDir a stopped toybox's state directory
+ * @param {string} name
+ */
+const dropBootParam = async (stateDir, name) => {
+  const kernelDir = join(stateDir, 'toybox-kernel');
+  // the kernel's own database; `<id>.<n>.sqlite` are its vats' facets
+  const [file, ...more] = (await readdir(kernelDir)).filter(f =>
+    /^[0-9a-f]{64}\.sqlite$/.test(f),
+  );
+  assert.ok(file && !more.length, 'one kernel');
+  const db = new DatabaseSync(join(kernelDir, file));
+  try {
+    const { vat } = /** @type {{ vat: string }} */ (
+      db.prepare('SELECT vat FROM kboot').get()
+    );
+    const { params } = /** @type {{ params: string }} */ (
+      db.prepare('SELECT params FROM kvat WHERE vat = ?').get(vat)
+    );
+    const { body, slots } = JSON.parse(params);
+    const { [name]: dropped, ...rest } = JSON.parse(body.slice(1));
+    assert.ok(dropped, `the boot vat had ${name}`);
+    db.prepare('UPDATE kvat SET params = ? WHERE vat = ?').run(
+      JSON.stringify({ body: `#${JSON.stringify(rest)}`, slots }),
+      vat,
+    );
+  } finally {
+    db.close();
+  }
+};
+
+test('a device the kernel gained reaches a boot vat made before it, on its next start', async t => {
+  const { startToybox, pkg, makeDir } = await worldP;
+  const dir = await makeDir('toybox-boot-added-');
+  t.after(dir.remove);
+  await dir.writeText(
+    'bootdir/boot.js',
+    await pkg.readText('test/boot/boot.js'),
+  );
+  await pkg.copy('examples/counter.js', dir, 'bootdir/child.js');
+  const boot = dir.sub('bootdir');
+
+  /** The boot vat's powers, on a start of the toybox. */
+  const powers = async () => {
+    const box = await startToybox(dir, { boot });
+    try {
+      await box.app('/');
+      const main = await box.admin();
+      try {
+        const [bootVat] = await main.vats();
+        return await E(bootVat.root).powers();
+      } finally {
+        main.close();
+      }
+    } finally {
+      await box.stop();
+    }
+  };
+
+  assert.ok((await powers()).includes('installer'));
+  await dropBootParam(dir.path('state'), 'installer');
+  assert.ok((await powers()).includes('installer'), 'given again');
 });
 
 test('a boot directory may hold its boot vat as `boot/`, a bundle of several modules', async t => {

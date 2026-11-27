@@ -15,7 +15,8 @@ export const PAGE = `<!doctype html>
   h1 { font-size: 1.3em; } h2 { font-size: 1.1em; margin-top: 1.5em; }
   table { border-collapse: collapse; width: 100%; }
   td, th { border-bottom: 1px solid #ddd; padding: .3em; text-align: left; vertical-align: top; }
-  input { font: inherit; } input.args { width: 12em; }
+  input, textarea { font: inherit; } input.args { width: 12em; }
+  textarea { width: 100%; font-family: monospace; }
   pre { background: #f4f4f4; padding: .5em; white-space: pre-wrap; }
   .err { color: #a00; }
 </style>
@@ -33,9 +34,21 @@ export const PAGE = `<!doctype html>
 <h2>Send</h2>
 <p>A message to a correspondent: text, and the things you name, which they see by the same names.</p>
 <form id="send">to <input name="to" size="8"> text <input name="text" size="16"> names <input name="names" placeholder="a, b"> <button>send</button></form>
+<div id="guestOnly" hidden>
+<h2>Define</h2>
+<p>Propose a vat to your host: its module, <code>main.js</code>, and its params, the slots, each with a label saying what it's for. Your host reads the source, and decides what fills each slot, if anything.</p>
+<form id="define">slots <input name="slots" class="args" placeholder='{"site": {"label": "..."}}'>
+<textarea name="source" rows="8" placeholder="export const buildRootObject = (powers, params) => ..."></textarea>
+<button>propose</button></form>
+</div>
+<div id="hostOnly" hidden>
 <h2>Invite</h2>
 <p>A peer, another host, who you'll each know by name.</p>
 <form id="invite">someone to call <input name="peer" size="10"> <button>make a link</button></form>
+<h2>Guest</h2>
+<p>A guest of yours: it starts knowing only you, and proposes to you what it needs.</p>
+<form id="guest">guest's name <input name="name" size="10"> <button>make a link</button></form>
+</div>
 <pre id="link"></pre>
 </section>
 <script src="/wallet.js"></script>
@@ -80,6 +93,8 @@ const guard = (where, f) => async (...args) => {
 const render = async ({ withNames = true } = {}) => {
   const { label, kind, names, messages } = await api({ op: 'view' });
   $('label').textContent = label + ' (' + kind + ')';
+  $('hostOnly').hidden = kind !== 'host';
+  $('guestOnly').hidden = kind !== 'guest';
   if (withNames) $('names').replaceChildren(
     ...names.map(({ name, iface }) => {
       const method = el('input', { size: 10, placeholder: 'method' });
@@ -104,6 +119,7 @@ const render = async ({ withNames = true } = {}) => {
   $('messages').replaceChildren(
     ...messages.map(message => {
       const { number, from } = message;
+      if (message.type === 'definition') return definitionRow(message);
       const { strings, names: edgeNames } = message;
       const text = strings.flatMap((s, i) => i < edgeNames.length ? [s, el('code', { textContent: '@' + edgeNames[i] })] : [s]);
       const edge = el('input', { size: 8, value: edgeNames[0] ?? '' });
@@ -128,6 +144,23 @@ const dismissButton = number => {
   return dismiss;
 };
 
+// a proposed module: its slots and source to read, open, since endowing runs it at once, and what to fill each slot with
+const definitionRow = ({ number, from, modules, slots }) => {
+  const bindings = el('input', { className: 'args', placeholder: JSON.stringify(Object.fromEntries(Object.keys(slots).map(k => [k, 'a name']))) });
+  const as = el('input', { size: 8, placeholder: 'save as' });
+  const endow = el('button', { textContent: 'endow' });
+  endow.onclick = guard('answer', async () => {
+    const { answer } = await api({ op: 'endow', number, bindings: JSON.parse(bindings.value || '{}'), saveAs: as.value });
+    show('answer', 'endowed: ' + JSON.stringify(answer));
+    await render();
+  });
+  const slotList = el('ul', {}, ...Object.entries(slots).map(([name, { label }]) => el('li', {}, el('code', { textContent: name }), ': ' + label)));
+  return el('tr', {}, el('td', { textContent: String(number) }), el('td', { textContent: from ?? '?' }),
+    el('td', {}, 'a definition', slotList, ...Object.entries(modules).map(([path, source]) =>
+      el('details', { open: true }, el('summary', { textContent: path }), el('pre', { textContent: source })))),
+    el('td', {}, bindings, ' ', as, ' ', endow, ' ', dismissButton(number)));
+};
+
 $('send').onsubmit = guard('answer', async ev => {
   ev.preventDefault();
   const f = ev.target.elements;
@@ -136,11 +169,24 @@ $('send').onsubmit = guard('answer', async ev => {
   await api({ op: 'send', to: f.to.value, strings, edgeNames: names, petNames: names });
   show('answer', 'sent');
 });
+$('define').onsubmit = guard('answer', async ev => {
+  ev.preventDefault();
+  const f = ev.target.elements;
+  await api({ op: 'define', slots: JSON.parse(f.slots.value || '{}'), modules: { 'main.js': f.source.value } });
+  show('answer', 'proposed');
+});
 $('invite').onsubmit = guard('link', async ev => {
   ev.preventDefault();
   const { invite } = await api({ op: 'invite', peer: ev.target.elements.peer.value });
   show('link', location.origin + '/#invite=' + invite + '  (one use)');
 });
+$('guest').onsubmit = guard('link', async ev => {
+  ev.preventDefault();
+  const { guest } = await api({ op: 'provideGuest', name: ev.target.elements.name.value });
+  show('link', location.origin + '/#agent=' + guest + '  (whoever holds it is your guest)');
+  await render();
+});
+
 const start = async () => {
   const fragment = new URLSearchParams(location.hash.slice(1));
   if (location.hash) history.replaceState(null, '', location.pathname);

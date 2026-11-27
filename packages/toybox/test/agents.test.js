@@ -1,13 +1,16 @@
-/** @file The wallet's agents, in one process: hosts meet by invitation and send each other references. */
+/** @file The wallet's agents, in one process: hosts meet by invitation and send each other references; a host's guest proposes a definition, which the host endows. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Far } from '@endo/far';
+import { E, Far } from '@endo/far';
 import { M } from '@endo/patterns';
 import { makeLiveslots } from '../src/vat/liveslots.js';
 import { prepareAgentsKit } from '../examples/wallet/gateway/agents.exo.js';
 import { makeMemoryVatstore } from './memory-vatstore.js';
 
-/** @import { Remote, Zone } from '../src/types.js' */
+/**
+ * @import { Remote, Zone } from '../src/types.js';
+ * @import { Definer } from '../examples/wallet/gateway/agents.exo.js';
+ */
 
 /** A durable zone of its own, over an in-memory vatstore. */
 const makeZone = () => {
@@ -18,13 +21,22 @@ const makeZone = () => {
 };
 
 /**
- * An agents kit in `zone`.
+ * An agents kit in `zone`, with `definer` to run what a host endows.
  *
  * @param {Zone} zone
- * @param {{ starters?: Record<string, Remote> }} [opts]
+ * @param {{ starters?: Record<string, Remote>, definer?: Definer }} [opts]
  */
-const makeAgentsKit = (zone, { starters = {} } = {}) =>
-  prepareAgentsKit(zone, { Far, M, starters });
+const makeAgentsKit = (zone, { starters = {}, definer } = {}) =>
+  prepareAgentsKit(zone, {
+    E,
+    Far,
+    M,
+    starters,
+    definer: () => {
+      if (!definer) throw Error('no definer here');
+      return definer;
+    },
+  });
 
 test('two hosts meet by invitation, once, and send each other references by the names they know each other by', async () => {
   const zone = makeZone();
@@ -80,4 +92,66 @@ test('two hosts meet by invitation, once, and send each other references by the 
   assert.equal(await a.names().nameHub.lookup('bobs-counters'), counters);
   a.dismiss(1);
   assert.deepEqual(a.listMessages(), []);
+});
+
+test("a host's guest knows only its host, proposes a definition, and gets nothing back but what the host sends", async () => {
+  const zone = makeZone();
+  const bank = zone.exo('Bank', undefined, {});
+  /** @type {{ modules: Record<string, string>, params: Record<string, Remote> }[]} */
+  const ran = [];
+  const definer = Far('definer', {
+    /** @param {Record<string, string>} modules @param {Record<string, Remote>} params */
+    run: async (modules, params) => {
+      ran.push({ modules, params });
+      return zone.exo('Reader', undefined, {});
+    },
+  });
+  const kit = makeAgentsKit(zone, { definer });
+  const { host } = kit.newHost('alice');
+  host.names().nameAdmin.update('bank', bank);
+
+  const guest = await host.provideGuest('hal');
+  assert.equal(await host.provideGuest('hal'), guest, 'the same one');
+  await assert.rejects(host.provideGuest('bank'), /"bank" names no guest/);
+  await assert.rejects(host.provideGuest(''), /a name, please/);
+  assert.equal(kit.agentOf(guest)?.kind, 'guest');
+  assert.deepEqual(guest.names().nameHub.keys(), ['host']);
+
+  const modules = { 'main.js': 'export const buildRootObject = () => ({});' };
+  /** @type {[Record<string, string>, Record<string, { label: string }>, RegExp][]} a proposal, and its refusal */
+  const malformed = [
+    [modules, { '1st': { label: 'x' } }, /not a slot name: "1st"/],
+    [modules, JSON.parse('{"__proto__": {"label": "x"}}'), /not a slot name/],
+    [{ 'lib.js': '' }, {}, /no main\.js/],
+    [{ ...modules, '../vat.js': '' }, {}, /not a module path: "..\/vat.js"/],
+    [{ ...modules, 'worker.json': '{}' }, {}, /worker\.json is the host's/],
+  ];
+  for (const [mods, slots, refusal] of malformed)
+    assert.throws(() => guest.define(mods, slots), refusal);
+  assert.deepEqual(host.listMessages(), [], 'no proposal of a malformed one');
+  guest.define(modules, { bank: { label: 'the bank, as you' } });
+  const [proposal] = host.listMessages();
+  assert.deepEqual(proposal, {
+    number: 1,
+    from: 'hal',
+    type: 'definition',
+    modules,
+    slots: { bank: { label: 'the bank, as you' } },
+  });
+
+  /** @type {[Record<string, string>, string, RegExp][]} bindings, a name, and the refusal */
+  const careless = [
+    [{}, 'reader', /nothing for bank/],
+    [{ bank: 'bank', mint: 'bank' }, 'reader', /no slot mint/],
+    [{ bank: 'bank' }, '', /a name to save it as/],
+  ];
+  for (const [bindings, saveAs, refusal] of careless)
+    await assert.rejects(host.endow(1, bindings, saveAs), refusal);
+  assert.equal(ran.length, 0, 'no vat of a careless endowment');
+
+  await host.endow(1, { bank: 'bank' }, 'reader');
+  assert.deepEqual(ran, [{ modules, params: { bank } }]);
+  assert.ok(host.names().nameHub.has('reader'));
+  assert.deepEqual(guest.names().nameHub.keys(), ['host']);
+  assert.equal(kit.agentOf(bank), undefined);
 });

@@ -11,7 +11,7 @@ import { prepareRegistry } from './registry.exo.js';
 
 /**
  * @import { BuildRootObject, HttpRequest, HttpResponse, MapStore, Remote, SwissNum } from '../../../src/types.js';
- * @import { Agent, Host, Invitation } from './agents.exo.js';
+ * @import { Agent, Definer, Definition, Guest, Host, Invitation } from './agents.exo.js';
  * @import { Registry } from './registry.exo.js';
  * @import { NameHubKit } from './name-hub.js';
  */
@@ -24,6 +24,57 @@ const { entries, fromEntries, keys } = Object;
  * @property {Remote<{ swiss(): SwissNum }>} entropy for swiss numbers
  * @property {Record<string, Remote>} starters what every new host names
  */
+
+/**
+ * What the boot vat equips the gateway with at each start: the definer,
+ * and what the owner's host starts with, beyond the starters.
+ *
+ * @typedef {{ definer: Remote<Definer>, ownerStarters: Record<string, Remote> }} Equipment
+ */
+
+/**
+ * `value`, a JSON object from the page, as a record.
+ *
+ * @param {unknown} value
+ * @param {string} what it is, for the error
+ * @returns {Record<string, unknown>}
+ */
+const recordOf = (value, what) => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw Error(`${what} is a record`);
+  return fromEntries(entries(value));
+};
+
+/**
+ * `value`, a JSON object of strings from the page, as a record of them.
+ *
+ * @param {unknown} value
+ * @param {string} what it is, for the error
+ * @returns {Record<string, string>}
+ */
+const stringsOf = (value, what) =>
+  fromEntries(
+    entries(recordOf(value, what)).map(([key, v]) => {
+      if (typeof v !== 'string') throw Error(`${what}.${key} is a string`);
+      return [key, v];
+    }),
+  );
+
+/**
+ * `value`, the page's slots for a definition, each with its label.
+ *
+ * @param {unknown} value
+ * @returns {Definition['slots']}
+ */
+const slotsOf = value =>
+  fromEntries(
+    entries(recordOf(value, 'slots')).map(([name, slot]) => {
+      const { label } = recordOf(slot, `slots.${name}`);
+      if (typeof label !== 'string')
+        throw Error(`slots.${name}.label is a string`);
+      return [name, { label }];
+    }),
+  );
 
 /** @param {unknown} ref */
 const ifaceOf = ref =>
@@ -62,14 +113,25 @@ export const buildRootObject = (
 ) => {
   /** @type {MapStore<'owner', Host>} the first client's host */
   const gateway = zone.mapStore('gateway');
+  /** @type {MapStore<'equipment', Equipment>} as the boot vat last equipped the gateway */
+  const equipped = zone.mapStore('equipped');
+
+  /** The definer, which runs an endowed definition in a vat of its own. */
+  const definer = () => {
+    if (!equipped.has('equipment'))
+      throw Error('this gateway has no definer, so it runs no definitions');
+    return equipped.get('equipment').definer;
+  };
 
   const agentsKit = prepareAgentsKit(zone.subZone('agents'), {
+    E,
     Far,
     M,
     starters,
+    definer,
   });
 
-  /** @type {() => Registry<Host | Invitation>} */
+  /** @type {() => Registry<Host | Guest | Invitation>} */
   const makeRegistry = prepareRegistry(zone.subZone('registry'), {
     E,
     M,
@@ -93,7 +155,10 @@ export const buildRootObject = (
    * @param {Agent['kit']} [kit]
    */
   const accept = async (invite, kit) => {
-    const made = await agentsKit.accept(links.deref(invite), kit);
+    const made = await agentsKit.accept(
+      links.deref(invite),
+      kit && 'host' in kit ? kit : undefined,
+    );
     return {
       host: made.host && (await links.register(made.host)),
       inviter: made.inviter,
@@ -151,6 +216,16 @@ export const buildRootObject = (
   };
 
   /**
+   * `agent` as a host, for what only a host does.
+   *
+   * @param {Agent} agent @param {string} what
+   */
+  const hostOf = (agent, what) => {
+    if (agent.kind !== 'host') throw Error(`only a host ${what}`);
+    return agent.kit.host;
+  };
+
+  /**
    * What the page asks of its agent, by `op`. The request is JSON the page
    * posted, so every field is `unknown` here; each use checks or coerces
    * it, and nothing untyped runs further than this switch.
@@ -159,7 +234,7 @@ export const buildRootObject = (
    * @param {Record<string, unknown>} req
    */
   const operate = async (agent, req) => {
-    const own = agent.kit.host;
+    const own = agent.kind === 'host' ? agent.kit.host : agent.kit.guest;
     const names = own.names();
     switch (String(req.op)) {
       case 'view':
@@ -205,9 +280,33 @@ export const buildRootObject = (
         names.nameAdmin.delete(name);
         return {};
       }
+      case 'define':
+        if (agent.kind !== 'guest') throw Error('only a guest defines');
+        agent.kit.guest.define(
+          harden(stringsOf(req.modules, 'modules')),
+          harden(slotsOf(req.slots)),
+        );
+        return {};
+      case 'endow': {
+        const saveAs = String(req.saveAs ?? '');
+        await hostOf(agent, 'endows').endow(
+          Number(req.number),
+          stringsOf(req.bindings, 'bindings'),
+          saveAs,
+        );
+        return { answer: { '@name': saveAs } };
+      }
       case 'invite':
         return {
-          invite: await links.register(own.invite(String(req.peer))),
+          invite: await links.register(
+            hostOf(agent, 'invites').invite(String(req.peer)),
+          ),
+        };
+      case 'provideGuest':
+        return {
+          guest: await links.register(
+            await hostOf(agent, 'makes guests').provideGuest(String(req.name)),
+          ),
         };
       default:
         throw Error(`no such op: ${req.op}`);
@@ -222,7 +321,11 @@ export const buildRootObject = (
       );
     const agent = req.agent === undefined ? undefined : agentAt(req.agent);
     if (req.agent !== undefined && !agent) throw Error('no such agent');
-    if (String(req.op) === 'accept') return accept(req.invite, agent?.kit);
+    if (String(req.op) === 'accept') {
+      if (agent && agent.kind !== 'host')
+        throw Error('only a host accepts invitations');
+      return accept(req.invite, agent?.kit);
+    }
     if (!agent) throw Error('no agent');
     return operate(agent, req);
   };
@@ -258,12 +361,21 @@ export const buildRootObject = (
     return handler;
   });
 
+  /**
+   * What the owner's host starts with beyond the starters, as the boot vat
+   * last equipped the gateway.
+   *
+   * @returns {Record<string, Remote>}
+   */
+  const ownerStarters = () =>
+    equipped.has('equipment') ? equipped.get('equipment').ownerStarters : {};
+
   /** The agents, by the swiss numbers in their links. */
   const agentsFacet = zone.exo('Agents', undefined, {
     /**
      * The agent a swiss number keeps, as the page reaches it with that
-     * link: its NameHub, its NameAdmin, and its own facet, `host`; it
-     * throws for a swiss number that keeps none. OCapN's
+     * link: its NameHub, its NameAdmin, and its own facet, as `host` or
+     * `guest`; it throws for a swiss number that keeps none. OCapN's
      * bootstrap object calls this `fetch`.
      *
      * @see https://github.com/ocapn/ocapn/blob/main/draft-specifications/CapTP%20Specification.md#fetch-method
@@ -272,7 +384,9 @@ export const buildRootObject = (
     deref(swiss) {
       const agent = agentAt(swiss);
       if (!agent) throw Error('no such agent');
-      return harden({ ...agent.kit.host.names(), host: agent.kit.host });
+      return agent.kind === 'host'
+        ? harden({ ...agent.kit.host.names(), host: agent.kit.host })
+        : harden({ ...agent.kit.guest.names(), guest: agent.kit.guest });
     },
   });
 
@@ -297,10 +411,25 @@ export const buildRootObject = (
     /** The first client's host, as a link fragment: whoever holds it is that client. */
     async provideOwnerLink() {
       if (!gateway.has('owner'))
-        gateway.init('owner', agentsKit.newHost('owner').host);
+        gateway.init('owner', agentsKit.newHost('owner', ownerStarters()).host);
       return `#agent=${await links.register(gateway.get('owner'))}`;
     },
     agents: () => agentsFacet,
     invites: () => invitesFacet,
+    /**
+     * At each start, from the boot vat: the definer, and what the owner's
+     * host starts with. An owner's host made before the gateway was first
+     * equipped gets the names it lacks then, and only then, so a name its
+     * owner forgets stays forgotten.
+     *
+     * @param {Equipment} equipment
+     */
+    equip(equipment) {
+      const first = !equipped.has('equipment');
+      if (first) equipped.init('equipment', equipment);
+      else equipped.set('equipment', equipment);
+      if (!first || !gateway.has('owner')) return;
+      agentsKit.addNames(gateway.get('owner'), equipment.ownerStarters);
+    },
   });
 };
