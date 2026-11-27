@@ -113,14 +113,22 @@ test("a host's guest knows only its host, proposes a definition, and gets nothin
   const guest = await host.provideGuest('hal');
   assert.equal(await host.provideGuest('hal'), guest, 'the same one');
   await assert.rejects(host.provideGuest('bank'), /"bank" names no guest/);
+  await assert.rejects(host.provideGuest(''), /a name, please/);
   assert.equal(kit.agentOf(guest)?.kind, 'guest');
   assert.deepEqual(guest.names().nameHub.keys(), ['host']);
 
   const modules = { 'main.js': 'export const buildRootObject = () => ({});' };
-  assert.throws(
-    () => guest.define(modules, { '1st': { label: 'x' } }),
-    /not a slot name: "1st"/,
-  );
+  /** @type {[Record<string, string>, Record<string, { label: string }>, RegExp][]} a proposal, and its refusal */
+  const malformed = [
+    [modules, { '1st': { label: 'x' } }, /not a slot name: "1st"/],
+    [modules, JSON.parse('{"__proto__": {"label": "x"}}'), /not a slot name/],
+    [{ 'lib.js': '' }, {}, /no main\.js/],
+    [{ ...modules, '../vat.js': '' }, {}, /not a module path: "..\/vat.js"/],
+    [{ ...modules, 'worker.json': '{}' }, {}, /worker\.json is the host's/],
+  ];
+  for (const [mods, slots, refusal] of malformed)
+    assert.throws(() => guest.define(mods, slots), refusal);
+  assert.deepEqual(host.listMessages(), [], 'no proposal of a malformed one');
   guest.define(modules, { bank: { label: 'the bank, as you' } });
   const [proposal] = host.listMessages();
   assert.deepEqual(proposal, {

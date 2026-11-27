@@ -50,6 +50,26 @@ const { entries, fromEntries, getPrototypeOf, hasOwn, keys } = Object;
 /** A slot's name, as a module destructures its params. */
 const SLOT = /^[A-Za-z_$][\w$]*$/;
 
+/** A segment of a module's path, as the installer takes one: no `..`, no dotfile. */
+const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/**
+ * Refuse `modules`, proposed as a definition, unless the installer would
+ * take them as a vat whose main module is `main.js`. A `worker.json`,
+ * which would set the vat's compatibility date and flags, is the host's
+ * to choose, not the guest's.
+ *
+ * @param {Definition['modules']} modules
+ */
+const checkModules = modules => {
+  for (const path of keys(modules))
+    if (!path.split('/').every(segment => SEGMENT.test(segment)))
+      throw Error(`define: not a module path: ${JSON.stringify(path)}`);
+  if (hasOwn(modules, 'worker.json'))
+    throw Error("define: a worker.json is the host's to choose");
+  if (!hasOwn(modules, 'main.js')) throw Error('define: no main.js');
+};
+
 /**
  * The definer, as the boot vat makes it: `run(modules, params)` makes a
  * vat of `modules` with `params`, and answers its root, whose type only
@@ -409,6 +429,8 @@ export const prepareAgentsKit = (zone, { E, Far, M, starters, definer }) => {
         async provideGuest(name) {
           const { names } = this.state;
           const { handle } = this.facets;
+          // before the guest is made, so a refusal leaves none behind
+          if (!name) throw Error('provideGuest: a name, please');
           if (names.nameHub.has(name)) {
             const known = await names.nameHub.lookup(name);
             const agent =
@@ -513,8 +535,9 @@ export const prepareAgentsKit = (zone, { E, Far, M, starters, definer }) => {
          */
         define(modules, slots) {
           for (const name of keys(slots))
-            if (!SLOT.test(name))
+            if (!SLOT.test(name) || name === '__proto__')
               throw Error(`define: not a slot name: ${JSON.stringify(name)}`);
+          checkModules(modules);
           receiverOf(this.state.host, 'host').receive(
             harden({
               from: this.facets.handle,
