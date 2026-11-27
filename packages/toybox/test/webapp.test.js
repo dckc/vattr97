@@ -7,6 +7,8 @@ import { makeFetchDevice } from '../src/devices/fetch.js';
 import { M } from '@endo/patterns';
 import { buildRootObject as buildWebApp } from '../examples/webapp.js';
 import { makeMemoryVatstore as makeKv } from './memory-vatstore.js';
+import { hashes } from '../src/hashes.js';
+import { assert as endoAssert, Fail, q } from '@endo/errors';
 
 /** @import { MapStore, Remote, SqlDatabase } from '../src/types.js' */
 /** @import { Vatstore } from '../src/vat/types.js' */
@@ -57,7 +59,16 @@ const incarnate = kv => {
   const endowment = () => {
     throw Error('no endowments here');
   };
-  const powers = harden({ E, Far, M, zone, db: noDb, endowment });
+  const powers = harden({
+    E,
+    Far,
+    M,
+    zone,
+    hashes,
+    stdlib: harden({ assert: endoAssert, Fail, q, E, Far, M, hashes }),
+    db: noDb,
+    endowment,
+  });
   /** @type {Remote} the maker's methods, as the vat defines them */
   const maker = buildWebApp(powers, { egress });
   /** @param {string} label @returns {MapStore<string, string>} */
@@ -217,7 +228,16 @@ test('postForm sends multipart/form-data: its fields, and each form map as of th
   const endowment = () => {
     throw Error('no endowments here');
   };
-  const powers = harden({ E, Far, M, zone, db: noDb, endowment });
+  const powers = harden({
+    E,
+    Far,
+    M,
+    zone,
+    hashes,
+    stdlib: harden({ assert: endoAssert, Fail, q, E, Far, M, hashes }),
+    db: noDb,
+    endowment,
+  });
   /** @type {Remote} */
   const maker = buildWebApp(powers, { egress: makeFetchDevice(formSite) });
   /** @type {MapStore<string, string>} */
@@ -248,7 +268,16 @@ test('postForm refuses contradictions and malformed fields, naming keys only', a
   const endowment = () => {
     throw Error('no endowments here');
   };
-  const powers = harden({ E, Far, M, zone, db: noDb, endowment });
+  const powers = harden({
+    E,
+    Far,
+    M,
+    zone,
+    hashes,
+    stdlib: harden({ assert: endoAssert, Fail, q, E, Far, M, hashes }),
+    db: noDb,
+    endowment,
+  });
   /** @type {Remote} */
   const maker = buildWebApp(powers, { egress: makeFetchDevice(formSite) });
   /** @type {MapStore<string, string>} */

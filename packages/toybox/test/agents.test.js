@@ -155,3 +155,20 @@ test("a host's guest knows only its host, proposes a definition, and gets nothin
   assert.deepEqual(guest.names().nameHub.keys(), ['host']);
   assert.equal(kit.agentOf(bank), undefined);
 });
+
+test('a name offered as undefined is mended once its starter is supplied; one the host forgot stays forgotten', async () => {
+  const zone = makeZone();
+  const kit = makeAgentsKit(zone);
+  const { host } = kit.newHost('owner');
+  const crypto = zone.exo('Crypto', undefined, {});
+  const timer = zone.exo('Timer', undefined, {});
+  // as a boot vat newer than its kernel's devices offers them
+  kit.addNames(host, {
+    crypto: /** @type {any} not yet supplied */ (undefined),
+    timer,
+  });
+  host.names().nameAdmin.delete('timer');
+  kit.mendNames(host, { crypto, timer });
+  assert.equal(await host.names().nameHub.lookup('crypto'), crypto);
+  assert.equal(host.names().nameHub.has('timer'), false);
+});

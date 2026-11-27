@@ -28,6 +28,6 @@
     { "binding": "LAN", "service": "toybox", "entrypoint": "Nowhere" },
     { "binding": "NIX_STORE", "service": "toybox", "entrypoint": "Nowhere" },
     { "binding": "GIT_CHECKOUT", "service": "toybox", "entrypoint": "Nowhere" },
-    { "binding": "SOURCE", "service": "toybox", "entrypoint": "Nowhere" },
+    { "binding": "SOURCE", "service": "toybox", "entrypoint": "Source" },
   ],
 }

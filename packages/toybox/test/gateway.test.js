@@ -1,8 +1,10 @@
 /** @file The wallet's gateway, in one process: what the boot vat equips it with, at each start, and what the owner's host names of it. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { assert as endoAssert, Fail, q } from '@endo/errors';
 import { E, Far } from '@endo/far';
 import { M } from '@endo/patterns';
+import { hashes } from '../src/hashes.js';
 import { makeLiveslots } from '../src/vat/liveslots.js';
 import { buildRootObject } from '../examples/wallet/gateway/gateway.js';
 import { isSwissNum } from '../examples/wallet/gateway/registry.exo.js';
@@ -49,11 +51,23 @@ test("an owner's host made before the gateway was equipped gets the owner's star
   const endowment = () => {
     throw Error('no endowments here');
   };
-  const gateway = buildRootObject(harden({ E, Far, M, zone, db, endowment }), {
-    ingress,
-    entropy,
-    starters: { counters },
-  });
+  const gateway = buildRootObject(
+    harden({
+      E,
+      Far,
+      M,
+      zone,
+      hashes,
+      stdlib: harden({ assert: endoAssert, Fail, q, E, Far, M, hashes }),
+      db,
+      endowment,
+    }),
+    {
+      ingress,
+      entropy,
+      starters: { counters },
+    },
+  );
   const ownerNames = async () => {
     const link = await gateway.provideOwnerLink();
     const { nameHub } = gateway.agents().deref(swissOf(link));

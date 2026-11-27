@@ -7,6 +7,7 @@
  */
 import { isRef, prepareAgentsKit, save } from './agents.exo.js';
 import { PAGE, SCRIPT } from './page.js';
+import { BLOCKS_PAGE, BLOCKS_SCRIPT } from './blocks.js';
 import {
   LOADER,
   LOADER_SCRIPT,
@@ -431,6 +432,18 @@ export const buildRootObject = (
           },
           body: PAGE,
         };
+      if (method === 'GET' && path === '/blocks')
+        return {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+          body: BLOCKS_PAGE,
+        };
+      if (method === 'GET' && path === '/blocks.js')
+        return {
+          status: 200,
+          headers: { 'content-type': 'text/javascript; charset=utf-8' },
+          body: BLOCKS_SCRIPT,
+        };
       if (method === 'GET' && path === '/wallet.js')
         return {
           status: 200,
@@ -531,17 +544,22 @@ export const buildRootObject = (
         : before
           ? keys(before.ownerStarters)
           : [];
-      const fresh = keys(equipment.ownerStarters).filter(
-        name => !offered.includes(name),
+      // a starter the boot vat couldn't supply, as when its device is newer than the kernel, isn't offered
+      const supplied = keys(equipment.ownerStarters).filter(
+        name => equipment.ownerStarters[name] !== undefined,
       );
+      const fresh = supplied.filter(name => !offered.includes(name));
       if (offeredStore.has('names'))
         offeredStore.set('names', harden([...offered, ...fresh]));
       else offeredStore.init('names', harden([...offered, ...fresh]));
-      if (!gateway.has('owner') || !fresh.length) return;
-      agentsKit.addNames(
-        gateway.get('owner'),
-        fromEntries(fresh.map(name => [name, equipment.ownerStarters[name]])),
-      );
+      if (!gateway.has('owner')) return;
+      const owner = gateway.get('owner');
+      /** @param {string[]} names */
+      const starters = names =>
+        fromEntries(names.map(name => [name, equipment.ownerStarters[name]]));
+      if (fresh.length) agentsKit.addNames(owner, starters(fresh));
+      // and one offered as nothing, before it could be supplied, is offered again
+      agentsKit.mendNames(owner, starters(supplied));
     },
   });
 };

@@ -4,6 +4,8 @@
  * read once and taken out of the address bar.
  */
 
+import { HLJS_TAG, REVIEW_CSS, REVIEW_SCRIPT } from './review.js';
+
 export const PAGE = `<!doctype html>
 <html lang="en">
 <head>
@@ -11,7 +13,7 @@ export const PAGE = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>toybox wallet</title>
 <style>
-  body { font: 15px/1.4 system-ui, sans-serif; margin: 1em auto; max-width: 52em; padding: 0 1em; }
+  body { font: 15px/1.4 system-ui, sans-serif; margin: 1em auto; max-width: 80em; padding: 0 1em; }
   h1 { font-size: 1.3em; } h2 { font-size: 1.1em; margin-top: 1.5em; }
   table { border-collapse: collapse; width: 100%; }
   td, th { border-bottom: 1px solid #ddd; padding: .3em; text-align: left; vertical-align: top; }
@@ -19,10 +21,13 @@ export const PAGE = `<!doctype html>
   textarea { width: 100%; font-family: monospace; }
   pre { background: #f4f4f4; padding: .5em; white-space: pre-wrap; }
   .err { color: #a00; }
+  table.messages td:nth-child(3) { width: 70%; max-width: 0; }
+${REVIEW_CSS}
 </style>
 </head>
 <body>
 <h1>toybox wallet <small id="label"></small></h1>
+<p><a href="/blocks">blocks</a></p>
 <p id="status">loading…</p>
 <section id="agent" hidden>
 <h2>Names</h2>
@@ -32,7 +37,7 @@ export const PAGE = `<!doctype html>
 <pre id="answer"></pre>
 <p id="saveOut" hidden><button id="save">save answer as a file</button> <span id="saveName"></span></p>
 <h2>Messages</h2>
-<table><thead><tr><th>#</th><th>from</th><th>message</th><th></th></tr></thead><tbody id="messages"></tbody></table>
+<table class="messages"><thead><tr><th>#</th><th>from</th><th>message</th><th></th></tr></thead><tbody id="messages"></tbody></table>
 <h2>Send</h2>
 <p>A message to a correspondent: text, and the things you name, which they see by the same names.</p>
 <form id="send">to <input name="to" size="8"> text <input name="text" size="16"> names <input name="names" placeholder="a, b"> <button>send</button></form>
@@ -56,12 +61,14 @@ export const PAGE = `<!doctype html>
 <p id="linkOut" hidden><input type="password" id="secret" readonly size="40" aria-label="the link, hidden"> <button id="copy">copy</button></p>
 <p id="link"></p>
 </section>
+${HLJS_TAG}
 <script src="/wallet.js"></script>
 </body>
 </html>
 `;
 
 export const SCRIPT = `'use strict';
+${REVIEW_SCRIPT}
 const $ = id => document.getElementById(id);
 const el = (tag, props, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
@@ -208,7 +215,7 @@ const definitionRow = ({ number, from, modules, slots }) => {
   const slotList = el('ul', {}, ...Object.entries(slots).map(([name, { label }]) => el('li', {}, el('code', { textContent: name }), ': ' + label)));
   return el('tr', {}, el('td', { textContent: String(number) }), el('td', { textContent: from ?? '?' }),
     el('td', {}, 'a definition', slotList, ...Object.entries(modules).map(([path, source]) =>
-      el('details', { open: true }, el('summary', { textContent: path }), el('pre', { textContent: source })))),
+      sourceView(path, source))),
     el('td', {}, bindings, ' ', as, ' ', endow, ' ', dismissButton(number)));
 };
 

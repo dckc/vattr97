@@ -7,6 +7,11 @@
  * @see ../CONTRIBUTING.md#conventions for how toybox's JavaScript is typed and checked
  */
 import type { E as EType, Far as FarType } from '@endo/far';
+import type {
+  assert as assertType,
+  Fail as FailType,
+  q as qType,
+} from '@endo/errors';
 import type { DataOnly, RemotableBrand } from '@endo/eventual-send';
 import type { InterfaceGuard, M as MType } from '@endo/patterns';
 
@@ -207,6 +212,34 @@ export type BuildRootObject<P = unknown> = (
   params: P,
 ) => object;
 
+/** What's pure among a module's powers. */
+export type Stdlib = {
+  /**
+   * Assertions: `assert(cond, msg)`, `assert.fail(msg)`, and others, whose
+   * messages redact what's not quoted with `q`.
+   *
+   * @see https://github.com/endojs/endo/tree/master/packages/errors
+   */
+  assert: typeof assertType;
+  /**
+   * ``Fail`msg ${q(x)}` `` throws, as `|| Fail` follows a check: a
+   * substitution is redacted from the message unless quoted with `q`.
+   */
+  Fail: typeof FailType;
+  q: typeof qType;
+  E: typeof EType;
+  Far: typeof FarType;
+  M: typeof MType;
+  hashes: Hashes;
+};
+
+/** Hashes of bytes, each given and answered in hex. */
+export type Hashes = {
+  sha256: (hex: string) => string;
+  blake2b256: (hex: string) => string;
+  keccak256: (hex: string) => string;
+};
+
 /**
  * What `buildRootObject` gets, beside its params. A module has no other
  * way to reach the world: no clock, no randomness, no network, but what
@@ -236,6 +269,14 @@ export type Powers = {
    */
   M: typeof MType;
   zone: Zone;
+  /** Hashes, of hex, in hex: pure, so every module has them. */
+  hashes: Hashes;
+  /**
+   * What's pure, in one place: `assert`, `Fail`, `q`, `E`, `Far`, `M`, and `hashes`, which grant
+   * nothing beyond what a module already holds. The same as the powers of
+   * those names, which remain for modules written before it.
+   */
+  stdlib: Stdlib;
   /** the module's own SQLite, for what suits tables better than objects */
   db: SqlDatabase;
   /**

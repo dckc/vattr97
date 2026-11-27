@@ -1,10 +1,12 @@
 /** @file The kernel's I/O devices: which there are, and which of workerd's bindings each reaches. */
+import { TABLES as CRYPTO_TABLES, makeCryptoDevices } from './crypto.js';
 import { makeEntropy } from './entropy.js';
 import { makeFetchDevices } from './fetch.js';
 import { TABLES as GIT_TABLES, makeGitTrees } from './git/trees.js';
 import { makeInstallers } from './installer.js';
 import { TABLES as JWT_TABLES, makeJwtSigners } from './jwt.js';
 import { makeNixStores } from './nix/store.js';
+import { TABLES as RHOLO_TABLES, makeRholoSigners } from './rholo.js';
 import { makeSourceTrees } from './source.js';
 import { TABLES as TIMER_TABLES, makeTimers } from './timer.js';
 
@@ -12,7 +14,7 @@ import { TABLES as TIMER_TABLES, makeTimers } from './timer.js';
 
 /**
  * toybox's own I/O devices: networks (`fetch`, `lan`), the nix store, git
- * trees, the source directory, entropy, timers, JWT signers, and the installer, for
+ * trees, the source directory, entropy, timers, hashes and signers, JWT signers, rholo deploy signers, and the installer, for
  * module source a vat has in hand.
  *
  * @type {MakeDevices}
@@ -22,6 +24,7 @@ export const makeDevices = (
   { env, bundles, random, now, subtle, send, rearm, log, withTables },
 ) =>
   harden({
+    crypto: makeCryptoDevices(withTables(CRYPTO_TABLES), { subtle, send }),
     entropy: makeEntropy(powers, { random }),
     fetch: makeFetchDevices(powers, {
       tag: 'FetchDevice',
@@ -38,6 +41,7 @@ export const makeDevices = (
       subtle,
       send,
     }),
+    rholoSigners: makeRholoSigners(withTables(RHOLO_TABLES), { send }),
     lan: makeFetchDevices(powers, {
       tag: 'LanDevice',
       prefix: 'lan',

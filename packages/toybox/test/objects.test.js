@@ -40,3 +40,20 @@ test("a kernel object's key may be empty or hold a colon; __proto__ is no method
     /a Greeter has no/,
   );
 });
+
+test('a kernel object answers __getMethodNames__, as any exo does', () => {
+  const greeters = kzone.exoClass(
+    'Greeter',
+    M.interface('Greeter', { hi: M.call().returns(M.string()) }),
+    {
+      hi() {
+        return `hi from ${this.state.rest}`;
+      },
+    },
+  );
+  assert.deepEqual(greeters.deliver('1', '__getMethodNames__', []), [
+    '__getInterfaceGuard__',
+    '__getMethodNames__',
+    'hi',
+  ]);
+});

@@ -640,6 +640,29 @@ export const makeKernelClass = ({ makeDevices }) =>
     }
 
     /**
+     * What the boot vat's `provideOwnerLink()` answers, once it is up: a
+     * link fragment that makes its holder the first client, for a host with
+     * no admin socket to ask through.
+     *
+     * @returns {Promise<string>}
+     */
+    async provideOwnerLink() {
+      await this.boot();
+      const vat = this.#db.query('kboot')[0]?.vat;
+      if (!vat) throw Error('no boot vat');
+      const link = this.#krefs.fromCapData(
+        await this.#deliver(
+          this.#clist(vat).toKernel('o+0'),
+          'provideOwnerLink',
+          this.#krefs.toCapData(harden([])),
+        ),
+      );
+      if (typeof link !== 'string')
+        throw Error('the boot vat answered no owner link');
+      return link;
+    }
+
+    /**
      * A WebSocket here starts a Cap'n Web session whose main object is a
      * {@link KernelSession}.
      *
