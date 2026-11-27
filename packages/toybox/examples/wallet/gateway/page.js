@@ -144,7 +144,7 @@ const dismissButton = number => {
   return dismiss;
 };
 
-// a proposed module: its slots and source to read, and what to fill each slot with
+// a proposed module: its slots and source to read, open, since endowing runs it at once, and what to fill each slot with
 const definitionRow = ({ number, from, modules, slots }) => {
   const bindings = el('input', { className: 'args', placeholder: JSON.stringify(Object.fromEntries(Object.keys(slots).map(k => [k, 'a name']))) });
   const as = el('input', { size: 8, placeholder: 'save as' });
@@ -157,7 +157,7 @@ const definitionRow = ({ number, from, modules, slots }) => {
   const slotList = el('ul', {}, ...Object.entries(slots).map(([name, { label }]) => el('li', {}, el('code', { textContent: name }), ': ' + label)));
   return el('tr', {}, el('td', { textContent: String(number) }), el('td', { textContent: from ?? '?' }),
     el('td', {}, 'a definition', slotList, ...Object.entries(modules).map(([path, source]) =>
-      el('details', {}, el('summary', { textContent: path }), el('pre', { textContent: source })))),
+      el('details', { open: true }, el('summary', { textContent: path }), el('pre', { textContent: source })))),
     el('td', {}, bindings, ' ', as, ' ', endow, ' ', dismissButton(number)));
 };
 
