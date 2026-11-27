@@ -5,6 +5,8 @@ import { kzone } from './objects.js';
 
 /** @import { BundleCode, Kref, Manifest, TablePowers } from './types.js' */
 
+const { hasOwn } = Object;
+
 export const TABLES = {
   // manifest: JSON { mainModule, compatibilityDate, compatibilityFlags }
   kbundlemanifest:
@@ -52,7 +54,8 @@ export const decode = buf =>
  * @param {ArrayBuffer | Uint8Array} content
  */
 export const loaderModule = (name, content) => {
-  const type = MODULE_TYPES[name.slice(name.lastIndexOf('.') + 1)] ?? 'data';
+  const ext = name.slice(name.lastIndexOf('.') + 1);
+  const type = hasOwn(MODULE_TYPES, ext) ? MODULE_TYPES[ext] : 'data';
   if (type === 'data' || type === 'wasm') return { [type]: content };
   if (type === 'json') {
     try {
